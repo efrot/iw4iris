@@ -95,6 +95,7 @@ namespace IW4Iris
     bool editorVisible = false;
     bool flying = false;          // free camera controlled by the mouse
     iris::FreeCameraController freeCamera;
+    bool freeCameraPlaced = false;  // the free camera starts where the view is
     std::string selectedCamera;   // camera shown in the inspector
     std::set<std::size_t> selectedKeys;  // keys of the selected camera's path
     std::string selectedTrack;    // property track for the graph editor

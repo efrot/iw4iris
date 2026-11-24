@@ -168,7 +168,10 @@ namespace IW4Iris::Runtime
           // Start from wherever the camera is now, and keep the free camera
           // as the shot when flying away from the game's own view.
           if (const auto cam = LastAppliedCamera())
+          {
             s.freeCamera.SetState(*cam);
+            s.freeCameraPlaced = true;
+          }
           const auto* active = s.project.ActiveCamera();
           if (!active || active->mode == iris::CameraMode::FirstPerson || active->mode == iris::CameraMode::ThirdPerson)
             for (const auto& c : s.project.cameras)
@@ -763,6 +766,12 @@ namespace IW4Iris::Hooks
     const bool flying = !captureTime && Runtime::IsFlying();
 
     std::optional<iris::CameraState> camera;
+    if (!s.freeCameraPlaced)
+    {
+      // A free camera chosen before it was ever flown starts at the view.
+      s.freeCamera.SetState(gameView);
+      s.freeCameraPlaced = true;
+    }
     if (flying || (def && def->mode == iris::CameraMode::Free))
       camera = s.freeCamera.State();
     else if (def && def->mode != iris::CameraMode::FirstPerson && def->mode != iris::CameraMode::ThirdPerson)

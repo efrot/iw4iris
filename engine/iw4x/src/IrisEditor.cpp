@@ -2057,6 +2057,11 @@ namespace IW4Iris::Editor
       ImGui::PushFont(boldFont, 0.0f);
       ImGui::TextColored(CurrentPalette().accent, "Welcome to IW4Iris");
       ImGui::PopFont();
+      // Read-only lookup: drawing the guide must not create cameras.
+      const iris::CameraDef* dolly = nullptr;
+      for (const auto& c : s.project.cameras)
+        if (c.mode == iris::CameraMode::Dolly && (!dolly || c.id == s.selectedCamera))
+          dolly = &c;
       const struct
       {
         bool done;
@@ -2064,8 +2069,8 @@ namespace IW4Iris::Editor
       } steps[] = {
         {s.status.demoPlaying || s.status.cgameReady, "Load a demo: View > Demos, double-click one."},
         {s.status.gameView.has_value(), "Fly: hold the right mouse button in the view, move with WASD."},
-        {s.EditTargetDolly().path.Size() >= 3, "Add three or more keys with K at different times (Space plays)."},
-        {s.project.activeCameraId == s.EditTargetDolly().id, "Make the dolly the active camera to preview the path."},
+        {dolly && dolly->path.Size() >= 3, "Add three or more keys with K at different times (Space plays)."},
+        {dolly && s.project.activeCameraId == dolly->id, "Make the dolly the active camera to preview the path."},
         {!s.projectFile.empty(), "Save the project (Ctrl+S)."},
         {Capture::GetProgress().state == Capture::State::Done, "Record it in the Recording panel."},
       };

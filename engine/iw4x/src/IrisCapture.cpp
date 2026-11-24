@@ -278,6 +278,10 @@ namespace IW4Iris::Capture
     std::atomic<std::int64_t> unaligned{0};
     std::atomic<std::int64_t> tagHits{0};
 
+    // Held by the render thread for a whole BackendFrame, and by Finish()
+    // before it tears the queue and encoder down.
+    std::mutex backendMutex;
+
     // Render-thread surfaces
     IDirect3DSurface9* resolveSurface = nullptr;
     IDirect3DSurface9* systemSurface = nullptr;
@@ -337,6 +341,12 @@ namespace IW4Iris::Capture
 
     void Finish(State final, std::string message)
     {
+      // Stop the render thread from taking more frames, and wait for a frame
+      // it may be reading or queueing right now.
+      state = State::Finishing;
+      {
+        std::lock_guard wait(backendMutex);
+      }
       RestoreGame();
       StopWorkers();
       std::string error;
@@ -504,7 +514,7 @@ namespace IW4Iris::Capture
     {
       const auto exe = FindFfmpeg(ffmpeg);
       auto ff = std::make_unique<FfmpegEncoder>();
-      const auto out = iris::BuildOutputPath(s, iris::SanitizeFileName(outputDirectory.string()) == "" ? std::string(".") : outputDirectory.string(), baseName);
+      const auto out = iris::BuildOutputPath(s, outputDirectory.string(), baseName);
       const auto args = iris::BuildFfmpegArguments(s, Engine::RenderWidth(), Engine::RenderHeight(), out, range.first);
       if (!exe || !ff->Open(*exe, args, outputDirectory / (baseName + ".ffmpeg.log"), error))
       {
@@ -742,6 +752,7 @@ namespace IW4Iris::Capture
 
   void BackendFrame(IDirect3DDevice9* device)
   {
+    std::lock_guard backend(backendMutex);
     const auto s = state.load();
     if (s != State::Warmup && s != State::Recording)
       return;
@@ -834,7 +845,10 @@ namespace IW4Iris::Capture
 
   void OnDeviceLost()
   {
-    ReleaseSurfaces();
+    {
+      std::lock_guard backend(backendMutex);
+      ReleaseSurfaces();
+    }
     if (IsActive())
     {
       std::lock_guard _(mutex);
