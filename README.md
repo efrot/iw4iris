@@ -99,6 +99,14 @@ nothing.
 
 ### Step 2: unzip IW4Iris
 
+> **Use the release package, not the source code.** GitHub's green
+> **Code → Download ZIP** button gives you the source code only: it has
+> no `IW4Iris Launcher.exe` and no `client\iw4x.dll`, because those are
+> built from it. The ready-to-run package is
+> `IW4Iris-v0.1.0-Windows-x86.zip` (under **Releases** on the repository
+> page, once published). With only the source code, build the package
+> yourself as described in [Building from source](#19-building-from-source).
+
 1. Download `IW4Iris-v0.1.0-Windows-x86.zip`.
 2. Right-click it, then **Extract All...** and choose a folder **outside**
    the game folder, for example `C:\Tools\IW4Iris`.
@@ -586,6 +594,10 @@ Optional FFmpeg für Videoformate.
 
 **Installation**
 
+0. **Wichtig:** Der GitHub-Knopf **Code → Download ZIP** liefert nur den
+   Quellcode, ohne `IW4Iris Launcher.exe`. Du brauchst das fertige Paket
+   `IW4Iris-v0.1.0-Windows-x86.zip` (unter **Releases**, sobald
+   veröffentlicht) oder du baust es selbst (Abschnitt 19).
 1. `IW4Iris-v0.1.0-Windows-x86.zip` entpacken, und zwar **außerhalb** des
    Spielordners (z. B. `C:\Tools\IW4Iris`). Die Dateien zusammen lassen.
 2. **IW4Iris Launcher.exe** starten (keine Administratorrechte nötig; bei
