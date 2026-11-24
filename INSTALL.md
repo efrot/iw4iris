@@ -10,11 +10,11 @@
 
 ## Install
 
-Use the release package `IW4Iris-v0.1.0-Windows-x86.zip`. GitHub's
-**Code → Download ZIP** is the source code and contains no launcher; to
-use it, build the package first (BUILD.md).
+Download GitHub's **Code → Download ZIP** (it contains the prebuilt
+launcher and client next to the source code; use the folder inside the
+ZIP) or the release package `IW4Iris-v0.1.0-Windows-x86.zip`.
 
-1. Unzip `IW4Iris-v0.1.0-Windows-x86.zip` into a folder of your choice
+1. Unzip it into a folder of your choice
    (not inside the game folder). Keep its contents together:
    `IW4Iris Launcher.exe`, `client\`, `resources\`.
 2. Run **IW4Iris Launcher.exe**. It needs no administrator rights.

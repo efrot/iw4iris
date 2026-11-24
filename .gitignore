@@ -10,6 +10,10 @@
 *.dll
 *.lib
 *.a
+# Prebuilt binaries shipped in the repository (tools/update-prebuilt.sh)
+!/IW4Iris Launcher.exe
+!/client/*.exe
+!/client/*.dll
 CMakeUserPresets.json
 .vs/
 .vscode/

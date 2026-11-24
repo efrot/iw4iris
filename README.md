@@ -99,27 +99,33 @@ nothing.
 
 ### Step 2: unzip IW4Iris
 
-> **Use the release package, not the source code.** GitHub's green
-> **Code → Download ZIP** button gives you the source code only: it has
-> no `IW4Iris Launcher.exe` and no `client\iw4x.dll`, because those are
-> built from it. The ready-to-run package is
-> `IW4Iris-v0.1.0-Windows-x86.zip` (under **Releases** on the repository
-> page, once published). With only the source code, build the package
-> yourself as described in [Building from source](#19-building-from-source).
+IW4Iris comes ready to run in two ways; both contain the launcher:
 
-1. Download `IW4Iris-v0.1.0-Windows-x86.zip`.
-2. Right-click it, then **Extract All...** and choose a folder **outside**
-   the game folder, for example `C:\Tools\IW4Iris`.
-3. Keep the files together. The folder must look like this:
+* **From GitHub:** on the repository page click the green **Code** button,
+  then **Download ZIP**. The ZIP holds one folder (named after the
+  repository and branch) with `IW4Iris Launcher.exe` at its top, next to
+  `client\` and `resources\`, plus the source code.
+* **The release package** `IW4Iris-v0.1.0-Windows-x86.zip`: only the
+  program, documentation, samples and presets.
+
+1. Download one of them.
+2. Right-click the ZIP, then **Extract All...** and choose a folder
+   **outside** the game folder, for example `C:\Tools\IW4Iris`.
+3. Open the extracted folder (for the GitHub ZIP, the folder inside it).
+   `IW4Iris Launcher.exe` is right there. Keep the files together: the
+   launcher needs `client\` and `resources\fonts\` next to it.
 
    ```
-   IW4Iris Launcher.exe
+   IW4Iris Launcher.exe     <- start this
    client\iw4x.dll          (+ sentry-crash.exe, sentry-wer.dll)
    resources\fonts\ ...
-   resources\tools\blender\iw4iris_import.py
-   docs\  samples\  presets\
-   README.md  INSTALL.md  LICENSE  ...
+   docs\  samples\  presets\  README.md  LICENSE  ...
    ```
+
+   The Blender add-on is `resources\tools\blender\iw4iris_import.py` in
+   the release package and `tools\blender\iw4iris_import.py` in the GitHub
+   ZIP. `PREBUILT-SHA256SUMS.txt` in the GitHub ZIP lists the checksums of
+   the binaries.
 
 ### Step 3: set up the cinematic environment
 
@@ -393,7 +399,8 @@ own settings and camera.
 sampled at every frame of the recording range, so it matches a recording
 of the same range frame for frame. Files go to `iw4iris\exports\`.
 
-* **Blender:** install `resources\tools\blender\iw4iris_import.py` (Edit →
+* **Blender:** install `resources\tools\blender\iw4iris_import.py`
+  (`tools\blender\` in the GitHub ZIP) (Edit →
   Preferences → Add-ons → Install), then File → Import → **IW4Iris camera
   (.iw4cam.json)**. You get a camera with position, rotation, lens, focus
   and f-stop keyed on every frame, and the scene's frame rate, resolution
@@ -594,12 +601,12 @@ Optional FFmpeg für Videoformate.
 
 **Installation**
 
-0. **Wichtig:** Der GitHub-Knopf **Code → Download ZIP** liefert nur den
-   Quellcode, ohne `IW4Iris Launcher.exe`. Du brauchst das fertige Paket
-   `IW4Iris-v0.1.0-Windows-x86.zip` (unter **Releases**, sobald
-   veröffentlicht) oder du baust es selbst (Abschnitt 19).
-1. `IW4Iris-v0.1.0-Windows-x86.zip` entpacken, und zwar **außerhalb** des
-   Spielordners (z. B. `C:\Tools\IW4Iris`). Die Dateien zusammen lassen.
+1. Auf der GitHub-Seite **Code → Download ZIP** klicken (oder das
+   Release-Paket `IW4Iris-v0.1.0-Windows-x86.zip` nehmen) und **außerhalb**
+   des Spielordners entpacken (z. B. `C:\Tools\IW4Iris`). Im entpackten
+   Ordner (beim GitHub-ZIP im Ordner darin) liegt **IW4Iris Launcher.exe**
+   direkt oben, daneben `client\` und `resources\`. Die Dateien zusammen
+   lassen.
 2. **IW4Iris Launcher.exe** starten (keine Administratorrechte nötig; bei
    SmartScreen „Weitere Informationen" → „Trotzdem ausführen").
 3. Links auf **Setup** → **Detect installations** → den MW2-Ordner

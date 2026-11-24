@@ -53,6 +53,10 @@ declares and uses it.
 | `Dedicated::IsEnabled`, `ZoneBuilder::IsEnabled` | | the component stays off on servers / ZoneBuilder | — |
 | `RawMouse::IN_Frame`, `IN_MouseMove`, `IN_RecenterMouse` | `RawMouse.cpp` (wraps every call site) | gated by the patch while the editor has the mouse | — |
 
+IW4x's Sentry crash reporting (`src/Sentry`) only starts when the build
+carries a DSN (`--sentry-dsn`). IW4Iris builds pass none, so the reporter
+is off and `sentry-crash.exe` is never started.
+
 Address-free techniques (no game addresses involved):
 
 * import-table patching of the executable's `timeGetTime`,

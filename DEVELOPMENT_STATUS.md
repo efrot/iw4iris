@@ -30,6 +30,7 @@ tools/cross/build-iw4x.sh <iw4x-checkout> release
 cmake -S . -B build/win32 -DCMAKE_TOOLCHAIN_FILE=tools/cross/mingw32.cmake -DCMAKE_BUILD_TYPE=Release
 cmake --build build/win32
 tools/package.sh <iw4x.dll> "build/win32/launcher/IW4Iris Launcher.exe"
+tools/update-prebuilt.sh      # refresh the prebuilt binaries at the repository root
 ```
 
 Pitfalls met (all handled by the scripts now):

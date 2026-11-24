@@ -108,3 +108,24 @@ COMPATIBILITY.md LICENSE THIRD-PARTY-NOTICES.md
 The package contains no game files. As `iw4x.dll` is a modified IW4x
 (GPL-3.0), its complete corresponding source is this repository at the same
 tag plus the pinned IW4x revision.
+
+## Prebuilt binaries in the repository
+
+So that GitHub's **Code → Download ZIP** is ready to run, the repository
+also carries the binaries of the release package at its root:
+`IW4Iris Launcher.exe` and `client\` (`iw4x.dll`, `sentry-crash.exe`,
+`sentry-wer.dll`), with their checksums in `PREBUILT-SHA256SUMS.txt`. They
+are built by the MinGW-w64 cross build above, Release, stripped. After
+changing the client or the launcher, rebuild and refresh them:
+
+```
+tools/cross/build-all.sh        # builds and runs tools/package.sh
+tools/update-prebuilt.sh        # copies dist/IW4Iris-v*/ binaries to the root
+```
+
+`client\` must contain only the client's files, because the launcher
+installs every file in it into the cinematic environment.
+
+The client is built without a Sentry DSN (premake's `--sentry-dsn` is not
+passed), so IW4x's crash reporting stays off: it never starts
+`sentry-crash.exe` and never sends reports.
