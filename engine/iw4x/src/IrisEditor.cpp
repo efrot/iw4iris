@@ -40,7 +40,7 @@ namespace IW4Iris::Editor
     const std::vector<WorkspaceDef>& Workspaces()
     {
       static const std::vector<WorkspaceDef> w{
-        {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Inspector, Panel::Timeline, Panel::Look}},
+        {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Inspector, Panel::Timeline, Panel::Look}},
         {"Timeline", Icons::CHART, {Panel::Outliner, Panel::Inspector, Panel::Timeline}},
         {"Cameras", Icons::CAMERA, {Panel::Outliner, Panel::Inspector, Panel::Timeline, Panel::Presets}},
         {"Actors", Icons::USER, {Panel::Outliner, Panel::Actors, Panel::Timeline}},
@@ -2018,11 +2018,11 @@ namespace IW4Iris::Editor
       }
       static const char* rows[][2] = {
         {"F1", "Show / hide the editor"}, {"Space", "Play / pause"}, {"Left / Right", "Previous / next frame (Shift: 1 s)"},
-        {"Home / End", "Go to the in / out point"}, {"B / N", "Set the in / out point"}, {"K", "Add a camera key from the view"},
+        {"Home / End", "Go to the in / out point"}, {"B / N", "Set the in / out point"}, {"K", "Add a camera key from the view (also while flying)"},
         {"U", "Update the selected key from the view"}, {"Del", "Delete the selected keys"}, {"Ctrl+C / Ctrl+V", "Copy / paste keys"},
         {"Ctrl+Z / Ctrl+Y", "Undo / redo"}, {"Ctrl+S", "Save"}, {"Ctrl+O", "Open"}, {"Ctrl+N", "New project"},
         {"M", "Add a marker"}, {"C", "Next camera"}, {"1 - 9", "Make camera 1 - 9 active"},
-        {"F", "Toggle flying the free camera"}, {"Right mouse", "Hold to fly the free camera"},
+        {"F", "Toggle flying the free camera (Esc also stops)"}, {"Right mouse", "Hold to fly the free camera"},
         {"W A S D", "Move (Space up, Ctrl down)"}, {"Q / E", "Roll"}, {"Shift / Alt", "Faster / slower"},
         {"Wheel (flying)", "Zoom (field of view)"}, {"G", "Toggle the graph editor"}, {"?", "This list"},
       };
@@ -2108,9 +2108,20 @@ namespace IW4Iris::Editor
     void HandleShortcuts(Session& s)
     {
       auto& io = ImGui::GetIO();
-      if (io.WantTextInput || Runtime::IsFlying())
+      if (io.WantTextInput)
         return;
       auto pressed = [](ImGuiKey key) { return ImGui::IsKeyPressed(key, false); };
+      if (Runtime::IsFlying())
+      {
+        // While flying the keys move the camera. Only keys that do not
+        // steer it work: leaving fly mode (toggled with F; the cursor is
+        // hidden) and adding a key from the view.
+        if (s.flying && (pressed(ImGuiKey_F) || pressed(ImGuiKey_Escape)))
+          s.flying = false;
+        if (pressed(ImGuiKey_K))
+          s.Post([] { Runtime::AddKeyFromView(); });
+        return;
+      }
       const bool ctrl = io.KeyCtrl;
       if (ctrl && pressed(ImGuiKey_Z))
         io.KeyShift ? (void)s.Redo() : (void)s.Undo();
