@@ -1,0 +1,22 @@
+# Build output
+/build/
+/out/
+/dist/
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.dll
+*.lib
+*.a
+CMakeUserPresets.json
+.vs/
+.vscode/
+*.user
+
+# Generated / local
+/engine/iw4x/work/
+*.iw4iris.autosave
+__pycache__/
+*.pyc
