@@ -73,12 +73,13 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_demo.cpp
     tests/test_presets.cpp
     tests/test_launcher.cpp
+    tests/test_samples.cpp
     launcher/src/InstallPlan.cpp
   )
   target_link_libraries(iw4iris_tests PRIVATE iw4iris_core)
   target_include_directories(iw4iris_tests PRIVATE launcher/src)
   iw4iris_warnings(iw4iris_tests)
-  target_compile_definitions(iw4iris_tests PRIVATE IW4IRIS_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
+  target_compile_definitions(iw4iris_tests PRIVATE IW4IRIS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
   # The demo tests use IW4x's own Huffman coder (the one the game uses for
   # demo messages) straight from the pinned IW4x sources.

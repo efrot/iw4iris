@@ -1,0 +1,14 @@
+{
+  "format": "iw4iris-look-presets",
+  "version": 1,
+  "note": "The Lighting panel's look presets: they set the sun override and the film tweaks (colour), which IW4 exposes as dvars. Values are starting points.",
+  "presets": [
+    {"name": "Golden hour", "sunColor": [1.0, 0.72, 0.42], "sunIntensity": 1.4, "sunElevation": -12, "brightness": 0.02, "contrast": 1.15, "desaturation": 0.05},
+    {"name": "Blue hour", "sunColor": [0.55, 0.65, 1.0], "sunIntensity": 0.6, "sunElevation": -4, "brightness": -0.05, "contrast": 1.1, "desaturation": 0.15},
+    {"name": "Moonlight", "sunColor": [0.6, 0.7, 1.0], "sunIntensity": 0.35, "sunElevation": -40, "brightness": -0.12, "contrast": 1.2, "desaturation": 0.45},
+    {"name": "Warm sunset", "sunColor": [1.0, 0.55, 0.3], "sunIntensity": 1.2, "sunElevation": -6, "brightness": 0.0, "contrast": 1.2, "desaturation": 0.0},
+    {"name": "Cold winter", "sunColor": [0.85, 0.92, 1.0], "sunIntensity": 1.0, "sunElevation": -25, "brightness": 0.03, "contrast": 1.05, "desaturation": 0.35},
+    {"name": "Dark and moody", "sunColor": [0.8, 0.8, 0.85], "sunIntensity": 0.5, "sunElevation": -30, "brightness": -0.1, "contrast": 1.35, "desaturation": 0.3},
+    {"name": "High contrast", "sunColor": [1.0, 0.98, 0.95], "sunIntensity": 1.6, "sunElevation": -50, "brightness": 0.0, "contrast": 1.6, "desaturation": 0.1}
+  ]
+}

@@ -10,7 +10,8 @@
 //      delivers NA_LOOPBACK packets in NET_SendPacket).
 //   2. The Winsock imports of the game executable and of the client DLL
 //      (connect, sendto, WSAConnect, WSASendTo) refuse every destination
-//      that is not a loopback address.
+//      that is not a loopback address, and listen() only works on sockets
+//      bound to loopback (no TCP servers reachable from the network).
 //   3. The WinINet / URLMon / WinHTTP imports of the client DLL fail, so the
 //      news, updater and download code cannot reach the internet.
 //   4. Every frame the client's connection is checked: connected to anything

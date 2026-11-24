@@ -75,7 +75,10 @@ namespace IW4Iris::OfflineGuard
     using WSASendTo_t = int(WSAAPI*)(SOCKET, LPWSABUF, DWORD, LPDWORD, DWORD, const sockaddr*, int, LPWSAOVERLAPPED,
                                      LPWSAOVERLAPPED_COMPLETION_ROUTINE);
 
+    using listen_t = int(WSAAPI*)(SOCKET, int);
+
     connect_t real_connect = nullptr;
+    listen_t real_listen = nullptr;
     sendto_t real_sendto = nullptr;
     WSAConnect_t real_WSAConnect = nullptr;
     WSASendTo_t real_WSASendTo = nullptr;
@@ -93,6 +96,18 @@ namespace IW4Iris::OfflineGuard
       if (!IsLoopback(name, len))
         return Refuse("connect() to a network address");
       return real_connect(s, name, len);
+    }
+
+    // No TCP servers reachable from the network (IW4x's download server and
+    // the like): listening is only allowed on sockets bound to loopback.
+    int WSAAPI Guard_listen(SOCKET s, int backlog)
+    {
+      sockaddr_storage bound{};
+      int length = sizeof(bound);
+      if (getsockname(s, reinterpret_cast<sockaddr*>(&bound), &length) != 0 ||
+          !IsLoopback(reinterpret_cast<const sockaddr*>(&bound), length))
+        return Refuse("listen() on a network address");
+      return real_listen(s, backlog);
     }
 
     int WSAAPI Guard_sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to, int tolen)
@@ -208,6 +223,7 @@ namespace IW4Iris::OfflineGuard
       if (!module)
         continue;
       winsockGuarded += GuardWinsock(module, "connect", &Guard_connect, real_connect);
+      winsockGuarded += GuardWinsock(module, "listen", &Guard_listen, real_listen);
       winsockGuarded += GuardWinsock(module, "sendto", &Guard_sendto, real_sendto);
       winsockGuarded += GuardWinsock(module, "WSAConnect", &Guard_WSAConnect, real_WSAConnect);
       winsockGuarded += GuardWinsock(module, "WSASendTo", &Guard_WSASendTo, real_WSASendTo);
@@ -221,7 +237,7 @@ namespace IW4Iris::OfflineGuard
 
     // A guard that replaced an import must have the real function to call
     // for loopback traffic; otherwise fail closed.
-    if ((winsockGuarded > 0) && (!real_connect && !real_sendto && !real_WSAConnect && !real_WSASendTo))
+    if ((winsockGuarded > 0) && (!real_connect && !real_sendto && !real_WSAConnect && !real_WSASendTo && !real_listen))
     {
       Log::Error("Offline guard: Winsock imports were guarded but the originals could not be resolved");
       return false;

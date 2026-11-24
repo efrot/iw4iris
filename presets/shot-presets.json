@@ -1,0 +1,19 @@
+{
+  "format": "iw4iris-shot-presets",
+  "version": 1,
+  "note": "The shot presets built into IW4Iris (core/src/presets.cpp). Each generates ordinary, fully editable camera keys, speed keys and markers around a subject.",
+  "presets": [
+    {"id": "cinematic_intro", "name": "Smooth cinematic introduction", "duration": 5.0},
+    {"id": "scope_closeup", "name": "Sniper scope close-up", "duration": 3.0},
+    {"id": "weapon_showcase", "name": "Intervention weapon showcase", "duration": 4.0},
+    {"id": "trickshot_orbit", "name": "Third-person trickshot orbit", "duration": 6.0},
+    {"id": "rooftop_establishing", "name": "Rooftop establishing shot", "duration": 5.0},
+    {"id": "slowmo_jump", "name": "Slow-motion jump sequence", "duration": 4.0},
+    {"id": "killcam_transition", "name": "Killcam transition", "duration": 2.0},
+    {"id": "player_to_player", "name": "Player-to-player move", "duration": 4.0},
+    {"id": "weapon_reveal", "name": "Dramatic weapon reveal", "duration": 3.0},
+    {"id": "over_shoulder", "name": "Over-the-shoulder", "duration": 3.0},
+    {"id": "character_closeup", "name": "Character close-up", "duration": 3.0},
+    {"id": "map_flythrough", "name": "Map flythrough", "duration": 6.0}
+  ]
+}

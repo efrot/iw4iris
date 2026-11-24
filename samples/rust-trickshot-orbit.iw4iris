@@ -1,0 +1,94 @@
+{
+  "format": "iw4iris-project",
+  "schemaVersion": 1,
+  "generator": "IW4Iris 0.1.0",
+  "name": "Rust trickshot orbit (sample)",
+  "map": "mp_rust",
+  "timeline": {
+    "fps": [60, 1],
+    "start": 0.0,
+    "end": 12.0,
+    "in": 0.0,
+    "out": 10.0,
+    "loop": {"enabled": false, "start": 0.0, "end": 0.0},
+    "display": "timecode",
+    "snap": true
+  },
+  "timeRemap": {
+    "timelineStart": 0.0,
+    "sceneOffset": 0.0,
+    "speed": {
+      "default": 1.0,
+      "keys": [
+        {"t": 0.0, "v": 1.0, "interp": "smooth", "tangent": "auto"},
+        {"t": 4.0, "v": 1.0, "interp": "smooth", "tangent": "auto"},
+        {"t": 5.0, "v": 0.25, "interp": "smooth", "tangent": "auto"},
+        {"t": 6.5, "v": 0.25, "interp": "smooth", "tangent": "auto"},
+        {"t": 7.5, "v": 1.0, "interp": "smooth", "tangent": "auto"}
+      ]
+    }
+  },
+  "cameras": [
+    {
+      "id": "cam-1",
+      "name": "Intro dolly",
+      "mode": "dolly",
+      "color": "#8B7CF6",
+      "path": {
+        "rotation": "quaternion",
+        "constantSpeed": false,
+        "keys": [
+          {"t": 0.0, "pos": [820.0, -1450.0, 420.0], "ang": [18.0, 115.0, 0.0], "fov": 70.0, "focus": 600.0, "fstop": 4.0, "interp": "smooth", "ease": {"in": 0.0, "out": 0.4}},
+          {"t": 2.5, "pos": [640.0, -1180.0, 300.0], "ang": [12.0, 120.0, -2.0], "fov": 62.0, "focus": 420.0, "fstop": 2.8, "interp": "smooth"},
+          {"t": 5.0, "pos": [520.0, -980.0, 240.0], "ang": [8.0, 132.0, -4.0], "fov": 55.0, "focus": 260.0, "fstop": 2.0, "interp": "smooth"},
+          {"t": 7.5, "pos": [410.0, -860.0, 210.0], "ang": [5.0, 150.0, 0.0], "fov": 48.0, "focus": 180.0, "fstop": 1.8, "interp": "smooth", "ease": {"in": 0.6, "out": 0.0}}
+        ]
+      },
+      "position": [0.0, 0.0, 0.0],
+      "angles": [0.0, 0.0, 0.0],
+      "lens": {"focalLength": 35.0, "sensor": {"name": "Super 35", "width": 24.89, "height": 18.66}, "fstop": 2.8, "focus": 256.0, "anamorphic": 1.0, "breathing": 0.0},
+      "useLensFov": false,
+      "fov": 90.0,
+      "target": {"kind": "none", "index": -1, "point": [0.0, 0.0, 0.0], "offset": [0.0, 0.0, 60.0]},
+      "orbit": {"distance": 160.0, "height": 40.0, "speed": 20.0, "startAngle": 0.0},
+      "shake": {"enabled": true, "position": 0.4, "rotation": 0.2, "frequency": 1.2, "seed": 7}
+    },
+    {
+      "id": "cam-2",
+      "name": "Free camera",
+      "mode": "free",
+      "color": "#5EA1F7"
+    },
+    {
+      "id": "cam-3",
+      "name": "Game view",
+      "mode": "firstPerson",
+      "color": "#9AA4B2"
+    }
+  ],
+  "activeCamera": "cam-1",
+  "useCameraCuts": false,
+  "cuts": [],
+  "markers": [
+    {"id": "marker-1", "t": 5.4, "name": "Trickshot", "color": "#F7B955", "kind": "trickshot"}
+  ],
+  "tracks": [
+    {"property": "film.contrast", "enabled": true, "curve": {"default": 1.0, "keys": [
+      {"t": 0.0, "v": 1.05, "interp": "smooth", "tangent": "auto"},
+      {"t": 5.4, "v": 1.35, "interp": "smooth", "tangent": "auto"},
+      {"t": 8.0, "v": 1.1, "interp": "smooth", "tangent": "auto"}
+    ]}}
+  ],
+  "visuals": {
+    "film": {"override": true, "brightness": 0.0, "contrast": 1.1, "desaturation": 0.1, "lightTint": [1.06, 0.98, 0.9], "darkTint": [0.92, 0.95, 1.05], "invert": false},
+    "dof": {"override": true, "fromLens": true},
+    "hud": {"hideHud": true, "hideGunInModCameras": true, "hideCrosshair": true, "hideKillfeed": false}
+  },
+  "recording": {
+    "format": "png",
+    "fps": [60, 1],
+    "range": "inOut",
+    "namePattern": "{project}_{camera}_{pass}"
+  },
+  "export": {"unitsPerMetre": 39.37007874, "blenderKeysOnly": false, "aeUnitsPerPixel": 1.0}
+}

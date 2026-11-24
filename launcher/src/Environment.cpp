@@ -314,16 +314,22 @@ namespace iris::launcher
       }
     }
 
-    // The cinematic client and IW4Iris' own folders.
-    const auto dll = o.environmentFolder / "iw4x.dll";
-    if (fs::exists(dll, ec))
-      SafeRemove(dll, nullptr);
-    if (!CopyFileW(o.cinematicDll.wstring().c_str(), dll.wstring().c_str(), FALSE))
+    // The cinematic client: iw4x.dll and the helpers built with it (Sentry's
+    // crash handler), replacing any copies taken from the game folder.
+    for (fs::directory_iterator it(o.cinematicDll.parent_path(), ec), end; it != end; it.increment(ec))
     {
-      *error = "Could not install the IW4Iris client: " + LastError("CopyFile");
-      return false;
+      if (!it->is_regular_file(ec))
+        continue;
+      const auto target = o.environmentFolder / it->path().filename();
+      if (fs::exists(target, ec))
+        SafeRemove(target, nullptr);
+      if (!CopyFileW(it->path().wstring().c_str(), target.wstring().c_str(), FALSE))
+      {
+        *error = "Could not install the IW4Iris client (" + Narrow(it->path().filename().wstring()) + "): " + LastError("CopyFile");
+        return false;
+      }
+      created.push_back({{"path", Narrow(it->path().filename().wstring())}, {"kind", "copy"}});
     }
-    created.push_back({{"path", "iw4x.dll"}, {"kind", "copy"}});
     for (const char* own : {"players", "userraw", "iw4iris", "iw4iris/projects", "iw4iris/recordings", "iw4iris/exports"})
       fs::create_directories(o.environmentFolder / own, ec);
     if (fs::is_directory(o.resourcesFolder / "fonts", ec))
