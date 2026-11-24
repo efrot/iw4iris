@@ -40,8 +40,23 @@ namespace iris::launcher
     std::filesystem::path environmentFolder;
     std::filesystem::path cinematicDll;      // the IW4Iris build of iw4x.dll
     std::filesystem::path resourcesFolder;   // fonts, tools (from the release package)
+    std::filesystem::path directorMod;       // mods\iw4iris_director (with mod.json)
     bool copyGameSettings = true;            // copy players\*.cfg once
   };
+
+  // The Director Mod's state in an environment.
+  struct ModStatus
+  {
+    bool shipped = false;      // the launcher's folder has the mod
+    bool installed = false;    // every file is in the environment
+    bool upToDate = false;     // and identical to the shipped files
+    std::string version;
+    std::vector<std::string> problems;
+  };
+  ModStatus CheckDirectorMod(const std::filesystem::path& modFolder, const std::filesystem::path& environmentFolder);
+  // Copies the mod's scripts into <environment>\userraw and verifies them.
+  bool InstallDirectorMod(const std::filesystem::path& modFolder, const std::filesystem::path& environmentFolder,
+                          const LogFn& log, std::string* error);
 
   bool SetupEnvironment(const SetupOptions& options, const LogFn& log, std::string* error);
   bool EnvironmentExists(const std::filesystem::path& environmentFolder);

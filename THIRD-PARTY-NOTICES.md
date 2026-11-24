@@ -11,6 +11,9 @@ IW4Iris is licensed under the GNU General Public License v3.0 or later
 | [Dear ImGui](https://github.com/ocornut/imgui) (docking branch) | v1.93.0-docking | MIT | Editor and launcher UI, with its Win32 and Direct3D 9 backends. Copyright (c) 2014-2026 Omar Cornut. |
 | [JSON for Modern C++](https://github.com/nlohmann/json) | v3.12.0 (launcher, tests); IW4x's copy in the client | MIT | Copyright (c) 2013-2025 Niels Lohmann. |
 | [stb_image_write](https://github.com/nothings/stb) | commit `fe3a2a73bfd5` | MIT or public domain (choice) | Built-in PNG / JPEG writer. Sean Barrett. |
+| [stb_truetype, stb_image](https://github.com/nothings/stb) | commit `fe3a2a73bfd5` | MIT or public domain (choice) | Font outlines and logo images for motion graphics; compiled `static` so they cannot clash with IW4x's own stb_truetype. Sean Barrett. |
+| [nanosvg](https://github.com/memononen/nanosvg) | commit `239e102ec2c6` | zlib | SVG logo parsing. Copyright (c) 2013-14 Mikko Mononen. |
+| [earcut.hpp](https://github.com/mapbox/earcut.hpp) | v3.2.4 | ISC | Polygon triangulation with holes. Copyright (c) 2015, Mapbox. |
 
 ## Shipped files
 
@@ -25,8 +28,16 @@ IW4Iris' editor model follows [IWXMVM](https://github.com/reallyluckyy/IWXMVM)
 (reallyluckyy, Caball009, kruumy, lxkast, mallgrab, imgemmy, mrks2 and
 contributors), [Iris Studio](https://github.com/yerbisonline/IrisStudio) and
 [T6Iris](https://github.com/Censoreeddd/T6Iris), all GPL-3.0. Their
-campath file format is read by IW4Iris' importer. iw4cine (sortileges) was
-studied for its GSC approach to actors.
+campath file format is read by IW4Iris' importer.
+
+[iw4cine](https://github.com/sortileges/iw4cine) (sortileges) was studied for
+its GSC technique for actors (script-model body playing multiplayer
+animations, head linked to `j_spine4`, weapons on tags). The repository
+publishes no licence, so **none of its code is used**; the Director Mod is an
+independent implementation of the technique.
+
+The Director Mod (`mods/iw4iris_director`) is IW4Iris' own GPL-3.0 code and
+uses only the stock MW2 GSC builtins and IW4Iris' builtins.
 
 ## Build-time only (not shipped)
 

@@ -52,6 +52,25 @@ declares and uses it.
 | `Command::Add`, `Command::Execute` | `Command.cpp` | console commands, `demo`, `disconnect` | — |
 | `Dedicated::IsEnabled`, `ZoneBuilder::IsEnabled` | | the component stays off on servers / ZoneBuilder | — |
 | `RawMouse::IN_Frame`, `IN_MouseMove`, `IN_RecenterMouse` | `RawMouse.cpp` (wraps every call site) | gated by the patch while the editor has the mouse | — |
+| `Components::GSC::Script::AddFunction` | `GSC/Script.cpp` (names lower-cased; `Common_GetFunctionStub` resolves them) | the Director builtins | that the mod compiles and calls them |
+| Custom script loading from `scripts/`, `scripts/mp/`, `scripts/mp/<map>/`, `scripts/mp/<gametype>/` (`init` / `main`) | `GSC/Script.cpp` `LoadCustomScripts` | starts the Director Mod | that `userraw/scripts/mp` is found |
+| `Game::Scr_GetNumParam`, `Scr_GetString`, `Scr_GetInt`, `Scr_GetFloat`, `Scr_AddInt`, `Scr_AddFloat`, `Scr_AddString`, `Scr_MakeArray`, `Scr_AddArray` | `Game/Script.hpp`; arrays as in `Maps::GSCr_GetMapList` | builtin parameters and results | — |
+| `Game::DB_EnumXAssets`, `DB_GetXAssetName`, `XAssetType::ASSET_TYPE_XMODEL / XANIMPARTS / WEAPON / FX` | `Game/Database.hpp`; used by `ZoneBuilder` (`listassets`) | the asset libraries and manifest validation | — |
+| `Game::UI_UpdateArenas`, `arenaCount`, `ArenaLength::NewArenas` | `Maps::GSCr_GetMapList`, `ArenaLength.hpp` | map browser | — |
+| `Game::SEH_StringEd_GetString` | `Game/Functions.hpp` | localised map names | — |
+| `Components::FastFiles::Exists` | `FastFiles.cpp` | installed-map check | — |
+| `Game::G_TraceCapsule`, `bounds_origin`, `ENTITYNUM_NONE`; `CONTENTS_SOLID = 1` | `Game/Game.hpp`, `Structs.hpp`; used by `Missile.cpp` | placement, snap to ground (film sets) | — |
+| `Game::GfxCmdBufSourceState` at `0x6CAF080` (`sceneDef.time`, `viewParms3D`) | the address IW4x's `Renderer::ListSamplers` uses; struct in `Structs.hpp` | graphics frame sync, engine view / projection | checked every frame: used only when its camera matches the frame's |
+
+GSC builtins of MW2 used by the Director Mod (stock game functions, as
+used by the game's own multiplayer scripts and by MW2 cinematic mods):
+`spawn("script_model")`, `setModel`, `scriptModelPlayAnim`,
+`precacheModel`, `precacheMPAnim`, `precacheItem`, `loadFX`, `playFX`,
+`getTagOrigin`, `getTagAngles`, `linkTo`, `unlink`, `enableLinkTo`,
+`hide`, `show`, `hidePart`, `getWeaponModel`, `getWeaponHideTags`,
+`getEntityNumber`, `getTime`, `strTok`, `getArrayKeys`, `closepopupMenu`,
+`closeInGameMenu`, the `"menuresponse"` notify for the team menu. None has
+been run by IW4Iris yet.
 
 IW4x's Sentry crash reporting (`src/Sentry`) only starts when the build
 carries a DSN (`--sentry-dsn`). IW4Iris builds pass none, so the reporter
@@ -109,5 +128,12 @@ Help > Diagnostics. Controls whose dvars are missing say so.
 * Things the engine computes before the view hook still follow the game's
   view: effect culling, the view model's placement (hidden in cinematic
   cameras), and model LOD (forced to maximum).
-* Actors, lights beyond the sun, render passes other than beauty, bone
-  cameras and ReShade are not implemented (see FEATURE_MATRIX.md).
+* Script-model animations start at their beginning and run at engine speed:
+  no scrubbing, offsets, speed or blending; seeking restarts them at their
+  clip. Animation and effect starts land on 50 ms server frames.
+* Assets have to be precached when a film set's map starts; new characters,
+  animations, weapons or effects used later appear after "Reload set".
+* Motion graphics are drawn after post-processing (no map lighting, shadows,
+  fog or DoF on them) and are occluded only when the depth check passes.
+* Lights beyond the sun, render passes other than beauty, bone cameras and
+  ReShade are not implemented (see FEATURE_MATRIX.md).

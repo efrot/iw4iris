@@ -6,12 +6,16 @@
 tools/run-tests.sh
 ```
 
-* `iw4iris_tests` — 78 test cases: math against id Tech 3's `AngleVectors`,
+* `iw4iris_tests` — 115 test cases: math against id Tech 3's `AngleVectors`,
   curves, camera paths, lenses, timeline, time remapping, recording
   configuration and frame steps, project round trips / migrations / atomic
   saves, undo, rigs, shake, free camera, exporters, demo metadata and record
   scanning (with IW4x's Huffman coder), presets, the launcher's install
-  rules, and the shipped samples.
+  rules and Director Mod manifest rules, the shipped samples, and for
+  Director Mode / motion graphics: scene evaluation, directions, the asset
+  library, shots, templates, project schema 2, contours, triangulation,
+  extrusion and bevels (closed solids), fonts (Rubik), SVG and traced
+  logos, OBJ import, projection maths, tracking and animation presets.
 * `tests/python/test_blender_addon.py` — the Blender add-on's helpers,
   including an export written by the C++ exporter (run the C++ tests first).
 
@@ -107,6 +111,47 @@ screenshot) in the issue tracker. Each step names what it verifies.
 For each Look section, toggle Override and change values; **expect** a
 visible change, and "Reset the game's look to defaults" to restore the
 original look exactly. Record which dvars Diagnostics reports as missing.
+
+### 8. Director Mode — Milestone B (the gate for scene creation)
+
+1. Launcher → Setup: **expect** "Director Mod: installed and up to date".
+2. In the game, F1 → Director → Create new scene → Highrise → Empty film
+   set → Create. **Expect** the map to load, the Director panel to say
+   "mp_highrise is ready" and the Director Mod log to show
+   "precached ... models" and "Director Mod ready". *Verifies script
+   loading from userraw, the builtins, the precache manifest.*
+3. Characters panel: add a character. **Expect** a body with its head where
+   the camera looks, standing in its idle animation. *Verifies spawn,
+   head link, `scriptModelPlayAnim`.*
+4. Move it with the gizmo (G, drag an axis) and by keys at two times; play.
+   **Expect** smooth movement, no jitter at 60 FPS. *Verifies per-frame
+   poses and the timing prediction.*
+5. Animations panel: add a clip at the playhead. **Expect** it to play.
+6. Object inspector → Weapon → Intervention. **Expect** the rifle in the
+   right hand, attachments hidden. *Verifies `getWeaponModel`, tags,
+   `hidePart`.*
+7. Delete the actor, undo. **Expect** it to disappear and come back.
+8. Save, quit the game, start again, open the project, Director → Reload or
+   create the scene on the same map. **Expect** the same scene.
+9. Report any "request failed" lines of the Director log.
+
+### 9. Motion graphics — Milestones 1–3
+
+1. In a film set (or a demo), Motion Graphics → Shape → Box. **Expect** a
+   lit box where the camera looks. Fly around it: it stays fixed in the
+   world (Test A).
+2. Place it half inside a wall. Motion Graphics → Renderer **expect**
+   "Depth occlusion: verified"; the wall hides the part behind it (Test
+   C). If it says "unavailable: ...", report the text.
+3. 3D Text "oGinStyle", orbit around it: front, back, sides, bevels, the
+   holes of o / G (Test B).
+4. Logo → an SVG and a transparent PNG with holes; extruded, metallic.
+5. Cinematic title → "Montage title" with "Generate a camera orbit", record
+   6 seconds: graphics in the frames, no editor UI (Test G).
+6. Scrub back and forth over the title's fly-in: identical frames at the
+   same time (Test E).
+7. Floating player name on an actor's head, actor walking: the name follows
+   (Test D).
 
 ### Extended (later releases)
 

@@ -343,12 +343,90 @@ namespace iris::launcher
         if (it->path().extension() == ".cfg" && !fs::exists(o.environmentFolder / "players" / it->path().filename(), ec))
           fs::copy_file(it->path(), o.environmentFolder / "players" / it->path().filename(), ec);
 
+    if (!o.directorMod.empty())
+    {
+      std::string modError;
+      if (!InstallDirectorMod(o.directorMod, o.environmentFolder, log, &modError))
+        log("Director Mode will not work: " + modError);
+    }
+
     const nlohmann::json manifest{{"format", "iw4iris-environment"},
                                   {"version", 1},
                                   {"game", Narrow(o.gameFolder.wstring())},
                                   {"created", created}};
     std::ofstream(o.environmentFolder / kManifest) << manifest.dump(2);
     log("environment ready in " + Narrow(o.environmentFolder.wstring()));
+    return true;
+  }
+
+  ModStatus CheckDirectorMod(const fs::path& modFolder, const fs::path& env)
+  {
+    ModStatus st;
+    std::error_code ec;
+    const auto manifestFile = modFolder / "mod.json";
+    if (!fs::is_regular_file(manifestFile, ec))
+    {
+      st.problems.push_back("The launcher's folder has no mods\\iw4iris_director\\mod.json.");
+      return st;
+    }
+    std::string error;
+    const auto m = ParseModManifest(ReadText(manifestFile), &error);
+    if (!m)
+    {
+      st.problems.push_back(error);
+      return st;
+    }
+    st.shipped = true;
+    st.version = m->version;
+    st.installed = st.upToDate = true;
+    for (const auto& f : m->files)
+    {
+      const auto src = modFolder / Utf8Path(f);
+      const auto dst = env / "userraw" / Utf8Path(f);
+      if (!fs::is_regular_file(src, ec))
+      {
+        st.problems.push_back("missing from the package: " + f);
+        st.shipped = false;
+        continue;
+      }
+      if (!fs::is_regular_file(dst, ec))
+      {
+        st.installed = st.upToDate = false;
+        continue;
+      }
+      if (ReadText(src) != ReadText(dst))
+        st.upToDate = false;
+    }
+    return st;
+  }
+
+  bool InstallDirectorMod(const fs::path& modFolder, const fs::path& env, const LogFn& log, std::string* error)
+  {
+    std::string parseError;
+    const auto m = ParseModManifest(ReadText(modFolder / "mod.json"), &parseError);
+    if (!m)
+    {
+      *error = parseError.empty() ? "mods\\iw4iris_director\\mod.json is missing" : parseError;
+      return false;
+    }
+    std::error_code ec;
+    for (const auto& f : m->files)
+    {
+      const auto src = modFolder / Utf8Path(f);
+      const auto dst = env / "userraw" / Utf8Path(f);
+      fs::create_directories(dst.parent_path(), ec);
+      if (!CopyFileW(src.wstring().c_str(), dst.wstring().c_str(), FALSE))
+      {
+        *error = "Could not install " + f + ": " + LastError("CopyFile");
+        return false;
+      }
+      if (ReadText(src) != ReadText(dst))
+      {
+        *error = "The installed " + f + " differs from the package (disk or antivirus problem).";
+        return false;
+      }
+    }
+    log("installed " + m->name + " " + m->version + " (" + std::to_string(m->files.size()) + " scripts) into userraw");
     return true;
   }
 

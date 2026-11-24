@@ -31,6 +31,21 @@ Nothing marked Implemented or Experimental has been runtime-verified in IW4x by 
 | Blender / After Effects / CSV exporters | Verified | Blender add-on tested against the exporter's output; AE script not run in AE |
 | Demo metadata, record scanning | Verified | against IW4x's own Huffman coder and record layout; not against real demos |
 | Shot presets (12) | Verified | keys stay editable |
+| Scene model: actors, clips, props, effects, graphics, evaluation at time t | Verified | |
+| Directions (wait, walk / run to, turn, face actor / camera, play animation, crouch, aim, enter, exit, follow) compiled to tracks | Verified | deterministic, warnings for missing targets |
+| Asset library: readable names and categories from engine asset names, body-head pairing, search | Verified | against representative names; real lists come from the game |
+| Shot generator (17 framed shot types from a subject) | Verified | the subject lands in the frame centre at the lens' distance |
+| Scene and title templates | Verified | build ordinary editable content |
+| Project schema 2 (scene section), schema 1 migration | Verified | |
+| 2D geometry: contours, nesting (even-odd / non-zero), earcut triangulation | Verified | |
+| Extrusion with round / chamfer bevels, oversize bevel reduction | Verified | closed, outward-wound solids |
+| Fonts: TrueType / OpenType (CFF) outlines, kerning, alignment, lines, vertical, circular text | Verified | no complex-script shaping (one glyph per code point) |
+| SVG logos (fills, fill rules, colours, transforms) | Verified | strokes are not converted (warning); gradients become solid colours |
+| Transparent PNG / JPEG / TGA / BMP tracing into silhouettes with holes | Verified | WebP not supported |
+| OBJ model import (polygons, normals, groups, MTL colours, limits) | Verified | glTF / FBX planned |
+| Graphic animation presets (18) and easings, seeded randomness | Verified | same time, same pose |
+| Graphic tracking: world, actor attach point, billboard, camera lens, parenting | Verified (maths) | in-game bone reports unverified |
+| View / projection maths for renderer, gizmos and picking | Verified | both depth conventions |
 | Deterministic shake | Verified | |
 
 ## Editor and engine integration
@@ -46,7 +61,7 @@ Nothing marked Implemented or Experimental has been runtime-verified in IW4x by 
 | Orbit, follow, static (look-at), game first / third person | Implemented | |
 | Bone camera, weapon-mounted, projectile follow | Blocked | needs DObj bone bindings |
 | Path / key / frustum overlay (never recorded) | Implemented | |
-| 3D gizmos | Planned | keys are moved with "update from view" and the inspector |
+| Viewport gizmo for scene objects (move along X / Y / Z, rotate, size; Ctrl snaps) | Implemented | camera keys are still moved with "update from view" and the inspector |
 | Multitrack timeline: keys, box select, drag, snap, zoom, pan, markers, cuts, speed | Implemented | |
 | Graph editor: values, Bézier handles, tangent modes | Implemented | |
 | Track lock / hide | Implemented | stored per track |
@@ -73,8 +88,8 @@ Nothing marked Implemented or Experimental has been runtime-verified in IW4x by 
 | Render passes: beauty | Implemented | |
 | World only, players only, no weapons, weapons only, green screen | Blocked | need renderer research (entity / surface filtering) |
 | Depth, normals, object ID, motion vectors | Blocked | need access to IW4's depth / G-buffer |
-| Actors, animations, weapons, attachments, camos | Blocked | data model stored; route: GSC script models or XAnim bindings |
-| Props, effects placement, killstreak vehicles | Blocked | |
+| Actors, animations, weapons, attachments, camos | Implemented | Director Mod (GSC script models); see *Director Mode* below |
+| Props and effects placement | Implemented | Director Mode film sets; killstreak vehicles are planned |
 | Dynamic lights | Blocked | IW4 primary lights are baked per map |
 | Lighting presets (sun + colour) | Implemented | |
 | ReShade | Planned | to be checked with IW4x's D3D9Ex wrapper |
@@ -83,6 +98,54 @@ Nothing marked Implemented or Experimental has been runtime-verified in IW4x by 
 | Autosave, crash recovery files, recent projects | Implemented | |
 | Missing-asset (demo) detection | Implemented | |
 | Onboarding, shortcuts window, tooltips | Implemented | |
+
+## Director Mode (film sets)
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| Film set: a map loaded as a local, offline listen server (no timer, score limit, countdown) | Implemented | not run in the game yet |
+| Director Mod (GSC) installed into the environment by the launcher, inactive outside film sets | Implemented | `scripts/mp` loading is IW4x's; GSC not compiled here (no game) |
+| Editor ↔ mod protocol: GSC builtins, requests, responses, capability report | Implemented | IW4x `Script::AddFunction`; docs/DIRECTOR_PROTOCOL.md |
+| Asset discovery from the loaded fast files (models, animations, weapons, effects) | Implemented | `DB_EnumXAssets` |
+| Precache manifest validated against the loaded assets; "Reload set" for new ones | Implemented | assets must be precached when the map starts (engine rule) |
+| Map browser: installed maps, names, descriptions, search, favourites, recent | Implemented | preview images planned |
+| Scene wizard (map, template, create) | Implemented | |
+| Character library by faction, search, favourites, add where the camera looks | Implemented | |
+| Actors: script-model body + linked head, transform / path, visibility | Implemented | |
+| Animation clips (start, duration) and idle animation | Implemented | clips play from their start at engine speed; no scrubbing, offset, speed or blending for script models |
+| Weapons on tags with hidden attachment parts, camo index, extra attachments | Implemented | |
+| Directions applied to actors | Implemented | in-place animations moved along the path; foot sliding depends on the chosen speed |
+| Props on the map or on an actor's bone | Implemented | |
+| Effects: one-shot / repeating plays, on actor bones | Implemented | particles run on the engine's clock: not scrubbable |
+| Click-to-select, outlines, actor paths in the view | Implemented | |
+| Click-to-place / snap to ground (world trace) | Implemented | `G_TraceCapsule` with `CONTENTS_SOLID`, film sets only |
+| Shots from an actor (17 types) | Implemented | |
+| Composition guides: thirds, centre, safe areas, horizon, aspect masks | Implemented | never recorded |
+| Beginner / professional mode | Implemented | professional shows raw names and advanced parameters |
+| Scene objects on the timeline: clips (move / trim / delete), keys, graphic animations, effect plays | Implemented | |
+| Recording film sets | Implemented | server frames are 50 ms: clip and effect starts snap to them |
+| Bot actors, performance recording | Planned | bots give real movement animations but are not deterministic |
+| Pose editor, IK, look-at constraints, bone overrides | Blocked | no verified bone-control path for script models |
+| Vehicles / killstreak sequences, campaign maps and characters | Planned | |
+| Dynamic / custom lights | Blocked | IW4 primary lights are baked per map |
+
+## Motion graphics
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| Native renderer: text, logos, shapes, models, image planes in world space | Implemented | D3D9 fixed function, drawn before the capture reads the frame |
+| Frame sync: draw list matched to the presented frame's scene time | Implemented | engine source state at 0x6CAF080 (used by IW4x); reported in the panel |
+| Engine view / projection when they match the frame's camera, else own | Implemented | validated per frame |
+| Depth occlusion by world and characters | Experimental | only with a depth buffer that matches the back buffer and an occlusion probe confirms holds the scene; otherwise the panel says why and graphics draw on top |
+| Render modes: depth tested, always on top, X-ray | Implemented | |
+| Materials (19 presets, colour, specular, gloss, metallic tint, emission, opacity, per part) | Implemented | Blinn–Phong approximations, not physically based |
+| Lighting of graphics | Implemented (own key light) | the sun override drives it; the map's lights, shadows and fog do not affect graphics |
+| Depth of field, motion blur, colour grading on graphics | Blocked | graphics are drawn after the game's post-processing |
+| Shadows cast by graphics | Planned | |
+| Motion Graphics panel, cinematic title generator, camera orbit around a graphic | Implemented | |
+| Graphics-only / mask / tracking-reference passes | Planned | |
+| Native XModel assets via ZoneBuilder | Planned | for shadows / native lighting; needs a map reload per change |
+| Audio waveform, beats, BPM | Planned | |
 
 ## Launcher
 
@@ -94,5 +157,7 @@ Nothing marked Implemented or Experimental has been runtime-verified in IW4x by 
 | Launch offline, launch with a project | Implemented | |
 | FFmpeg: locate, choose, open download page with consent | Implemented | no automatic download |
 | Logs, projects, recordings | Implemented | |
+| Director Mod: install, verify against the package, repair | Implemented | manifest paths restricted to relative `.gsc` files (unit-tested) |
+| Third-party extensions | Planned | format documented (docs/EXTENSIONS.md); never enabled without explicit approval |
 | No administrator rights | Implemented | `asInvoker` manifest |
 | Automatic updates | Not planned | deliberate: a verified client is never replaced silently |

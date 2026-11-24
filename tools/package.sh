@@ -6,7 +6,7 @@
 set -euo pipefail
 client="${1:?usage: $0 <iw4x.dll> <launcher.exe> [version]}"
 launcher="${2:?usage: $0 <iw4x.dll> <launcher.exe> [version]}"
-version="${3:-0.1.0}"
+version="${3:-0.2.0}"
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 name="IW4Iris-v${version}-Windows-x86"
 out="$repo/dist/$name"
@@ -24,6 +24,9 @@ cp "$repo"/resources/fonts/* "$out/resources/fonts/"
 cp "$repo/tools/blender/iw4iris_import.py" "$out/resources/tools/blender/"
 cp -r "$repo"/samples/* "$out/samples/"
 cp -r "$repo"/presets/* "$out/presets/"
+# The Director Mod (GSC); the launcher installs it into the environment.
+mkdir -p "$out/mods"
+cp -r "$repo/mods/iw4iris_director" "$out/mods/"
 for doc in README.md INSTALL.md TROUBLESHOOTING.md CHANGELOG.md FEATURE_MATRIX.md COMPATIBILITY.md LICENSE THIRD-PARTY-NOTICES.md; do
   cp "$repo/$doc" "$out/"
 done

@@ -142,6 +142,39 @@ entry point and runs `Components::Loader::Initialize()`, which constructs
 | Texture packs, campaign maps, content packs | T5/T6-specific | Out of scope |
 | Launcher | Requires new implementation (IW4x install layout) | Implemented |
 
+## 5b. Director Mode and motion graphics research (v0.2)
+
+**iw4cine** (github.com/sortileges/iw4cine, last commit 2023-11-12) is a GSC
+multiplayer mod: commands are dvars bound with `notifyOnPlayerCommand`; an
+actor is a `script_model` body with `scriptModelPlayAnim`, a separate head
+model spawned at `j_spine4`, given angles `(270, 0, 270)` relative to the
+body, linked to `j_spine4` and playing the same animation, weapons are
+script models linked to tags with `getWeaponModel` and the parts of
+`getWeaponHideTags` hidden, every animation is `precacheMPAnim`ed at level
+start, multiplayer body models need no precache, effects use `loadFX` /
+`playFX`. The repository has **no licence**: nothing is copied; the
+Director Mod re-implements the technique and replaces the dvar command
+interface with native builtins.
+
+**IW4x (pinned)**: `GSC::Script::AddFunction` registers builtins (names are
+lower-cased); `LoadCustomScripts` compiles every `.gsc` directly in
+`scripts/`, `scripts/mp/`, `scripts/mp/<map>/` and `scripts/mp/<gametype>/`
+of the search paths (so `userraw` works without `fs_game`) and runs their
+`init` at `Scr_StartupGameType`; `DB_EnumXAssets` + `DB_GetXAssetName` list
+loaded assets (`listassets`); `G_TraceCapsule` with `CONTENTS_SOLID` traces
+world geometry (`Missile.cpp`); `Renderer::ListSamplers` reads the
+renderer's `GfxCmdBufSourceState` at `0x6CAF080`, whose `sceneDef.time` and
+`viewParms3D` give the presented frame's scene time, camera and matrices;
+IW4x itself compiles stb_truetype non-static (IW4Iris' copy is static).
+
+**Decisions:** script-model actors first (deterministic transforms,
+proven); bots later (real locomotion, not deterministic); one unified
+Director Mod installed into the environment's `userraw` instead of a
+`fs_game` mod (no conflicting mod stacks, the user's normal mods are not
+in the cinematic copy). Motion graphics: a dynamic D3D9 renderer first
+(interactive editing, no map reload), native XModels through ZoneBuilder
+later for shadows and native lighting.
+
 ## 6. Open questions that need the game
 
 These cannot be settled without running IW4x and are tracked in
@@ -159,3 +192,10 @@ COMPATIBILITY.md and docs/TESTING.md:
    and take effect live? (Detected at run time and shown in Diagnostics.)
 5. How many frames does the renderer present after the frame was built?
    (Measured at the start of every capture by the sync tags.)
+* Does the Director Mod compile and run unchanged (menu response for the
+  spectator, `closepopupMenu`, linkTo without offsets keeping the head's
+  relative angles)?
+* Is a depth buffer matching the back buffer still bound when IW4x's
+  backend-frame stub runs (needed for occlusion of graphics)?
+* Does `GfxCmdBufSourceState::viewParms3D` at present time describe the
+  main scene view?

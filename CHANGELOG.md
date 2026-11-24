@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.2.0 — 2026-11-24 (Director Mode and motion graphics preview, not yet tested in the game)
+
+### Added
+
+* **Director Mode:** create cinematics on any installed map without
+  recording gameplay. A film set is the map loaded as a local offline
+  session; the new **IW4Iris Director Mod** (GSC, installed by the
+  launcher) owns the actors, props and effects, the editor drives it
+  through native GSC builtins (protocol 1).
+* Scene wizard (map, template), Director home, character library by
+  faction, animation library, props & effects library, all built from
+  the assets the map actually loads.
+* Actors: character, transform keys, idle animation, animation clips,
+  weapons with camo and attachments, extra models on bones, visibility,
+  directions ("walk to", "turn towards", "aim at", ...) compiled into
+  editable tracks, 17 framed shot types from an actor.
+* Props (on the map or an actor's bone), effects (one-shot / repeating, on
+  bones), click selection, outlines, actor paths, a move / rotate / size
+  gizmo, snap to ground, composition guides, beginner / professional mode.
+* **Motion graphics:** extruded 3D text (TrueType / OpenType, kerning,
+  lines, vertical and circular layouts), logos from SVG or transparent
+  images (extruded or flat), image planes, primitives, OBJ models,
+  tracking anchors; materials, tracking (world, actor bone, billboard,
+  lens), parenting, 18 seeded animation presets, title templates, a
+  one-click camera orbit; a world-space D3D9 renderer included in
+  recordings, with run-time checked depth occlusion.
+* Timeline rows for actor clips (move / trim), object keys, graphic
+  animations and effect plays.
+* Project schema 2 with the scene; schema 1 projects migrate.
+* Launcher installs, verifies and repairs the Director Mod.
+* 115 test cases (37 new) covering the scene, directions, assets, shots,
+  templates, geometry, fonts, logos, models, projection and graphics.
+
+### Third-party
+
+* nanosvg (zlib), earcut.hpp (ISC); stb_truetype and stb_image (MIT / PD).
+
 ## 0.1.0 — 2026-11-24 (first preview, not yet tested in the game)
 
 ### Added

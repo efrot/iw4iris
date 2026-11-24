@@ -8,7 +8,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$Client,
   [Parameter(Mandatory = $true)][string]$Launcher,
-  [string]$Version = '0.1.0'
+  [string]$Version = '0.2.0'
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -27,6 +27,8 @@ Copy-Item (Join-Path $repo 'resources\fonts\*') "$out\resources\fonts"
 Copy-Item (Join-Path $repo 'tools\blender\iw4iris_import.py') "$out\resources\tools\blender"
 Copy-Item (Join-Path $repo 'samples\*') "$out\samples" -Recurse
 Copy-Item (Join-Path $repo 'presets\*') "$out\presets" -Recurse
+New-Item -ItemType Directory -Force -Path "$out\mods" | Out-Null
+Copy-Item (Join-Path $repo 'mods\iw4iris_director') "$out\mods" -Recurse
 foreach ($doc in 'README.md', 'INSTALL.md', 'TROUBLESHOOTING.md', 'CHANGELOG.md', 'FEATURE_MATRIX.md', 'COMPATIBILITY.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md') {
   Copy-Item (Join-Path $repo $doc) $out
 }

@@ -57,6 +57,24 @@ namespace iris::launcher
   // Case-insensitive comparison of file names (Windows semantics).
   bool SameName(const std::string& a, const std::string& b);
 
+  // The IW4Iris Director Mod (mods/iw4iris_director/mod.json): which script
+  // files the launcher installs into the environment. Only relative .gsc
+  // paths inside the target folder are accepted, so a manifest can never
+  // make the launcher write anywhere else.
+  struct ModManifest
+  {
+    std::string id;
+    std::string name;
+    std::string version;
+    int protocol = 0;
+    std::string target;               // "userraw": the environment's raw folder
+    std::vector<std::string> files;   // relative paths with forward slashes
+  };
+  std::optional<ModManifest> ParseModManifest(const std::string& json, std::string* error = nullptr);
+  // Accepts "scripts/mp/x.gsc"; refuses absolute paths, "..", drive letters,
+  // empty parts and anything that is not a .gsc file.
+  bool IsSafeModFile(const std::string& relativePath);
+
   // Steam's libraryfolders.vdf lists the library folders ("path" values).
   std::vector<std::string> ParseSteamLibraryFolders(const std::string& vdf);
   // The folder name Steam uses for Modern Warfare 2 (2009), app 10180.

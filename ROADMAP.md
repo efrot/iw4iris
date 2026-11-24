@@ -1,6 +1,6 @@
 # Roadmap
 
-Each phase must build and test on its own. Status as of v0.1.0.
+Each phase must build and test on its own. Status as of v0.2.0.
 
 ## Phase 0 — research and feasibility · done
 
@@ -38,17 +38,47 @@ deterministic clock, render queue. **Next:** verify in the game; render at
 resolutions above the monitor (off-screen render target); temporal
 supersampling.
 
-## Phase 5 — actors and scene creation · blocked on research
+## Phase 5 — Director Mode · implemented, awaiting runtime verification
 
-Data model and UI placeholders exist. Two routes:
-* **GSC route** (proven by iw4cine): in a local private match, spawn
-  `script_model`s, set models, play animations with
-  `scriptModelPlayAnim`, attach weapons — driven from the timeline through
-  IW4x's GSC function registration (`GSC::Script::AddFunction`).
-  Deterministic seeking needs animation time control.
-* **Native route**: client-side DObjs with XAnim trees; needs bindings
-  IW4x does not declare yet (would be researched and added to IW4x's
-  `Game::` with verification, not guessed).
+The GSC route was chosen (the proven technique of MW2 cinematic mods,
+re-implemented independently): the **IW4Iris Director Mod** owns the game
+entities of a *film set* (a map loaded as a local offline session) and the
+native editor drives it through GSC builtins registered with IW4x's
+`Script::AddFunction` (docs/DIRECTOR_PROTOCOL.md).
+
+* **Milestone A — game integration:** compiled against the pinned IW4x;
+  in-game verification of camera override, editor, recording pending
+  (docs/TESTING.md §1–6).
+* **Milestone B — Director Mod proof of concept:** implemented: film set,
+  spawn / move / animate / arm / delete / respawn actors. In-game run
+  pending (docs/TESTING.md §8). **This is the gate for everything below.**
+* **Milestone C — scene creator:** implemented: map wizard, character /
+  animation / prop / effect libraries, placement, hierarchy, timeline
+  rows, save / load / reconstruction.
+* **Milestone D — advanced filmmaking:** implemented: directions, multiple
+  actors, paths, props, effects, smart shots, templates. Planned: bot
+  actors (real movement animation), vehicles, killstreak sequences,
+  performance recording, pose editor.
+* **Milestone E — production:** recording works for film sets (server-frame
+  granularity for clip / effect starts). Planned: render passes beyond
+  beauty, scene export to Blender (actors and graphics, not only camera).
+* Native DObj / XAnim actors stay a research item (bindings IW4x does not
+  declare).
+
+## Phase 5b — Motion graphics · geometry verified, renderer awaiting runtime verification
+
+* **M1 world-space geometry / M2 3D text / M3 logo importer:** geometry,
+  fonts, SVG and transparent-image tracing are unit-tested; the D3D9
+  renderer draws them in world space with runtime-verified depth and view
+  (docs/MOTION_GRAPHICS.md). In-game check: docs/TESTING.md §9.
+* **M4 tracking / M5 workflow:** implemented (actor bones via the Director
+  Mod, billboard, lens-locked, parenting; panel, inspector, gizmo,
+  presets, title templates).
+* **M6 rendering integration:** clean beauty renders with graphics. Planned:
+  graphics-only and mask passes, shadows, DoF on graphics (needs a render
+  stage before post-processing), native XModel assets through ZoneBuilder.
+* **M7 advanced:** OBJ import and procedural presets done; planned: glTF,
+  audio waveform / beat markers, more materials.
 
 ## Phase 6 — advanced visuals · partly implemented
 
@@ -61,8 +91,9 @@ depth buffer if IW4's renderer exposes it to D3D9 readback.
 ## Phase 7 — professional workflow · partly implemented
 
 Done: graph editor, Blender and After Effects export, render queue, shot
-presets, project management. **Next:** ripple editing, nested track groups,
-3D gizmos, glTF camera export.
+presets, project management, viewport gizmo for scene objects, beginner /
+professional mode, composition guides. **Next:** ripple editing, nested
+track groups, command palette, glTF export.
 
 ## Phase 8 — release engineering · partly implemented
 

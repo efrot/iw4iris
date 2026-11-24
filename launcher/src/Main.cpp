@@ -209,6 +209,7 @@ namespace
     o.environmentFolder = Utf8Path(state.environmentFolder);
     o.cinematicDll = ExeFolder() / "client" / "iw4x.dll";
     o.resourcesFolder = ExeFolder() / "resources";
+    o.directorMod = ExeFolder() / "mods" / "iw4iris_director";
     o.copyGameSettings = state.copySettings;
     Run([o] {
       std::string error;
@@ -336,6 +337,29 @@ namespace
     }
     if (state.busy)
       ImGui::TextDisabled("Working...");
+
+    // Director Mode needs the Director Mod in the environment.
+    if (EnvironmentReady())
+    {
+      ImGui::Spacing();
+      Header("Director Mod");
+      static ModStatus mod;
+      static double checkedAt = -10.0;
+      if (ImGui::GetTime() - checkedAt > 1.0)
+      {
+        mod = CheckDirectorMod(ExeFolder() / "mods" / "iw4iris_director", Utf8Path(state.environmentFolder));
+        checkedAt = ImGui::GetTime();
+      }
+      if (mod.installed && mod.upToDate)
+        ImGui::TextColored(ImVec4(0.5f, 0.9f, 0.6f, 1.0f), "Installed and up to date (version %s)", mod.version.c_str());
+      else if (mod.installed)
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.4f, 1.0f), "Installed, but older than this package. Click \"Repair / update\".");
+      else if (mod.shipped)
+        ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.4f, 1.0f), "Not installed. Click \"Repair / update\".");
+      for (const auto& p : mod.problems)
+        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "%s", p.c_str());
+      ImGui::TextDisabled("Its scripts run only when the editor starts a film set; other maps and demos are unaffected.");
+    }
   }
 
   void PageFfmpeg()

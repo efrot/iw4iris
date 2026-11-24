@@ -13,10 +13,13 @@ cinematics.
 > normal IW4x installation stays as it is, and you keep playing online with
 > that one.
 
-> **Status: v0.1.0 preview, not yet tested in the game.** The editor, the
-> camera system, demo control and the recorder are implemented, and the
-> cinematic client builds. None of the engine integration has been run in
-> IW4x by the authors yet. The game-independent code is covered by tests.
+> **Status: v0.2.0 preview, not yet tested in the game.** The editor, the
+> camera system, demo control, the recorder, Director Mode (actors, props,
+> effects on film sets) and native motion graphics (3D text and logos) are
+> implemented, and the cinematic client builds. None of the engine
+> integration has been run in IW4x by the authors yet. The game-independent
+> code (scene, directions, shots, geometry, fonts, logos, ...) is covered by
+> 115 automated tests.
 > [FEATURE_MATRIX.md](FEATURE_MATRIX.md) lists exactly what is verified,
 > implemented, experimental or planned. [docs/TESTING.md](docs/TESTING.md)
 > shows how to help verify it.
@@ -29,6 +32,8 @@ cinematics.
 2. [Requirements](#2-requirements)
 3. [Installation tutorial](#3-installation-tutorial)
 4. [Your first cinematic: step by step](#4-your-first-cinematic-step-by-step)
+   - [4a. Director Mode: a scene from scratch](#4a-director-mode-a-scene-from-scratch)
+   - [4b. Motion graphics: 3D titles and logos](#4b-motion-graphics-3d-titles-and-logos)
 5. [The editor](#5-the-editor)
 6. [Cameras](#6-cameras)
 7. [Timeline, keys and the graph editor](#7-timeline-keys-and-the-graph-editor)
@@ -63,14 +68,17 @@ cinematics.
 | **Compositing** | Camera export to Blender (importer add-on included) and After Effects (a script that builds the camera), plus CSV. |
 | **Shot presets** | Twelve presets such as trickshot orbit, slow-motion jump, killcam transition, scope close-up, weapon reveal and rooftop establishing. Each one builds ordinary keys you can edit. |
 | **Projects** | `.iw4iris` files (versioned JSON) you can share. They reference maps and demos, never game files. Autosave, recent projects, IWXMVM / T6Iris campath import. |
-| **Launcher** | Finds your IW4x installation, builds an isolated cinematic copy (links to the game data, nothing in your install is changed), launches it offline, repairs and uninstalls. No administrator rights. |
+| **Director Mode** | Build a scene from scratch on any installed map: a scene wizard, characters from the map by faction, animation clips, weapons and attachments, simple directions ("walk to", "turn towards", "aim at", ...), props, effects, 17 framed shots from an actor, scene templates. Click to select, move / rotate / size gizmo, composition guides, beginner and professional mode. |
+| **Motion graphics** | Extruded 3D text (any TrueType / OpenType font, kerning, multiple lines, vertical or circular), logos from SVG or transparent PNG (extruded or flat), image planes, primitives, OBJ models from Blender. Materials, bevels, tracking (fixed, on an actor's bone, facing the camera, locked to the lens), 18 animation presets, title templates and a one-click camera orbit. Drawn into the game frame and recorded with the shot. |
+| **Launcher** | Finds your IW4x installation, builds an isolated cinematic copy (links to the game data, nothing in your install is changed), installs the Director Mod into it, launches it offline, repairs and uninstalls. No administrator rights. |
 
-Not in v0.1 (see [ROADMAP.md](ROADMAP.md)): actors and animations,
-dynamic lights beyond the sun, render passes other than the normal image
-(green screen, depth, normals), bone cameras, recording above the game
-resolution, true rewinding, kill markers read from demos, ReShade. The
-editor marks these as unavailable instead of showing controls that do
-nothing.
+Not in v0.2 (see [ROADMAP.md](ROADMAP.md)): bot actors and performance
+recording, pose editing, vehicles and killstreak sequences, dynamic lights
+beyond the sun, shadows and depth of field on graphics, render passes
+other than the normal image (green screen, depth, masks), bone cameras,
+recording above the game resolution, true rewinding, kill markers read from
+demos, audio sync, ReShade. The editor marks these as unavailable instead
+of showing controls that do nothing.
 
 ---
 
@@ -105,7 +113,7 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
   then **Download ZIP**. The ZIP holds one folder (named after the
   repository and branch) with `IW4Iris Launcher.exe` at its top, next to
   `client\` and `resources\`, plus the source code.
-* **The release package** `IW4Iris-v0.1.0-Windows-x86.zip`: only the
+* **The release package** `IW4Iris-v0.2.0-Windows-x86.zip`: only the
   program, documentation, samples and presets.
 
 1. Download one of them.
@@ -119,6 +127,7 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
    IW4Iris Launcher.exe     <- start this
    client\iw4x.dll          (+ sentry-crash.exe, sentry-wer.dll)
    resources\fonts\ ...
+   mods\iw4iris_director\   the Director Mod (installed by the launcher)
    docs\  samples\  presets\  README.md  LICENSE  ...
    ```
 
@@ -156,6 +165,9 @@ What setup did:
 * It installed the **IW4Iris build of `iw4x.dll`**.
 * It created its **own** `players\`, `userraw\` and `iw4iris\` folders for
   settings, projects, recordings and logs.
+* It installed the **Director Mod** scripts into its own `userraw\scripts\`
+  (the Setup page shows "Director Mod: installed and up to date"). They only
+  run when the editor starts a film set.
 
 ### Step 4: FFmpeg (optional, for video formats)
 
@@ -236,6 +248,78 @@ This is the full workflow from demo to video file.
 
 ---
 
+## 4a. Director Mode: a scene from scratch
+
+No demo needed: Director Mode loads a map as a private, offline *film set*
+and lets you place characters, props, effects and graphics on it.
+
+1. **F1** → **Director** panel (or the **Director** workspace) → **Create
+   new scene**.
+2. **Map:** pick an installed map (search, star favourites; recent maps come
+   first). **Template:** "Empty film set", "Sniper showcase", "Trickshot
+   sequence", "Two-character confrontation", "Squad introduction", ...
+   **Create scene.** The map loads (a few seconds); the Director panel says
+   *ready*, and the template is built where the camera looks.
+3. **Characters** panel: double-click a character (grouped by faction:
+   Task Force 141, Rangers, Navy SEALs, Spetsnaz, Militia, OpFor, Ghillie
+   suits) to place it where the camera looks.
+4. Click the character in the view to select it. **G** move, **R** rotate,
+   **S** size, drag the gizmo handles (hold **Ctrl** to snap). **F** frames
+   it with the free camera.
+5. **Object** panel (inspector): character, **Weapon** (e.g.
+   *Intervention*), idle animation, **Animate (key here)** to key its
+   position at the playhead, **Snap to ground**, **Face the camera**.
+6. **Animations** panel: pick an animation and click **Clip** to add it at
+   the playhead (it plays right away), or **Idle**.
+7. **Directions** (Object panel): chain "Stand still", "Walk to a point",
+   "Turn towards another actor", "Aim at a point" ... and click **Apply
+   directions**; they become movement keys and animation clips you can
+   still edit on the timeline.
+8. **Shots** (Object panel): choose *Close-up*, *Orbit*, *Low-angle hero*,
+   ... and **Create shot**: a framed camera, made active.
+9. **Props & Effects** panel: place crates, barrels, vehicles, smoke, fire
+   ... ; props can sit on an actor's bone.
+10. Record as usual (section 10).
+
+Good to know:
+
+* Only what the map itself loads is offered (characters, animations,
+  weapons, props, effects differ per map). Assets you use for the first time
+  appear after **Reload set** in the Director panel (the engine loads assets
+  when a map starts).
+* Animations start from their beginning when their clip is reached; they
+  cannot be scrubbed. Effects (particles) run on the game's clock.
+* The film set is a local listen server under the offline guard; nobody can
+  join and nothing is sent.
+
+## 4b. Motion graphics: 3D titles and logos
+
+1. **Motion Graphics** panel (or workspace).
+2. **3D Text**, **Logo ...** (SVG or a transparent PNG), **Image ...**,
+   **3D Model ...** (OBJ), **Shape** or **Tracking anchor**. New graphics
+   face the camera where it looks.
+3. Or the **Cinematic title** box: type the text, pick a template
+   ("Montage title", "Player introduction", "Team introduction", ...),
+   tick **Generate a camera orbit**, **Create title**.
+4. **Object** panel: text, font (shipped Rubik, your Windows fonts or **...**
+   to import), size, spacing, alignment, layout (straight, vertical, on a
+   circle); depth and bevel; **Material** (matte, brushed / polished metal,
+   chrome, gold, glass, neon, ...); **Visibility** (hidden behind walls and
+   characters, always on top, X-ray); **Follows** (fixed, an actor's bone
+   such as the head, facing the camera, the lens); **Animation** presets
+   (fly in, typewriter, assemble, pop in, float, rotate, pulse, glitch, ...)
+   with start, duration and stagger.
+5. Graphics are part of the frame and are recorded; outlines and gizmos
+   are not.
+
+The **Renderer** section of the panel tells you whether occlusion by walls
+and characters is available on your system ("verified") or why not; when
+not, graphics are drawn on top. Graphics have their own key light (the Look
+panel's sun override drives it): the map's shadows, fog and depth of field
+do not apply to them.
+
+---
+
 ## 5. The editor
 
 Press **F1** to show or hide it. The game keeps running in the middle; the
@@ -250,11 +334,13 @@ dragging their title bars. **View → Reset layout** puts them back.
 | **Inspector** (right) | the selected camera: mode, lens, path options, the selected key, rig and target, shake |
 | **Look** (right) | colour, depth of field, sun, fog, HUD |
 | **Timeline** (bottom) | ruler, markers, cuts, camera keys, playback speed, property tracks, graph editor |
-| **Recording**, **Render Queue**, **Export**, **Shot Presets**, **Lighting**, **Actors**, **Settings**, **Diagnostics**, **History** | as named; open them from **View** |
+| **Director**, **Characters**, **Animations**, **Props & Effects**, **Motion Graphics**, **Object** | Director Mode and motion graphics (sections 4a and 4b) |
+| **Recording**, **Render Queue**, **Export**, **Shot Presets**, **Lighting**, **Settings**, **Diagnostics**, **History** | as named; open them from **View** |
 
 **Workspaces** (icons in the menu bar, or the **Workspace** menu) switch
-between panel sets: Cinematic, Timeline, Cameras, Actors, Lighting,
-Environment, Effects, Recording, Render Queue and Settings.
+between panel sets: Cinematic (demo editing), Timeline, Cameras, Director,
+Animation, Motion Graphics, Lighting, Environment, Effects, Recording,
+Render Queue and Settings.
 
 **Settings** has the UI scale, the accent colour, free-camera speed,
 acceleration, smoothing, roll speed, mouse sensitivity, autosave, the
@@ -481,6 +567,9 @@ markers that you can edit.
 | **1 – 9** | make camera 1 – 9 active |
 | **G** | graph editor |
 | **?** | list of shortcuts |
+| **G / R / S** (object selected) | move / rotate / size gizmo |
+| **F** (object selected) | frame the object with the free camera |
+| **Ctrl+D / Del / Esc** (object selected) | duplicate / delete / deselect |
 | **~** | game console (works while the editor is shown) |
 
 Gamepad while flying: left stick moves, right stick looks, triggers move up
@@ -542,6 +631,9 @@ the log). The most common problems:
 | "Freeze frames cannot be rendered offline yet" | raise the playback speed above 0 in the range |
 | "Frame sync NOT verified" | check the first frames of the recording, and report it |
 | Recording is slow | expected; output timing is still exact. Lower the frame queue at 4K if memory runs out |
+| "The Director Mod did not start on this map" | launcher → Setup → **Repair / update**; check the console (~) for a script error and report it |
+| A character / animation is missing in a film set | that map does not load it, or it appears after **Reload set** |
+| "Depth occlusion: unavailable ..." | your system presents frames without a usable depth buffer; graphics are drawn on top. Report the text |
 
 More: [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
@@ -588,7 +680,7 @@ git clone --recursive https://github.com/efrot/iw4iris.git
 
 The script checks out the pinned IW4x revision, installs the IW4Iris
 component into it, builds it with IW4x's own build, builds the launcher and
-tests with CMake, and packages `dist\IW4Iris-v0.1.0-Windows-x86.zip`.
+tests with CMake, and packages `dist\IW4Iris-v0.2.0-Windows-x86.zip`.
 Requirements and details: [BUILD.md](BUILD.md).
 
 ---
@@ -602,7 +694,7 @@ Optional FFmpeg für Videoformate.
 **Installation**
 
 1. Auf der GitHub-Seite **Code → Download ZIP** klicken (oder das
-   Release-Paket `IW4Iris-v0.1.0-Windows-x86.zip` nehmen) und **außerhalb**
+   Release-Paket `IW4Iris-v0.2.0-Windows-x86.zip` nehmen) und **außerhalb**
    des Spielordners entpacken (z. B. `C:\Tools\IW4Iris`). Im entpackten
    Ordner (beim GitHub-ZIP im Ordner darin) liegt **IW4Iris Launcher.exe**
    direkt oben, daneben `client\` und `resources\`. Die Dateien zusammen
@@ -635,8 +727,26 @@ Optional FFmpeg für Videoformate.
    ein Format wählen und **Start recording** klicken. Die Dateien landen in
    `%LOCALAPPDATA%\IW4Iris\game\iw4iris\recordings\`.
 
+**Eigene Szene ohne Demo (Director Mode)**
+
+1. **F1** → Panel **Director** → **Create new scene** → Map wählen (z. B.
+   Highrise) → Vorlage wählen (z. B. „Sniper showcase“) → **Create scene**.
+2. Panel **Characters**: Figur doppelklicken, sie erscheint dort, wo die
+   Kamera hinschaut. Anklicken, mit **G/R/S** bewegen, drehen, skalieren.
+3. Panel **Object**: Waffe (z. B. *Intervention*), Animation, Regie-Aktionen
+   („Walk to a point“, „Aim at a point“ …) → **Apply directions**; unter
+   **Shots** eine Einstellung erzeugen (Close-up, Orbit …).
+4. Panel **Props & Effects** für Kisten, Fahrzeuge, Rauch, Feuer.
+
+**3D-Titel und Logos (Motion Graphics)**
+
+Panel **Motion Graphics**: **3D Text**, **Logo ...** (SVG oder transparentes
+PNG) oder **Cinematic title** mit Vorlage und „Generate a camera orbit“.
+Material, Fase, Animation und Tracking (z. B. Name über dem Kopf eines
+Actors) im Panel **Object**.
+
 **Wichtig:** Die Cinematic-Version ist **nur offline** nutzbar und blockiert
-jeden Netzwerkverkehr. Version 0.1.0 ist eine Vorschau und wurde im Spiel
+jeden Netzwerkverkehr. Version 0.2.0 ist eine Vorschau und wurde im Spiel
 noch nicht getestet; Probleme bitte mit der Logdatei
 `iw4iris\logs\iw4iris.log` melden.
 
@@ -660,6 +770,9 @@ der Launcher angelegt hat; der Spielordner bleibt unberührt.
 | [docs/PROJECT_FORMAT.md](docs/PROJECT_FORMAT.md) | the `.iw4iris` format |
 | [docs/EXPORT.md](docs/EXPORT.md) | Blender and After Effects |
 | [docs/TESTING.md](docs/TESTING.md) | automated tests and the in-game test procedure |
+| [docs/DIRECTOR_PROTOCOL.md](docs/DIRECTOR_PROTOCOL.md) | how the editor drives the Director Mod |
+| [docs/MOTION_GRAPHICS.md](docs/MOTION_GRAPHICS.md) | 3D text, logos, rendering, tracking |
+| [docs/EXTENSIONS.md](docs/EXTENSIONS.md) | the extension manifest (`mod.json`) |
 | [CHANGELOG.md](CHANGELOG.md) | version history |
 | [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) | where development stands |
 | [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | third-party components and licences |

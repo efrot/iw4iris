@@ -12,14 +12,16 @@ IW4Iris has four layers. Only the engine adapter knows anything about IW4.
 │    └─ Components::Cinematic  (engine/iw4x/src, installed as Modules/IW4Iris)          │
 │         Runtime ── main-thread frame, view hook, input, render-thread entry          │
 │         Engine ─── THE IW4 ADAPTER: refdef, dvars, demo state, entities              │
-│         OfflineGuard · Clock · DemoControl · Capture                                 │
+│         OfflineGuard · Clock · DemoControl · Capture · Director · Graphics           │
 │         Editor (Dear ImGui): panels, timeline, graph editor, overlay                 │
 │         Session ── shared state (project, playhead, history), main-thread queue      │
 │                    │ uses                                                             │
 │  iris::core (core/, static library, no engine knowledge)                             │
 │    math · curve · camera (lens, path) · timeline · rig · project · history           │
-│    recording · exporters · demo · presets                                             │
+│    recording · exporters · demo · presets · scene · assets · shots · templates        │
+│    mesh · font · logo · model · projection · graphics (motion graphics geometry)       │
 └───────────────────────────────────────────────────────────────────────────────────────┘
+mods/iw4iris_director (GSC Director Mod, installed into the environment's userraw by the launcher)
 tools/blender (Python add-on) · tools/*.ps1|*.sh (build, overlay, package) · tests/
 ```
 
@@ -126,6 +128,36 @@ Finish: restore dvars, join, report
 * **Backpressure.** A bounded queue; when the encoder is behind, the render
   thread waits, which is correct for an offline render.
 
+## Director Mode — hybrid native / GSC
+
+```
+editor (native)                         film set (local listen server, same process)
+───────────────                         ────────────────────────────────────────────
+iris::Scene (project) ── SyncScene ──► request queue ──► IW4IrisNextRequest ──► Director Mod (GSC)
+   actors, props, effects                                                       script models, tags,
+EvaluateActor / Prop at the       ◄── IW4IrisPoses(server time) ◄────────────── animations, effects
+   predicted timeline time        ◄── IW4IrisReportTag (bones) ◄──────────────
+asset catalog ◄── DB_EnumXAssets ──── IW4IrisManifest (precache at level start)
+```
+
+* `Director.hpp` / `IrisDirector.cpp`: builtins, asset discovery, the
+  manifest, scene diffing into requests (spawn, weapon, attachments,
+  animation, props, links, deletes), effect events, bone samples
+  interpolated to the client's render time, film set start / reload /
+  leave, map list, surface traces, view target.
+* `mods/iw4iris_director`: the GSC side (docs/DIRECTOR_PROTOCOL.md).
+* The scene itself (`iris::Scene`, directions, templates, shots, asset
+  classification) is game independent and unit-tested.
+
+## Motion graphics
+
+`Graphics.hpp` / `IrisGraphics.cpp` (docs/MOTION_GRAPHICS.md): geometry
+built on the main thread from `iris::GraphicDef` (cached by geometry key),
+poses evaluated in `OnViewReady` into a draw list tagged with the frame's
+scene time, drawn on the render thread before `Capture::BackendFrame`
+reads the back buffer. View, projection and depth use are validated at run
+time and reported.
+
 ## Project files
 
 `docs/PROJECT_FORMAT.md` documents the schema. Saves are atomic
@@ -145,7 +177,8 @@ still what was created, and never descends into a reparse point.
 ## Source map
 
 ```
-core/                 game-independent library (include/iris, src)
+core/                 game-independent library (include/iris, src; src/vendor wraps third-party headers)
+mods/iw4iris_director the Director Mod (GSC) and its mod.json
 engine/iw4x/src/      the IW4x component (copied to src/Components/Modules/IW4Iris)
 engine/iw4x/patches/  the IW4x source patch
 engine/iw4x/premake/  premake target for the editor libraries
@@ -153,7 +186,7 @@ launcher/             the Windows launcher
 tests/                C++ unit tests (own runner), tests/python (Blender add-on)
 tools/                build / overlay / package scripts, Blender add-on, cross-build
 external/iw4x-client  pinned IW4x (submodule)
-third_party/          Dear ImGui (docking), nlohmann/json, stb (submodules)
+third_party/          Dear ImGui (docking), nlohmann/json, stb, nanosvg, earcut (submodules)
 resources/fonts       Rubik, Font Awesome Free (OFL)
 samples/, presets/    sample projects, preset catalogues
 ```

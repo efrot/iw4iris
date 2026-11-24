@@ -3,13 +3,15 @@
 Persistent notes so development can continue across sessions. Update this
 file with every significant change.
 
-_Last updated: 2026-11-24 — v0.1.0 preview._
+_Last updated: 2026-11-24 — v0.2.0 preview (Director Mode, motion graphics)._
 
 ## State
 
 | Area | State |
 | --- | --- |
-| Core library (`core/`) | complete for v0.1; 78 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) |
+| Core library (`core/`) | scene, assets, shots, templates and motion graphics geometry added; 115 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) |
+| Director Mod (`mods/iw4iris_director`) | written; **never compiled by the game** (GSC is compiled at map load; no game here) |
+| Director bridge, graphics renderer, Director / motion graphics editor | implemented; cross-compile warning-free; **never run in the game** |
 | IW4x component (`engine/iw4x/`) | implemented; **cross-compiles and links** into IW4x `912099b7c405` with IW4x's `-Werror` flags; **never run in the game** |
 | Launcher (`launcher/`) | implemented; cross-compiles; install rules unit-tested; never run on Windows |
 | Blender add-on | helpers tested against the C++ exporter; not run inside Blender |
@@ -50,25 +52,31 @@ Pitfalls met (all handled by the scripts now):
 
 ## Next steps (priority order)
 
-1. **Run docs/TESTING.md §1–§4 in the game** (needs a Windows machine with
-   MW2 + IW4x). Above all: does the view hook move the camera (§3)?
-   Record findings in COMPATIBILITY.md and FEATURE_MATRIX.md.
-2. If the view hook is insufficient: find the `R_RenderScene` /
-   `R_SetViewParmsForScene` call sites for IW4 the way IWXMVM did for IW3,
-   **verify them in the game**, and propose them to IW4x as `Game::`
-   bindings (no unverified addresses in IW4Iris).
-3. Verify pause / seek via `clientStatic_t::realtime`; otherwise research
-   the `msec` path of `Com_Frame`.
-4. Verify the render clock (`Clock::Verify` logs the outcome) and frame-sync
-   tags with a real capture; fix the capture timing model if
-   `unalignedFrames` is non-zero.
-5. Windows CI building the release package with MSVC.
-6. Phase 5 (actors) via GSC script models in local private matches.
+1. **Milestone A in the game** (docs/TESTING.md §1–§6): does the view hook
+   move the camera, does the editor work, are real frames recorded?
+2. **Milestone B in the game** (§8): film set loads, the Director Mod
+   compiles (watch the console for script errors), an actor spawns with its
+   head, moves, animates, holds an Intervention, is deleted and respawned.
+   Fix the GSC first if it does not compile; everything in Director Mode
+   depends on this.
+3. **Motion graphics in the game** (§9): is a matching depth buffer bound
+   at present time (the Renderer section of the Motion Graphics panel says)?
+   If not, move the graphics draw to a scene stage (research IW4's
+   `R_DrawSurfs` / post-process boundary) instead of falling back to
+   always-on-top.
+4. Verify pause / seek, the render clock and frame sync (as before).
+5. Bot actors for real locomotion; vehicles; graphics-only and mask passes.
+6. Windows CI building the release package with MSVC.
 
 ## Conventions
 
 * Core code: 4-space indent, `iris::` namespace, no engine knowledge.
 * Component code: IW4x style (2-space indent), `IW4Iris::` namespace,
   files `Iris*.cpp`; all game access through `IrisEngine.cpp`.
-* Never add an engine address IW4x does not already declare and use.
+* Never add an engine address IW4x does not already declare and use. The
+  one address the component writes out itself, `0x6CAF080`
+  (`GfxCmdBufSourceState`), is the one IW4x's `Renderer::ListSamplers`
+  uses, and its contents are validated every frame before use.
+* The Director Mod is IW4Iris' own code; iw4cine has no licence and was only
+  studied.
 * Every feature is listed in FEATURE_MATRIX.md with an honest status.

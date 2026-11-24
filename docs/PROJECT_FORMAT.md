@@ -7,7 +7,7 @@ name and path); it never contains game files.
 ## Versioning
 
 ```json
-{ "format": "iw4iris-project", "schemaVersion": 1, ... }
+{ "format": "iw4iris-project", "schemaVersion": 2, ... }
 ```
 
 * `schemaVersion` is an integer. A reader accepts every version up to its
@@ -15,6 +15,9 @@ name and path); it never contains game files.
   refuses newer ones with an explanatory error.
 * Version 0 (the pre-release prototype layout: `version`, a top-level
   `campath` with `tickMs`, `fps` as a number) migrates to 1.
+* Version 2 (IW4Iris 0.2) adds `scene`. Version 1's top-level `actors`
+  placeholders (body, head, animation, weapon, position, angles) become
+  scene actors (the animation becomes the idle animation).
 * Unknown members are ignored; unknown enum values fall back to a default
   and produce a warning; invalid numbers fall back to defaults and are
   clamped to their ranges.
@@ -35,7 +38,8 @@ name and path); it never contains game files.
 | --- | --- | --- |
 | `format`, `schemaVersion` | string, int | see above |
 | `generator`, `name`, `created`, `modified` | string | ISO 8601 UTC timestamps |
-| `map` | string | map for scene work (`mp_rust`) |
+| `map` | string | the film set's map in Director Mode (`mp_highrise`) |
+| `scene` | object | Director Mode and motion graphics objects, below |
 | `demo` | object | `path` (relative to the project file when possible), `name`, `map`, `gametype`, `author`, `size` (bytes, for change detection), `sceneStart` |
 | `timeline` | object | `fps`, `start`, `end`, `in`, `out`, `loop {enabled,start,end}`, `display` (`timecode`/`seconds`/`frames`), `snap` |
 | `timeRemap` | object | `timelineStart`, `sceneOffset`, `speed` (curve, default 1) |
@@ -105,6 +109,49 @@ horizontal field of view of the output. `target.kind`: `none`, `point`,
 `width`/`height` 0 = the game's resolution. Pass kinds: `beauty`,
 `worldOnly`, `playersOnly`, `noWeapons`, `weaponsOnly`, `greenscreen`,
 `depth`, `normals`, `objectId` (only `beauty` renders in v0.1).
+
+## Scene (schema 2)
+
+```json
+"scene": {
+  "filmSet": { "gametype": "dm" },
+  "actors": [ { "id": "actor-1", "name": "Sniper", "character": "Ghillie Urban Sniper",
+                "body": "mp_body_...", "head": "head_...", "idleAnim": "pb_stand_alert",
+                "weapon": "cheytac_mp", "weaponTag": "tag_weapon_right", "camo": 0,
+                "attachments": [ {"model": "m4_mp", "tag": "tag_stowed_back", "camo": 0} ],
+                "transform": { "position": [x,y,z], "angles": [p,y,r], "scale": [1,1,1] },
+                "track": { "x": <curve>, "y": <curve>, "z": <curve>, "pitch": ..., "yaw": ..., "roll": ... },
+                "visibility": <curve>,
+                "clips": [ {"id": "clip-1", "anim": "pb_walk_forward_mg", "start": 1.0, "duration": 2.0} ],
+                "actions": [ {"kind": "walkTo", "duration": 2, "target": [x,y,z], "targetActor": "", "anim": "", "speed": 0} ],
+                "actionsStart": 0.0, "visible": true, "locked": false, "group": "" } ],
+  "props":   [ { "id", "name", "model", "transform", "track", "visibility", "attachActor", "attachTag", "visible", "locked", "group" } ],
+  "effects": [ { "id", "name", "fx", "transform", "start", "repeat", "count", "attachActor", "attachTag", "enabled" } ],
+  "graphics": [ { "id", "name", "kind": "text|logo|image|shape|model|anchor",
+                  "text", "font", "textSettings": {size, letterSpacing, wordSpacing, lineSpacing, align, verticalAlign, layout, radius, kerning},
+                  "separateWords", "source", "logoMode": "extruded|flat", "width", "alphaThreshold", "simplify", "smoothing",
+                  "useLogoColors", "modelScale", "modelUp": "y|z", "shape", "shapeSize",
+                  "geometry": {depth, bevel, bevelSegments, detail},
+                  "materials": {front, side, bevel, back, separate}, "doubleSided",
+                  "transform", "track", "opacity": <curve>,
+                  "tracking": {mode: "world|actor|billboard|camera", actor, attach, inheritRotation, yawOnly, distance},
+                  "renderMode": "depth|onTop|xray",
+                  "animations": [ {preset, start, duration, stagger, intensity, direction, easing, seed, enabled} ],
+                  "visible", "locked", "castShadow", "group", "parent" } ]
+}
+```
+
+* Action kinds: `wait`, `walkTo`, `runTo`, `turnTo`, `faceActor`,
+  `faceCamera`, `playAnimation`, `crouch`, `aimAt`, `enter`, `exit`,
+  `followActor`. Directions are kept as the source; "Apply directions"
+  writes `track` and `clips`.
+* A material is `{preset, color, opacity, specular, gloss, metallic,
+  emission, emissionStrength}`.
+* Graphic `source` and `font` are paths, relative to the project file when
+  possible. Fonts are referenced, never embedded.
+* Asset names are engine names; a project shared with someone whose map
+  lacks an asset opens with the asset reported as "not on this map" in the
+  Director panel.
 
 ## Related files
 

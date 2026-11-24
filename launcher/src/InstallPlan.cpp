@@ -2,6 +2,8 @@
 // Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
 #include "InstallPlan.hpp"
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <cctype>
 
@@ -125,5 +127,73 @@ namespace iris::launcher
       pos = i;
     }
     return out;
+  }
+
+  bool IsSafeModFile(const std::string& p)
+  {
+    if (p.empty() || p.size() > 200 || p.front() == '/' || p.front() == '\\' || p.find(':') != std::string::npos)
+      return false;
+    if (p.size() < 5 || p.compare(p.size() - 4, 4, ".gsc") != 0)
+      return false;
+    std::string part;
+    for (const char c : p + "/")
+    {
+      if (c == '/' || c == '\\')
+      {
+        if (part.empty() || part == "." || part == "..")
+          return false;
+        part.clear();
+        continue;
+      }
+      const auto u = static_cast<unsigned char>(c);
+      if (u < 0x20 || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|')
+        return false;
+      part += c;
+    }
+    return true;
+  }
+
+  std::optional<ModManifest> ParseModManifest(const std::string& text, std::string* error)
+  {
+    auto fail = [&](const std::string& what) -> std::optional<ModManifest> {
+      if (error)
+        *error = what;
+      return std::nullopt;
+    };
+    nlohmann::json j;
+    try
+    {
+      j = nlohmann::json::parse(text);
+    }
+    catch (const std::exception& e)
+    {
+      return fail(std::string("mod.json is not valid JSON: ") + e.what());
+    }
+    if (!j.is_object() || j.value("format", std::string()) != "iw4iris-extension")
+      return fail("mod.json is not an IW4Iris extension manifest.");
+    ModManifest m;
+    m.id = j.value("id", std::string());
+    m.name = j.value("name", m.id);
+    m.version = j.value("version", std::string());
+    m.protocol = j.value("protocol", 0);
+    const auto install = j.value("install", nlohmann::json::object());
+    m.target = install.value("target", std::string());
+    if (m.id.empty() || m.version.empty())
+      return fail("mod.json has no id or version.");
+    if (m.target != "userraw")
+      return fail("mod.json installs into \"" + m.target + "\"; only \"userraw\" is supported.");
+    for (const auto& f : install.value("files", nlohmann::json::array()))
+    {
+      if (!f.is_string() || !IsSafeModFile(f.get<std::string>()))
+        return fail("mod.json lists a file that is not a relative .gsc path: " + f.dump());
+      std::string path = f.get<std::string>();
+      for (auto& c : path)
+        if (c == '\\')
+          c = '/';
+      m.files.push_back(path);
+    }
+    if (m.files.empty())
+      return fail("mod.json lists no files.");
+    return m;
   }
 }

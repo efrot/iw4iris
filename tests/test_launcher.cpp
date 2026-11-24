@@ -1,3 +1,8 @@
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+
 #include "InstallPlan.hpp"
 #include "test.hpp"
 
@@ -75,4 +80,48 @@ TEST_CASE("launcher: parses Steam library folders")
   CHECK(ParseSteamLibraryFolders("").empty());
   CHECK(SameName("Main", "mAIN"));
   CHECK(!SameName("main", "mai"));
+}
+
+TEST_CASE("launcher: Director Mod manifest accepts only safe script paths")
+{
+    using namespace iris::launcher;
+    CHECK(IsSafeModFile("scripts/mp/iw4iris_director.gsc"));
+    CHECK(IsSafeModFile("scripts\\iw4iris\\director.gsc"));
+    CHECK(!IsSafeModFile("../scripts/x.gsc"));
+    CHECK(!IsSafeModFile("scripts/../../x.gsc"));
+    CHECK(!IsSafeModFile("/etc/x.gsc"));
+    CHECK(!IsSafeModFile("C:/x.gsc"));
+    CHECK(!IsSafeModFile("scripts//x.gsc"));
+    CHECK(!IsSafeModFile("scripts/x.dll"));
+    CHECK(!IsSafeModFile("scripts/x.gsc.exe"));
+    CHECK(!IsSafeModFile(""));
+
+    std::string error;
+    const auto ok = ParseModManifest(R"({"format":"iw4iris-extension","id":"m","version":"1.0","protocol":1,
+        "install":{"target":"userraw","files":["scripts/mp/a.gsc","scripts\\b\\c.gsc"]}})", &error);
+    CHECK_MSG(ok.has_value(), error);
+    CHECK(ok->files.size() == 2 && ok->files[1] == "scripts/b/c.gsc");
+    CHECK(ok->protocol == 1);
+    CHECK(!ParseModManifest(R"({"format":"iw4iris-extension","id":"m","version":"1","install":{"target":"main","files":["a.gsc"]}})"));
+    CHECK(!ParseModManifest(R"({"format":"iw4iris-extension","id":"m","version":"1","install":{"target":"userraw","files":["../a.gsc"]}})"));
+    CHECK(!ParseModManifest(R"({"format":"other"})"));
+    CHECK(!ParseModManifest("not json", &error));
+    CHECK(!error.empty());
+}
+
+TEST_CASE("launcher: the shipped Director Mod manifest lists files that exist")
+{
+    using namespace iris::launcher;
+    const std::filesystem::path dir = std::filesystem::path(IW4IRIS_SOURCE_DIR) / "mods" / "iw4iris_director";
+    std::ifstream in(dir / "mod.json");
+    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string error;
+    const auto m = ParseModManifest(text, &error);
+    CHECK_MSG(m.has_value(), error);
+    CHECK(m->id == "iw4iris_director");
+    CHECK(m->protocol == 1);
+    for (const auto& f : m->files)
+        CHECK_MSG(std::filesystem::is_regular_file(dir / f), f);
+    // The entry point must live where IW4x loads multiplayer scripts from.
+    CHECK(std::find(m->files.begin(), m->files.end(), "scripts/mp/iw4iris_director.gsc") != m->files.end());
 }
