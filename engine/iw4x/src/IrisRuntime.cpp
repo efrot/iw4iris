@@ -2,6 +2,8 @@
 // Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
 #include "Runtime.hpp"
 #include "Capture.hpp"
+#include "Director.hpp"
+#include "Graphics.hpp"
 #include "Clock.hpp"
 #include "DemoControl.hpp"
 #include "Editor.hpp"
@@ -485,6 +487,9 @@ namespace IW4Iris::Runtime
         st.players.emplace_back(p.clientNum, p.name.empty() ? "client " + std::to_string(p.clientNum) : p.name);
     }
 
+    Director::MainFrame(s);
+    Graphics::MainFrame(s);
+
     auto& project = s.project;
     if (!Capture::IsActive())
     {
@@ -555,6 +560,7 @@ namespace IW4Iris::Runtime
   {
     if (!device || !guardOk)
       return;
+    Graphics::Draw(device);         // world-space graphics are part of the frame
     Capture::BackendFrame(device);  // before the editor: recordings stay clean
     if (!editorVisible)
       return;
@@ -615,6 +621,7 @@ namespace IW4Iris::Runtime
     if (uiDevice)
       ImGui_ImplDX9_InvalidateDeviceObjects();
     Capture::OnDeviceLost();
+    Graphics::DeviceLost();
   }
 
   void DeviceRestored()
@@ -786,6 +793,8 @@ namespace IW4Iris::Hooks
     {
       Runtime::SetLastApplied(gameView);
     }
+    // Motion graphics for this frame, tagged with its scene time.
+    Graphics::OnView(s, t, camera.value_or(gameView), Engine::ClientServerTime());
   }
 
   bool BlocksGameMouse()

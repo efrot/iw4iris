@@ -43,9 +43,11 @@ namespace IW4Iris::Editor
         {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Inspector, Panel::Timeline, Panel::Look}},
         {"Timeline", Icons::CHART, {Panel::Outliner, Panel::Inspector, Panel::Timeline}},
         {"Cameras", Icons::CAMERA, {Panel::Outliner, Panel::Inspector, Panel::Timeline, Panel::Presets}},
-        {"Actors", Icons::USER, {Panel::Outliner, Panel::Actors, Panel::Timeline}},
+        {"Director", Icons::USER, {Panel::Outliner, Panel::Director, Panel::Actors, Panel::ObjectInspector, Panel::Timeline}},
+        {"Animation", Icons::ROUTE, {Panel::Outliner, Panel::Actors, Panel::Animations, Panel::ObjectInspector, Panel::Timeline}},
+        {"Motion Graphics", Icons::LAYER, {Panel::Outliner, Panel::Graphics, Panel::ObjectInspector, Panel::Timeline}},
         {"Lighting", Icons::LIGHTBULB, {Panel::Outliner, Panel::Lighting, Panel::Look, Panel::Timeline}},
-        {"Environment", Icons::SUN, {Panel::Look, Panel::Timeline}},
+        {"Environment", Icons::SUN, {Panel::Look, Panel::Assets, Panel::ObjectInspector, Panel::Timeline}},
         {"Effects", Icons::MAGIC, {Panel::Look, Panel::Presets, Panel::Timeline}},
         {"Recording", Icons::RECORD, {Panel::Recording, Panel::Timeline, Panel::Export}},
         {"Render Queue", Icons::LIST, {Panel::RenderQueue, Panel::Recording, Panel::Timeline}},
@@ -54,35 +56,44 @@ namespace IW4Iris::Editor
       return w;
     }
 
-    const char* PanelName(Panel p)
-    {
-      switch (p)
-      {
-      case Panel::Outliner: return "Scene###Outliner";
-      case Panel::Inspector: return "Inspector###Inspector";
-      case Panel::Timeline: return "Timeline###Timeline";
-      case Panel::Look: return "Look###Look";
-      case Panel::Demos: return "Demos###Demos";
-      case Panel::Recording: return "Recording###Recording";
-      case Panel::RenderQueue: return "Render Queue###RenderQueue";
-      case Panel::Export: return "Export###Export";
-      case Panel::Presets: return "Shot Presets###Presets";
-      case Panel::Actors: return "Actors###Actors";
-      case Panel::Lighting: return "Lighting###Lighting";
-      case Panel::Settings: return "Settings###Settings";
-      case Panel::Diagnostics: return "Diagnostics###Diagnostics";
-      case Panel::Shortcuts: return "Keyboard Shortcuts###Shortcuts";
-      case Panel::GettingStarted: return "Getting Started###GettingStarted";
-      case Panel::History: return "History###History";
-      default: return "###unknown";
-      }
-    }
+  }  // namespace
 
-    bool& Shown(Panel p)
+  const char* PanelName(Panel p)
+  {
+    switch (p)
     {
-      return ui.show[static_cast<int>(p)];
+    case Panel::Outliner: return "Scene###Outliner";
+    case Panel::Inspector: return "Inspector###Inspector";
+    case Panel::Timeline: return "Timeline###Timeline";
+    case Panel::Look: return "Look###Look";
+    case Panel::Demos: return "Demos###Demos";
+    case Panel::Recording: return "Recording###Recording";
+    case Panel::RenderQueue: return "Render Queue###RenderQueue";
+    case Panel::Export: return "Export###Export";
+    case Panel::Presets: return "Shot Presets###Presets";
+    case Panel::Actors: return "Characters###Actors";
+    case Panel::Lighting: return "Lighting###Lighting";
+    case Panel::Settings: return "Settings###Settings";
+    case Panel::Diagnostics: return "Diagnostics###Diagnostics";
+    case Panel::Shortcuts: return "Keyboard Shortcuts###Shortcuts";
+    case Panel::GettingStarted: return "Getting Started###GettingStarted";
+    case Panel::History: return "History###History";
+    case Panel::Director: return "Director###Director";
+    case Panel::Animations: return "Animations###Animations";
+    case Panel::Assets: return "Props & Effects###Assets";
+    case Panel::Graphics: return "Motion Graphics###Graphics";
+    case Panel::ObjectInspector: return "Object###ObjectInspector";
+    default: return "###unknown";
     }
+  }
 
+  bool& Shown(Panel p)
+  {
+    return ui.show[static_cast<int>(p)];
+  }
+
+  namespace
+  {
     void ApplyWorkspace(const std::string& name)
     {
       for (const auto& w : Workspaces())
@@ -123,6 +134,11 @@ namespace IW4Iris::Editor
       ImGui::DockBuilderDockWindow(PanelName(Panel::Settings), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Diagnostics), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::History), left);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::Director), left);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::Animations), left);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::Assets), left);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::Graphics), left);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::ObjectInspector), right);
       ImGui::DockBuilderFinish(dockspace);
     }
 
@@ -261,6 +277,21 @@ namespace IW4Iris::Editor
         ImGui::Separator();
         ImGui::MenuItem("Camera path overlay", nullptr, &s.settings.showPathOverlay);
         ImGui::MenuItem("Camera frustums", nullptr, &s.settings.showFrustums);
+        if (ImGui::BeginMenu("Composition guides"))
+        {
+          ImGui::MenuItem("Rule of thirds", nullptr, &s.settings.guideThirds);
+          ImGui::MenuItem("Centre", nullptr, &s.settings.guideCentre);
+          ImGui::MenuItem("Safe areas", nullptr, &s.settings.guideSafeAreas);
+          ImGui::MenuItem("Horizon level", nullptr, &s.settings.guideHorizon);
+          const char* aspects[] = {"No aspect mask", "2.39:1 letterbox", "1.85:1", "9:16 vertical", "1:1", "4:5"};
+          for (int i = 0; i < 6; ++i)
+            if (ImGui::MenuItem(aspects[i], nullptr, s.settings.guideAspect == i))
+              s.settings.guideAspect = i;
+          ImGui::TextDisabled("Guides are never recorded.");
+          ImGui::EndMenu();
+        }
+        if (ImGui::MenuItem("Beginner mode", nullptr, &s.settings.beginnerMode))
+          SaveSettings(s);
         if (ImGui::MenuItem("Reset layout"))
           ui.resetLayout = true;
         ImGui::EndMenu();
@@ -691,9 +722,7 @@ namespace IW4Iris::Editor
         ImGui::TextDisabled("Key a slider in the Look panel to animate it.");
 
       ImGui::Spacing();
-      SectionHeader(Icons::USER, "Actors and lights");
-      ImGui::TextDisabled("%zu actor(s), %zu light(s) in the project", p.actors.size(), p.lights.size());
-      ImGui::TextDisabled("(engine integration in research; see the Actors panel)");
+      DrawSceneObjects(s);
       ImGui::End();
     }
 
@@ -1806,21 +1835,6 @@ namespace IW4Iris::Editor
 
     // ------------------------------------------------------------ actors / lighting (research)
 
-    void DrawActors(Session& s)
-    {
-      if (!ImGui::Begin(PanelName(Panel::Actors), &Shown(Panel::Actors)))
-      {
-        ImGui::End();
-        return;
-      }
-      Unavailable("Actors", "spawning and animating models needs IW4 DObj / XAnim bindings that are still being "
-                  "verified against IW4x (see ROADMAP.md, phase 5)");
-      ImGui::TextWrapped("The project format already stores actors (model, head, animation, weapon, transform), so "
-                         "scenes you plan now keep working when the engine side lands.");
-      ImGui::TextDisabled("%zu actor(s) stored in this project.", s.project.actors.size());
-      ImGui::End();
-    }
-
     void DrawLighting(Session& s)
     {
       if (!ImGui::Begin(PanelName(Panel::Lighting), &Shown(Panel::Lighting)))
@@ -2122,6 +2136,9 @@ namespace IW4Iris::Editor
           s.Post([] { Runtime::AddKeyFromView(); });
         return;
       }
+      // With a scene object selected, G / R / S / F / Del / Ctrl+D act on it.
+      if (HandleObjectShortcuts(s))
+        return;
       const bool ctrl = io.KeyCtrl;
       if (ctrl && pressed(ImGuiKey_Z))
         io.KeyShift ? (void)s.Redo() : (void)s.Undo();
@@ -2530,7 +2547,18 @@ namespace IW4Iris::Editor
     if (Shown(Panel::Presets))
       DrawPresets(s);
     if (Shown(Panel::Actors))
-      DrawActors(s);
+      DrawCharacters(s);
+    if (Shown(Panel::Director))
+      DrawDirector(s);
+    if (Shown(Panel::Animations))
+      DrawAnimations(s);
+    if (Shown(Panel::Assets))
+      DrawAssets(s);
+    if (Shown(Panel::Graphics))
+      DrawGraphics(s);
+    if (Shown(Panel::ObjectInspector))
+      DrawObjectInspector(s);
+    DrawSceneWizard(s);
     if (Shown(Panel::Lighting))
       DrawLighting(s);
     if (Shown(Panel::Settings))
@@ -2543,6 +2571,7 @@ namespace IW4Iris::Editor
     DrawGettingStarted(s);
     DrawFilePopups(s);
     DrawNotification();
+    DrawSceneOverlay(s);
     DrawOverlay(s);
     HandleShortcuts(s);
 

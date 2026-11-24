@@ -3,6 +3,7 @@
 #include "Cinematic.hpp"
 #include "../Window.hpp"
 #include "Capture.hpp"
+#include "Director.hpp"
 #include "Log.hpp"
 #include "Runtime.hpp"
 #include "Session.hpp"
@@ -17,6 +18,8 @@ namespace Components
       return;
 
     ::IW4Iris::Runtime::Initialize();
+    // Builtins for the Director Mod; registered before any script compiles.
+    ::IW4Iris::Director::RegisterBuiltins();
 
     Window::OnCreate([] { ::IW4Iris::Runtime::WindowCreated(); });
     Renderer::OnBackendFrame([](IDirect3DDevice9* device) { ::IW4Iris::Runtime::BackendFrame(device); });

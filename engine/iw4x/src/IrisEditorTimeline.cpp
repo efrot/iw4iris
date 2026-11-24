@@ -689,6 +689,130 @@ namespace IW4Iris::Editor
           Diamond(dl, ImVec2(c.X(k.time), y + kRowHeight * 0.5f), 4.5f, ImGui::GetColorU32(CurrentPalette().accent), IM_COL32(10, 10, 12, 255));
         y += kRowHeight;
       }
+
+      // Scene objects: actor clips (drag to move, drag the right edge to
+      // trim, right-click to delete), transform keys (click to jump there),
+      // graphic animations and effect plays.
+      auto& ui = Ui();
+      auto& sc = p.scene;
+      auto rowHovered = [&]() { return hovered && !onRuler && mouse.y >= y && mouse.y < y + kRowHeight; };
+      bool removeBar = false;
+      auto bar = [&](const std::string& objId, int index, double& start, double& duration, const std::string& text, ImU32 col) {
+        const float x0 = c.X(start), x1 = std::max(c.X(start + duration), x0 + 3.0f);
+        dl->AddRectFilled(ImVec2(x0, y + 3), ImVec2(x1, y + kRowHeight - 3), col, 3.0f);
+        dl->PushClipRect(ImVec2(x0, y), ImVec2(x1, y + kRowHeight), true);
+        dl->AddText(ImVec2(x0 + 4, y + 4), IM_COL32(12, 12, 16, 255), text.c_str());
+        dl->PopClipRect();
+        const bool over = rowHovered() && mouse.x >= x0 - 2 && mouse.x <= x1 + 2;
+        if (over)
+        {
+          ImGui::SetTooltip("%s\n%s .. %s", text.c_str(), iris::FormatTime(start, tl.frameRate, tl.display).c_str(),
+                            iris::FormatTime(start + duration, tl.frameRate, tl.display).c_str());
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ui.objDragId.empty())
+          {
+            ui.objDragId = objId;
+            ui.objDragIndex = index;
+            ui.objDragMode = mouse.x > x1 - 6 ? 1 : 0;
+            ui.objDragOffset = c.T(mouse.x) - start;
+            SelectObject(s, objId);
+          }
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            removeBar = true;
+        }
+        if (ui.objDragId == objId && ui.objDragIndex == index && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+          if (ui.objDragMode == 0)
+            start = Snap(s, c.T(mouse.x) - ui.objDragOffset);
+          else
+            duration = std::max(0.05, Snap(s, c.T(mouse.x)) - start);
+        }
+      };
+      auto keys = [&](const iris::TransformTrack& track, ImU32 col) {
+        for (const double t : track.KeyTimes())
+        {
+          const ImVec2 kp(c.X(t), y + kRowHeight * 0.5f);
+          Diamond(dl, kp, 4.0f, col, IM_COL32(10, 10, 12, 255));
+          if (rowHovered() && std::abs(mouse.x - kp.x) < 5 && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ui.objDragId.empty())
+            RequestSeek(s, t);
+        }
+      };
+      for (auto& a : sc.actors)
+      {
+        label(Icons::USER, a.name, IM_COL32(140, 200, 255, 255), s.selectedObject == a.id);
+        if (labelClicked())
+          SelectObject(s, a.id);
+        for (int i = 0; i < static_cast<int>(a.clips.size()); ++i)
+        {
+          removeBar = false;
+          auto& clip = a.clips[static_cast<std::size_t>(i)];
+          bar(a.id, i, clip.start, clip.duration, iris::ClassifyAnimation(clip.anim).label, IM_COL32(120, 180, 240, 220));
+          if (removeBar)
+          {
+            a.clips.erase(a.clips.begin() + i);
+            s.Commit("Delete clip");
+            break;
+          }
+        }
+        keys(a.track, IM_COL32(250, 250, 255, 255));
+        y += kRowHeight;
+      }
+      for (auto& pr : sc.props)
+      {
+        if (pr.track.Empty())
+          continue;
+        label(Icons::CUBE, pr.name, IM_COL32(200, 200, 170, 255), s.selectedObject == pr.id);
+        if (labelClicked())
+          SelectObject(s, pr.id);
+        keys(pr.track, IM_COL32(230, 220, 160, 255));
+        y += kRowHeight;
+      }
+      for (auto& e : sc.effects)
+      {
+        label(Icons::MAGIC, e.name, IM_COL32(255, 160, 90, 255), s.selectedObject == e.id);
+        if (labelClicked())
+          SelectObject(s, e.id);
+        const int plays = e.repeat > 0 ? (e.count > 0 ? std::min(e.count, 200) : 200) : 1;
+        for (int k = 0; k < plays; ++k)
+        {
+          const double t = e.start + k * e.repeat;
+          if (t > c.end)
+            break;
+          const float x = c.X(t);
+          dl->AddTriangleFilled(ImVec2(x - 5, y + kRowHeight - 4), ImVec2(x + 5, y + kRowHeight - 4), ImVec2(x, y + 4),
+                                e.enabled ? IM_COL32(255, 160, 90, 255) : IM_COL32(120, 110, 100, 255));
+        }
+        y += kRowHeight;
+      }
+      for (auto& g : sc.graphics)
+      {
+        label(Icons::LAYER, g.name, IM_COL32(200, 150, 255, 255), s.selectedObject == g.id);
+        if (labelClicked())
+          SelectObject(s, g.id);
+        for (int i = 0; i < static_cast<int>(g.animations.size()); ++i)
+        {
+          removeBar = false;
+          auto& an = g.animations[static_cast<std::size_t>(i)];
+          std::string text = an.preset;
+          for (const auto& info : iris::AnimationPresets())
+            if (info.id == an.preset)
+              text = info.label;
+          bar(g.id, i, an.start, an.duration, text, an.enabled ? IM_COL32(190, 150, 250, 220) : IM_COL32(110, 100, 130, 220));
+          if (removeBar)
+          {
+            g.animations.erase(g.animations.begin() + i);
+            s.Commit("Delete animation");
+            break;
+          }
+        }
+        keys(g.track, IM_COL32(230, 210, 255, 255));
+        y += kRowHeight;
+      }
+      if (!ui.objDragId.empty() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+      {
+        ui.objDragId.clear();
+        ui.objDragIndex = -1;
+        s.Commit("Retime");
+      }
     }
 
     // Key context menu

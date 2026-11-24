@@ -39,12 +39,18 @@ Sync-Folder (Join-Path $repo 'engine\iw4x\src') (Join-Path $dst 'src\Components\
 
 $stage = Join-Path ([System.IO.Path]::GetTempPath()) ("iw4iris-" + [guid]::NewGuid())
 try {
-  New-Item -ItemType Directory -Force -Path "$stage\core", "$stage\imgui\backends", "$stage\imgui\misc\cpp", "$stage\stb" | Out-Null
+  New-Item -ItemType Directory -Force -Path "$stage\core", "$stage\imgui\backends", "$stage\imgui\misc\cpp", "$stage\stb", "$stage\nanosvg", "$stage\earcut\mapbox" | Out-Null
   Copy-Item -Recurse (Join-Path $repo 'core\include'), (Join-Path $repo 'core\src') "$stage\core"
   Copy-Item (Join-Path $repo 'third_party\imgui\*.cpp'), (Join-Path $repo 'third_party\imgui\*.h'), (Join-Path $repo 'third_party\imgui\LICENSE.txt') "$stage\imgui"
   Copy-Item (Join-Path $repo 'third_party\imgui\backends\imgui_impl_dx9.*'), (Join-Path $repo 'third_party\imgui\backends\imgui_impl_win32.*') "$stage\imgui\backends"
   Copy-Item (Join-Path $repo 'third_party\imgui\misc\cpp\imgui_stdlib.*') "$stage\imgui\misc\cpp"
   Copy-Item (Join-Path $repo 'third_party\stb\stb_image_write.h') "$stage\stb"
+  Copy-Item (Join-Path $repo 'third_party\stb\stb_truetype.h') "$stage\stb"
+  Copy-Item (Join-Path $repo 'third_party\stb\stb_image.h') "$stage\stb"
+  Copy-Item (Join-Path $repo 'third_party\nanosvg\src\nanosvg.h') "$stage\nanosvg"
+  Copy-Item (Join-Path $repo 'third_party\nanosvg\LICENSE.txt') "$stage\nanosvg"
+  Copy-Item (Join-Path $repo 'third_party\earcut\include\mapbox\earcut.hpp') "$stage\earcut\mapbox"
+  Copy-Item (Join-Path $repo 'third_party\earcut\LICENSE') "$stage\earcut"
   Copy-Item (Join-Path $repo 'engine\iw4x\premake\stb_impl.cpp') "$stage\stb_impl.cpp"
   Sync-Folder $stage (Join-Path $dst 'deps\iw4iris')
 } finally {

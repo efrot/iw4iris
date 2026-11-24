@@ -39,6 +39,21 @@ namespace IW4Iris
     bool showFrustums = true;
     bool autosave = true;
     int autosaveSeconds = 60;
+
+    // Director Mode
+    bool beginnerMode = true;        // only the essential controls; raw names hidden
+    std::set<std::string> favoriteAssets;   // raw asset names
+    std::vector<std::string> recentAssets;
+    std::set<std::string> favoriteMaps;
+    std::vector<std::string> recentMaps;
+    std::vector<std::string> fontFolders;   // extra folders with .ttf / .otf
+
+    // Composition guides (editor overlay only, never recorded)
+    bool guideThirds = false;
+    bool guideCentre = false;
+    bool guideSafeAreas = false;
+    bool guideHorizon = false;
+    int guideAspect = 0;             // 0 off, 1 2.39:1, 2 1.85:1, 3 9:16, 4 1:1, 5 4:5
   };
 
   struct EngineStatus
@@ -99,6 +114,11 @@ namespace IW4Iris
     std::string selectedCamera;   // camera shown in the inspector
     std::set<std::size_t> selectedKeys;  // keys of the selected camera's path
     std::string selectedTrack;    // property track for the graph editor
+
+    // Director Mode
+    std::string selectedObject;   // actor / prop / effect / graphic id
+    int gizmoMode = 0;            // 0 move, 1 rotate, 2 scale
+    std::string pendingTemplate;  // scene template to build once the film set is ready
 
     // Demo
     std::optional<std::filesystem::path> loadedDemoPath;  // the original file the demo was copied from

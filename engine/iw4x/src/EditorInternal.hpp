@@ -4,6 +4,7 @@
 // Editor internals shared by the editor's source files (render thread only).
 #pragma once
 
+#include "Director.hpp"
 #include "Editor.hpp"
 #include "Icons.hpp"
 #include "Session.hpp"
@@ -35,6 +36,11 @@ namespace IW4Iris::Editor
     Shortcuts,
     GettingStarted,
     History,
+    Director,        // Director Mode home: film set, wizard, templates
+    Animations,      // animation library
+    Assets,          // props and effects
+    Graphics,        // motion graphics: add / list / renderer status
+    ObjectInspector, // the selected actor / prop / effect / graphic
     Count,
   };
 
@@ -99,6 +105,43 @@ namespace IW4Iris::Editor
     bool ffmpegFound = false;
     std::string ffmpegPathFound;
     bool queueRunning = false;
+
+    // Director Mode
+    bool wizardOpen = false;
+    int wizardStep = 0;
+    std::string mapSearch;
+    bool mapFavoritesOnly = false;
+    std::string wizardMap;
+    std::string wizardTemplate = "empty";
+    std::vector<Director::MapInfo> maps;
+    bool mapsRequested = false;
+    Director::Catalog catalog;
+    int catalogVersion = -1;
+    std::string characterSearch, characterCategory;
+    bool characterFavorites = false;
+    std::string animationSearch, animationCategory;
+    std::string assetSearch, assetCategory;
+    int assetTab = 0;             // 0 props, 1 effects
+    int shotType = 1;
+    double shotDuration = 5.0;
+    std::string titleText = "IW4IRIS";
+    int titleTemplate = 0;
+    std::vector<std::string> fonts;
+    double fontsListedAt = -100.0;
+    std::string pendingFile;      // a file chosen in the open dialog, for `pendingFileFor`
+    std::string pendingFileFor;
+
+    // Timeline: dragging scene clips / bars
+    std::string objDragId;
+    int objDragIndex = -1;
+    int objDragMode = 0;          // 0 move, 1 resize end
+    double objDragOffset = 0.0;
+
+    // Viewport gizmo
+    int gizmoAxis = -1;           // 0 x, 1 y, 2 z, 3 screen plane, 4 yaw ring, 5 uniform scale
+    bool gizmoDragging = false;
+    ImVec2 gizmoMouseStart;
+    iris::Transform gizmoStart;
   };
 
   UiState& Ui();
@@ -107,6 +150,27 @@ namespace IW4Iris::Editor
   // Panels (each locks nothing: Draw() holds the session lock)
   void DrawTimeline(Session& s);
   void DrawOverlay(Session& s);
+  bool& Shown(Panel p);
+  const char* PanelName(Panel p);
+
+  // Director Mode (IrisEditorDirector.cpp)
+  void DrawDirector(Session& s);
+  void DrawCharacters(Session& s);
+  void DrawAnimations(Session& s);
+  void DrawAssets(Session& s);
+  void DrawGraphics(Session& s);
+  void DrawObjectInspector(Session& s);
+  void DrawSceneObjects(Session& s);  // section of the Scene panel
+  void DrawSceneWizard(Session& s);
+  void DrawSceneOverlay(Session& s);  // viewport: objects, selection, gizmo, guides
+  bool HandleObjectShortcuts(Session& s);
+  void SelectObject(Session& s, const std::string& id);
+  void DeleteObject(Session& s, const std::string& id);
+  void DuplicateObject(Session& s, const std::string& id);
+  bool ObjectExists(const Session& s, const std::string& id);
+  // Where a new object goes: the surface the camera looks at (film sets),
+  // else in front of the camera.
+  iris::Vec3 PlacementPoint(Session& s, double distance = 220.0);
 
   // Shared actions (render thread; game work is posted to the main thread)
   void RequestSeek(Session& s, double t);

@@ -52,7 +52,7 @@ targets:static_library ("iw4iris-core",
     "stb_impl.cpp"
   },
 
-  includedirs = {"core/include", "stb", "../json/single_include"},
+  includedirs = {"core/include", "stb", "nanosvg", "earcut", "../json/single_include"},
   defines     = {"_CRT_SECURE_NO_WARNINGS"},
 
   export =

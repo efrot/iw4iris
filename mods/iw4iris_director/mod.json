@@ -1,0 +1,18 @@
+{
+  "format": "iw4iris-extension",
+  "id": "iw4iris_director",
+  "name": "IW4Iris Director Mod",
+  "version": "0.2.0",
+  "author": "IW4Iris contributors",
+  "license": "GPL-3.0-or-later",
+  "protocol": 1,
+  "requiresIW4Iris": ">=0.2.0",
+  "requiresCapabilities": ["gsc-builtins:iw4iris", "script-model-animation"],
+  "operations": ["spawnActor", "setWeapon", "attach", "clearAttachments", "anim", "spawnProp", "linkProp",
+                 "unlinkProp", "delete", "clear", "ping"],
+  "install": {
+    "target": "userraw",
+    "files": ["scripts/mp/iw4iris_director.gsc", "scripts/iw4iris/director.gsc"]
+  },
+  "assets": "none: uses only assets of the maps the user has installed"
+}

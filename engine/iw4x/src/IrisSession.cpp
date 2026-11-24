@@ -117,6 +117,17 @@ namespace IW4Iris
       u.showFrustums = j.value("showFrustums", u.showFrustums);
       u.autosave = j.value("autosave", u.autosave);
       u.autosaveSeconds = std::clamp(j.value("autosaveSeconds", u.autosaveSeconds), 10, 3600);
+      u.beginnerMode = j.value("beginnerMode", u.beginnerMode);
+      u.favoriteAssets = j.value("favoriteAssets", u.favoriteAssets);
+      u.recentAssets = j.value("recentAssets", u.recentAssets);
+      u.favoriteMaps = j.value("favoriteMaps", u.favoriteMaps);
+      u.recentMaps = j.value("recentMaps", u.recentMaps);
+      u.fontFolders = j.value("fontFolders", u.fontFolders);
+      u.guideThirds = j.value("guideThirds", u.guideThirds);
+      u.guideCentre = j.value("guideCentre", u.guideCentre);
+      u.guideSafeAreas = j.value("guideSafeAreas", u.guideSafeAreas);
+      u.guideHorizon = j.value("guideHorizon", u.guideHorizon);
+      u.guideAspect = std::clamp(j.value("guideAspect", u.guideAspect), 0, 5);
     }
     catch (const std::exception& e)
     {
@@ -143,7 +154,18 @@ namespace IW4Iris
                            {"showPathOverlay", u.showPathOverlay},
                            {"showFrustums", u.showFrustums},
                            {"autosave", u.autosave},
-                           {"autosaveSeconds", u.autosaveSeconds}};
+                           {"autosaveSeconds", u.autosaveSeconds},
+                           {"beginnerMode", u.beginnerMode},
+                           {"favoriteAssets", u.favoriteAssets},
+                           {"recentAssets", u.recentAssets},
+                           {"favoriteMaps", u.favoriteMaps},
+                           {"recentMaps", u.recentMaps},
+                           {"fontFolders", u.fontFolders},
+                           {"guideThirds", u.guideThirds},
+                           {"guideCentre", u.guideCentre},
+                           {"guideSafeAreas", u.guideSafeAreas},
+                           {"guideHorizon", u.guideHorizon},
+                           {"guideAspect", u.guideAspect}};
     std::error_code ec;
     std::filesystem::create_directories(s.baseDirectory, ec);
     const auto file = s.baseDirectory / "settings.json";
