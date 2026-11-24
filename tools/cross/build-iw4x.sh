@@ -64,7 +64,7 @@ fi
 # sub-make, so it may only be overridden once the dependencies are built).
 deps="$(sed -n 's/^PROJECTS := //p' build/mingw/Makefile | tr ' ' '\n' | grep -vx iw4x | tr '\n' ' ')"
 # shellcheck disable=SC2086
-make -C build/mingw -j"$jobs" config="${cfg}_win32" PROTOC="$protoc" UASM=uasm CPPFLAGS="$cppflags" $deps
-make -C build/mingw -j"$jobs" config="${cfg}_win32" PROTOC="$protoc" UASM=uasm CPPFLAGS="$cppflags" \
+make -C build/mingw -j"$jobs" config="${cfg}_win32" PROTOC="$protoc" CPPFLAGS="$cppflags" $deps
+make -C build/mingw -j"$jobs" config="${cfg}_win32" PROTOC="$protoc" CPPFLAGS="$cppflags" \
   FORCE_INCLUDE="$force_include" iw4x
 echo "info: built $(ls build/mingw/bin/Win32/${cfg^}/iw4x.dll)"

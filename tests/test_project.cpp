@@ -172,7 +172,7 @@ TEST_CASE("project: queries")
     CHECK(p.CameraAt(2.5)->id == p.activeCameraId);
     CHECK_NEAR(p.PropertyValue("film.brightness", 0.0, 9.0), 0.1, 1e-12);
     CHECK_NEAR(p.PropertyValue("missing.track", 0.0, 9.0), 9.0, 0);
-    CHECK(MakeUniqueId(p, "cam") == "cam-3");
+    CHECK(MakeUniqueId(p, "cam") == "cam-4");
     CHECK(p.ContentEnd() >= 4.5);
 }
 

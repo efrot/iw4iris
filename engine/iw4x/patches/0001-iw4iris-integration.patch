@@ -1,0 +1,108 @@
+diff --git a/premake5.lua b/premake5.lua
+index 3e7c80c..b15e79e 100644
+--- a/premake5.lua
++++ b/premake5.lua
+@@ -376,6 +376,8 @@ project "iw4x"
+     "fonts",
+     "gsl",
+     "iw4-open-formats",
++    "iw4iris-core",
++    "iw4iris-imgui",
+     "json",
+     "libtomcrypt",
+     "libtommath",
+diff --git a/src/Components/Loader.cpp b/src/Components/Loader.cpp
+index 04aaea2..ac8438a 100644
+--- a/src/Components/Loader.cpp
++++ b/src/Components/Loader.cpp
+@@ -79,6 +79,8 @@
+ #include "Modules/WineD3D.hpp"
+ #include "Modules/Sound.hpp"
+ 
++#include "Modules/IW4Iris/Cinematic.hpp"
++
+ #include "Modules/BotLib/lPrecomp.hpp"
+ #include "Modules/ViewModelFxSetup.hpp"
+ 
+@@ -198,6 +200,10 @@ namespace Components
+     Register(new WineD3D());
+     Register(new Zones());
+ 
++    // IW4Iris cinematic build: registered last so every component it uses
++    // exists already.
++    Register(new Cinematic());
++
+     Register(new GSC::GSC());
+ 
+     Register(new BotLib::lPrecomp());
+diff --git a/src/Components/Modules/RawMouse.cpp b/src/Components/Modules/RawMouse.cpp
+index bfba867..8e03bfb 100644
+--- a/src/Components/Modules/RawMouse.cpp
++++ b/src/Components/Modules/RawMouse.cpp
+@@ -1,4 +1,5 @@
+ #include "RawMouse.hpp"
++#include "IW4Iris/Hooks.hpp"
+ 
+ #include "Controller.hpp"
+ #include "Window.hpp"
+@@ -486,7 +487,7 @@ namespace Components
+     // otherwise we steal input from the rest of the OS.
+     //
+     if (RawMouse::InFocus)
+-      ToggleRawInput (IsMouseInClientBounds ());
++      ToggleRawInput (IsMouseInClientBounds () && !IW4Iris::Hooks::BlocksGameMouse ());
+ 
+     return Game::IN_Frame ();
+   }
+@@ -511,6 +512,13 @@ namespace Components
+   BOOL
+   RawMouse::IN_RecenterMouse ()
+   {
++    // IW4Iris: leave the cursor free while the editor has the mouse.
++    if (IW4Iris::Hooks::BlocksGameMouse ())
++    {
++      ClipCursor (NULL);
++      return TRUE;
++    }
++
+     IN_ClipCursor ();
+     return Game::IN_RecenterMouse ();
+   }
+@@ -522,6 +530,13 @@ namespace Components
+   void
+   RawMouse::IN_MouseMove ()
+   {
++    // IW4Iris: the editor has the mouse; the player's view does not move.
++    if (IW4Iris::Hooks::BlocksGameMouse ())
++    {
++      ClipCursor (NULL);
++      return;
++    }
++
+     if (!RawMouse::InFocus)
+     {
+       ClipCursor (NULL);
+diff --git a/src/Components/Modules/Rumble.cpp b/src/Components/Modules/Rumble.cpp
+index 2bc67ac..ff55829 100644
+--- a/src/Components/Modules/Rumble.cpp
++++ b/src/Components/Modules/Rumble.cpp
+@@ -7,6 +7,7 @@
+ #include "../../Controller/Engine/Rumble.hpp"
+ 
+ #include "GSC/Script.hpp"
++#include "IW4Iris/Hooks.hpp"
+ 
+ namespace Components
+ {
+@@ -893,6 +894,11 @@ namespace Components
+       )
+     );
+ 
++    // IW4Iris: the frame's view is computed and the scene not drawn yet; the
++    // cinematic camera replaces the view here (after the rumble receiver
++    // took the player's position).
++    IW4Iris::Hooks::OnViewReady(localClientIndex);
++
+     // R_EndDobjScene
+     Utils::Hook::Call<void()>(0x50BB30)();
+   }

@@ -1,0 +1,11 @@
+{
+  "format": "iw4iris-compatibility",
+  "version": 1,
+  "iw4x": {
+    "repository": "https://github.com/iw4x/iw4x-client",
+    "commit": "912099b7c405c8083df3c4bac049693915086dae",
+    "date": "2026-11-22",
+    "baseGameBinary": "iw4mp_ceg.exe (checked by IW4x's DllMain at 0x6F9358)"
+  },
+  "note": "Every engine binding IW4Iris uses is declared and used by IW4x at this commit; see COMPATIBILITY.md for the list with references. Nothing here has been runtime-verified by the IW4Iris authors yet."
+}

@@ -184,7 +184,15 @@ namespace iris
         free.mode = CameraMode::Free;
         free.color = "#5EA1F7";
         p.cameras.push_back(free);
-        p.activeCameraId = "cam-2";
+        CameraDef game;
+        game.id = "cam-3";
+        game.name = "Game view";
+        game.mode = CameraMode::FirstPerson;
+        game.color = "#9AA4B2";
+        p.cameras.push_back(game);
+        // Start on the game's own view: nothing changes until a cinematic
+        // camera is chosen.
+        p.activeCameraId = "cam-3";
         p.timeline.Normalize();
         return p;
     }
