@@ -29,6 +29,12 @@ function(iw4iris_warnings target)
     endif()
   else()
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14)
+      # GCC 12/13 middle-end false positives inside libstdc++ (std::string,
+      # std::variant); GCC 14 no longer reports them.
+      target_compile_options(${target} PRIVATE -Wno-stringop-overflow -Wno-array-bounds -Wno-maybe-uninitialized
+                             -Wno-restrict -Wno-dangling-pointer)
+    endif()
     if(IW4IRIS_WERROR)
       target_compile_options(${target} PRIVATE -Werror)
     endif()
@@ -66,8 +72,11 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_exporters.cpp
     tests/test_demo.cpp
     tests/test_presets.cpp
+    tests/test_launcher.cpp
+    launcher/src/InstallPlan.cpp
   )
   target_link_libraries(iw4iris_tests PRIVATE iw4iris_core)
+  target_include_directories(iw4iris_tests PRIVATE launcher/src)
   iw4iris_warnings(iw4iris_tests)
   target_compile_definitions(iw4iris_tests PRIVATE IW4IRIS_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
 

@@ -1,3 +1,6 @@
+#include <filesystem>
+#include <fstream>
+
 #include <nlohmann/json.hpp>
 
 #include "iris/exporters.hpp"
@@ -63,7 +66,11 @@ TEST_CASE("export: documents")
         samples.push_back({f, f / 60.0, State({f * 10.0, 0, 0}, {0, f * 5.0, 0}, 80.0)});
     ExportInfo info;
     info.projectName = "test";
-    const auto blender = nlohmann::json::parse(ExportBlenderJson(info, samples));
+    const auto blenderText = ExportBlenderJson(info, samples);
+    // Left for tests/python/test_blender_addon.py, which imports it with the
+    // Blender add-on's helpers.
+    std::ofstream(std::filesystem::temp_directory_path() / "iw4iris-sample.iw4cam.json") << blenderText;
+    const auto blender = nlohmann::json::parse(blenderText);
     CHECK(blender["format"] == "iw4iris-camera");
     CHECK(blender["frames"].size() == 5);
     CHECK(blender["frame_end"] == 4);
