@@ -17,11 +17,12 @@
 #include "iris/camera.hpp"
 #include "iris/curve.hpp"
 #include "iris/recording.hpp"
+#include "iris/scene.hpp"
 #include "iris/timeline.hpp"
 
 namespace iris
 {
-    inline constexpr int kProjectSchemaVersion = 1;
+    inline constexpr int kProjectSchemaVersion = 2;
     inline constexpr std::string_view kProjectFormatName = "iw4iris-project";
     inline constexpr std::string_view kProjectExtension = ".iw4iris";
 
@@ -158,8 +159,8 @@ namespace iris
         bool operator==(const VisualSettings&) const = default;
     };
 
-    // Lights and actors are part of the schema so projects stay compatible
-    // as these systems land; their engine integration is still being
+    // Dynamic lights are part of the schema so projects stay compatible as
+    // the lighting system lands; their engine integration is still being
     // researched (see FEATURE_MATRIX.md).
     struct LightDef
     {
@@ -175,20 +176,6 @@ namespace iris
         double coneSoftness = 0.2;
         double temperatureK = 6500.0;
         bool operator==(const LightDef&) const = default;
-    };
-
-    struct ActorDef
-    {
-        std::string id;
-        std::string name;
-        std::string bodyModel;
-        std::string headModel;
-        std::string animation;
-        std::string weapon;
-        Vec3 position;
-        EulerAngles angles;
-        bool visible = true;
-        bool operator==(const ActorDef&) const = default;
     };
 
     // The demo a project was made on.
@@ -220,7 +207,7 @@ namespace iris
         std::string createdUtc;
         std::string modifiedUtc;
 
-        std::string mapName;               // scene mode (no demo)
+        std::string mapName;               // the film set's map (Director Mode, no demo)
         std::optional<DemoRef> demo;
 
         TimelineSettings timeline;
@@ -237,7 +224,7 @@ namespace iris
 
         VisualSettings visuals;
         std::vector<LightDef> lights;
-        std::vector<ActorDef> actors;
+        Scene scene;                       // actors, props, effects, motion graphics
 
         RecordingSettings recording;
         std::vector<RenderJob> renderQueue;

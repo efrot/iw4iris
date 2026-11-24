@@ -61,6 +61,19 @@ namespace iris::test
             ::iris::test::Fail(__FILE__, __LINE__, std::string("CHECK(") + #__VA_ARGS__ + ") failed"); \
     } while (0)
 
+// CHECK with context printed on failure (any streamable value).
+#define CHECK_MSG(cond, msg)                                                               \
+    do                                                                                     \
+    {                                                                                      \
+        ++::iris::test::Checks();                                                          \
+        if (!(cond))                                                                       \
+        {                                                                                  \
+            std::ostringstream iris_ss_;                                                   \
+            iris_ss_ << "CHECK(" #cond ") failed: " << (msg);                              \
+            ::iris::test::Fail(__FILE__, __LINE__, iris_ss_.str());                        \
+        }                                                                                  \
+    } while (0)
+
 #define CHECK_NEAR(a, b, eps)                                                                    \
     do                                                                                           \
     {                                                                                            \

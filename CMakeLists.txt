@@ -52,9 +52,26 @@ add_library(iw4iris_core STATIC
   core/src/exporters.cpp
   core/src/demo.cpp
   core/src/presets.cpp
+  core/src/mesh.cpp
+  core/src/font.cpp
+  core/src/logo.cpp
+  core/src/model.cpp
+  core/src/projection.cpp
+  core/src/transform.cpp
+  core/src/graphics.cpp
+  core/src/scene.cpp
+  core/src/scene_json.cpp
+  core/src/assets.cpp
+  core/src/shots.cpp
+  core/src/templates.cpp
 )
 target_include_directories(iw4iris_core PUBLIC core/include)
 target_include_directories(iw4iris_core SYSTEM PUBLIC "${IW4IRIS_JSON_INCLUDE}")
+# Single-header libraries used by the geometry code (wrapped in core/src/vendor).
+target_include_directories(iw4iris_core SYSTEM PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/nanosvg/src"
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/earcut/include")
 iw4iris_warnings(iw4iris_core)
 
 if(IW4IRIS_BUILD_TESTS)
@@ -73,6 +90,8 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_demo.cpp
     tests/test_presets.cpp
     tests/test_launcher.cpp
+    tests/test_geometry.cpp
+    tests/test_director.cpp
     tests/test_samples.cpp
     launcher/src/InstallPlan.cpp
   )

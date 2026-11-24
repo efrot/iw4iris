@@ -14,6 +14,8 @@
 #include <nlohmann/json.hpp>
 
 #include "iris/version.hpp"
+#include "json_util.hpp"
+#include "scene_json.hpp"
 
 namespace iris
 {
@@ -148,7 +150,7 @@ namespace iris
         for (const auto& t : tracks)
             if (!t.curve.Empty())
                 end = std::max(end, t.curve.Keys().back().time);
-        return end;
+        return std::max(end, scene.ContentEnd());
     }
 
     std::string MakeUniqueId(const Project& project, std::string_view prefix)
@@ -157,7 +159,10 @@ namespace iris
         for (const auto& c : project.cameras) used.insert(c.id);
         for (const auto& m : project.markers) used.insert(m.id);
         for (const auto& l : project.lights) used.insert(l.id);
-        for (const auto& a : project.actors) used.insert(a.id);
+        for (const auto& a : project.scene.actors) used.insert(a.id);
+        for (const auto& p : project.scene.props) used.insert(p.id);
+        for (const auto& e : project.scene.effects) used.insert(e.id);
+        for (const auto& g : project.scene.graphics) used.insert(g.id);
         for (const auto& j : project.renderQueue) used.insert(j.id);
         for (int i = 1;; ++i)
         {
@@ -215,118 +220,7 @@ namespace iris
 
     namespace
     {
-        json ToJson(const Vec3& v) { return json::array({v.x, v.y, v.z}); }
-        json ToJson(const EulerAngles& a) { return json::array({a.pitch, a.yaw, a.roll}); }
-
-        Vec3 Vec3From(const json& j, const Vec3& fallback = {})
-        {
-            if (!j.is_array() || j.size() != 3 || !j[0].is_number() || !j[1].is_number() || !j[2].is_number())
-                return fallback;
-            return {j[0].get<double>(), j[1].get<double>(), j[2].get<double>()};
-        }
-
-        EulerAngles AnglesFrom(const json& j, const EulerAngles& fallback = {})
-        {
-            const Vec3 v = Vec3From(j, {fallback.pitch, fallback.yaw, fallback.roll});
-            return {v.x, v.y, v.z};
-        }
-
-        template <typename T>
-        T Get(const json& j, std::string_view key, const T& fallback)
-        {
-            const auto it = j.find(key);
-            if (it == j.end() || it->is_null())
-                return fallback;
-            try
-            {
-                return it->get<T>();
-            }
-            catch (const json::exception&)
-            {
-                return fallback;
-            }
-        }
-
-        double GetNumber(const json& j, std::string_view key, double fallback)
-        {
-            const auto it = j.find(key);
-            if (it == j.end() || !it->is_number())
-                return fallback;
-            const double v = it->get<double>();
-            return std::isfinite(v) ? v : fallback;
-        }
-
-        json EaseJson(const Ease& e) { return {{"in", e.in}, {"out", e.out}}; }
-        Ease EaseFrom(const json& j)
-        {
-            Ease e;
-            if (j.is_object())
-            {
-                e.in = Clamp(GetNumber(j, "in", 0.0), 0.0, 1.0);
-                e.out = Clamp(GetNumber(j, "out", 0.0), 0.0, 1.0);
-            }
-            return e;
-        }
-
-        json ScalarKeyJson(const ScalarKey& k)
-        {
-            json j{{"t", k.time},
-                   {"v", k.value},
-                   {"interp", ToString(k.interpolation)},
-                   {"tangent", ToString(k.tangentMode)}};
-            if (k.ease.in != 0.0 || k.ease.out != 0.0)
-                j["ease"] = EaseJson(k.ease);
-            if (k.interpolation == Interpolation::Bezier || k.tangentMode == TangentMode::Free ||
-                k.tangentMode == TangentMode::Aligned)
-            {
-                j["inHandle"] = json::array({k.inHandle.dt, k.inHandle.dv});
-                j["outHandle"] = json::array({k.outHandle.dt, k.outHandle.dv});
-            }
-            return j;
-        }
-
-        ScalarKey ScalarKeyFrom(const json& j)
-        {
-            ScalarKey k;
-            k.time = GetNumber(j, "t", 0.0);
-            k.value = GetNumber(j, "v", 0.0);
-            k.interpolation = InterpolationFromString(Get<std::string>(j, "interp", "smooth")).value_or(Interpolation::Smooth);
-            k.tangentMode = TangentModeFromString(Get<std::string>(j, "tangent", "auto")).value_or(TangentMode::Auto);
-            if (j.contains("ease"))
-                k.ease = EaseFrom(j["ease"]);
-            auto handle = [&](std::string_view key, Handle fallback) {
-                const auto it = j.find(key);
-                if (it != j.end() && it->is_array() && it->size() == 2 && (*it)[0].is_number() && (*it)[1].is_number())
-                    return Handle{(*it)[0].get<double>(), (*it)[1].get<double>()};
-                return fallback;
-            };
-            k.inHandle = handle("inHandle", k.inHandle);
-            k.outHandle = handle("outHandle", k.outHandle);
-            return k;
-        }
-
-        json CurveJson(const ScalarCurve& c)
-        {
-            json keys = json::array();
-            for (const auto& k : c.Keys())
-                keys.push_back(ScalarKeyJson(k));
-            return {{"default", c.DefaultValue()}, {"keys", keys}};
-        }
-
-        ScalarCurve CurveFrom(const json& j, double defaultValue)
-        {
-            ScalarCurve c(defaultValue);
-            if (!j.is_object())
-                return c;
-            c.SetDefaultValue(GetNumber(j, "default", defaultValue));
-            std::vector<ScalarKey> keys;
-            if (const auto it = j.find("keys"); it != j.end() && it->is_array())
-                for (const auto& k : *it)
-                    if (k.is_object())
-                        keys.push_back(ScalarKeyFrom(k));
-            c.SetKeys(std::move(keys));
-            return c;
-        }
+        using namespace detail;
 
         json CameraKeyJson(const CameraKey& k)
         {
@@ -750,18 +644,6 @@ namespace iris
                               {"coneSoftness", l.coneSoftness},
                               {"temperature", l.temperatureK}});
 
-        json actors = json::array();
-        for (const auto& a : p.actors)
-            actors.push_back({{"id", a.id},
-                              {"name", a.name},
-                              {"body", a.bodyModel},
-                              {"head", a.headModel},
-                              {"animation", a.animation},
-                              {"weapon", a.weapon},
-                              {"position", ToJson(a.position)},
-                              {"angles", ToJson(a.angles)},
-                              {"visible", a.visible}});
-
         json queue = json::array();
         for (const auto& job : p.renderQueue)
             queue.push_back({{"id", job.id},
@@ -802,7 +684,7 @@ namespace iris
                  {"trackStates", trackStates},
                  {"visuals", VisualsJson(p.visuals)},
                  {"lights", lights},
-                 {"actors", actors},
+                 {"scene", detail::SceneToJson(p.scene)},
                  {"recording", RecordingJson(p.recording)},
                  {"renderQueue", queue},
                  {"export",
@@ -873,6 +755,13 @@ namespace iris
             version = 1;
             result.migrated = true;
             result.warnings.push_back("The project was upgraded from schema 0 to schema 1.");
+        }
+        if (version == 1)
+        {
+            // Schema 2 adds the Director scene (actors, props, effects,
+            // graphics); schema 1 actors are converted below.
+            version = 2;
+            result.migrated = true;
         }
 
         Project p;
@@ -1014,6 +903,10 @@ namespace iris
                     p.lights.push_back(d);
                 }
 
+        if (const auto it = doc.find("scene"); it != doc.end() && it->is_object())
+            p.scene = detail::SceneFromJson(*it, w);
+        // Schema 1 stored placeholder actors (one model, animation and
+        // weapon each) at the top level.
         if (const auto it = doc.find("actors"); it != doc.end() && it->is_array())
             for (const auto& a : *it)
                 if (a.is_object())
@@ -1023,12 +916,14 @@ namespace iris
                     d.name = Get<std::string>(a, "name", d.id);
                     d.bodyModel = Get<std::string>(a, "body", "");
                     d.headModel = Get<std::string>(a, "head", "");
-                    d.animation = Get<std::string>(a, "animation", "");
+                    d.idleAnim = Get<std::string>(a, "animation", "");
                     d.weapon = Get<std::string>(a, "weapon", "");
-                    d.position = Vec3From(a.value("position", json()));
-                    d.angles = AnglesFrom(a.value("angles", json()));
+                    d.transform.position = Vec3From(a.value("position", json()));
+                    d.transform.angles = AnglesFrom(a.value("angles", json()));
                     d.visible = Get<bool>(a, "visible", true);
-                    p.actors.push_back(d);
+                    if (d.id.empty() || p.scene.Contains(d.id))
+                        d.id = MakeUniqueId(p, "actor");
+                    p.scene.actors.push_back(std::move(d));
                 }
 
         p.recording = RecordingFrom(doc.value("recording", json()), w);
