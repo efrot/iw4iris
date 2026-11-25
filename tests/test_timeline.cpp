@@ -96,3 +96,39 @@ TEST_CASE("timeline: playback advance loops and clamps")
     CHECK(t.inPoint >= t.start);
     CHECK(t.outPoint <= t.end);
 }
+
+TEST_CASE("timeline: fits a demo's length once it is known")
+{
+    // Default 10 s timeline, 95 s demo: grows, the out point follows.
+    TimelineSettings tl;
+    CHECK(FitTimelineToSource(tl, 95.0, 0.0));
+    CHECK_NEAR(tl.end, 95.0, 1e-9);
+    CHECK_NEAR(tl.outPoint, 95.0, 1e-9);
+    // Applying it again changes nothing.
+    CHECK(!FitTimelineToSource(tl, 95.0, 0.0));
+
+    // A chosen out point stays where the user put it.
+    TimelineSettings custom;
+    custom.outPoint = 4.0;
+    CHECK(FitTimelineToSource(custom, 30.0, 0.0));
+    CHECK_NEAR(custom.end, 30.0, 1e-9);
+    CHECK_NEAR(custom.outPoint, 4.0, 1e-9);
+
+    // An untouched default timeline shrinks to a short demo ...
+    TimelineSettings shortDemo;
+    CHECK(FitTimelineToSource(shortDemo, 6.0, 0.0));
+    CHECK_NEAR(shortDemo.end, 6.0, 1e-9);
+    CHECK_NEAR(shortDemo.outPoint, 6.0, 1e-9);
+    // ... but not when content lies beyond the demo, nor when it was edited.
+    TimelineSettings withKeys;
+    CHECK(!FitTimelineToSource(withKeys, 6.0, 8.0));
+    CHECK_NEAR(withKeys.end, 10.0, 1e-9);
+    TimelineSettings edited;
+    edited.end = 20.0;
+    edited.outPoint = 20.0;
+    CHECK(!FitTimelineToSource(edited, 6.0, 0.0));
+    // Unknown lengths are ignored.
+    TimelineSettings same;
+    CHECK(!FitTimelineToSource(same, 0.0, 0.0));
+    CHECK(!FitTimelineToSource(same, std::nan(""), 0.0));
+}

@@ -742,6 +742,12 @@ namespace IW4Iris::Director
     return maps;
   }
 
+  void RestartAnimations()
+  {
+    std::lock_guard _(bridgeMutex);
+    reconciler.RestartAnimations();
+  }
+
   void RefreshMaps()
   {
     auto maps = ListMaps();

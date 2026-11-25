@@ -1,9 +1,13 @@
 // IW4Iris — Cinematic Studio for IW4x
 // Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
+#include "DemoControl.hpp"
 #include "EditorInternal.hpp"
 #include "Runtime.hpp"
 
+#include <iris/timeline_view.hpp>
+
 #include <cmath>
+#include <cstdio>
 
 namespace IW4Iris::Editor
 {
@@ -12,6 +16,10 @@ namespace IW4Iris::Editor
     constexpr float kLabelWidth = 178.0f;
     constexpr float kRulerHeight = 24.0f;
     constexpr float kRowHeight = 22.0f;
+    constexpr float kRangeHeight = 13.0f;     // the in/out bar under the ruler
+    constexpr float kHeaderHeight = kRulerHeight + kRangeHeight;
+    constexpr float kOverviewHeight = 14.0f;  // the scroll bar showing the whole timeline
+    constexpr float kVScrollWidth = 7.0f;
     constexpr const char* kSpeedTrack = "@speed";
 
     struct Canvas
@@ -43,14 +51,95 @@ namespace IW4Iris::Editor
       return s.project.timeline.snapToFrames ? s.project.timeline.frameRate.SnapSeconds(t) : t;
     }
 
-    void FitView(Session& s)
+    iris::TimeWindowLimits Limits(const Session& s)
+    {
+      const auto& tl = s.project.timeline;
+      const double fps = std::max(1.0, tl.frameRate.Fps());
+      iris::TimeWindowLimits l;
+      l.boundsStart = tl.start;
+      l.boundsEnd = std::max({tl.end, s.project.ContentEnd(), tl.start + 1.0});
+      l.minSpan = std::max(0.05, 6.0 / fps);
+      l.maxSpan = std::max(60.0, (l.boundsEnd - l.boundsStart) * 3.0);
+      return l;
+    }
+
+    void SetWindow(Session& s, const iris::TimeWindow& w)
     {
       auto& v = Ui().timeline;
+      const auto c = iris::ClampWindow(w, Limits(s));
+      v.start = c.start;
+      v.end = c.end;
+    }
+
+    void FitView(Session& s)
+    {
       const auto& tl = s.project.timeline;
-      v.start = tl.start;
-      v.end = std::max(tl.end, s.project.ContentEnd() + 0.5);
-      if (v.end - v.start < 1.0)
-        v.end = v.start + 10.0;
+      SetWindow(s, iris::WindowAround(tl.start, std::max(tl.end, s.project.ContentEnd()), Limits(s), 0.02));
+    }
+
+    // Content dragged past the end of the timeline extends it (otherwise
+    // the playhead could not reach it).
+    void GrowTimelineToContent(Session& s)
+    {
+      auto& tl = s.project.timeline;
+      const double end = s.project.ContentEnd();
+      if (end > tl.end)
+        iris::FitTimelineToSource(tl, end - tl.start, end);
+    }
+
+    // Where a drag lands: magnetic edit points within 8 px (hold Alt to
+    // move freely), else the nearest frame.
+    double DragTime(const Session& s, const Canvas& c, float x, const std::vector<double>& points)
+    {
+      const double t = c.T(x);
+      if (Ui().timeline.magnet && !ImGui::GetIO().KeyAlt)
+      {
+        const double tolerance = 8.0 * (c.end - c.start) / std::max(1.0f, c.max.x - c.min.x);
+        bool snapped = false;
+        const double m = iris::SnapToNearest(t, points, tolerance, &snapped);
+        if (snapped)
+          return m;
+      }
+      return Snap(s, t);
+    }
+
+    // An editable time: shows the formatted time, takes typed input
+    // ("12.5", "1:05", "90f", "00:00:12:30") and returns true when a valid
+    // time was entered. Right-click: how times are shown.
+    bool TimeField(Session& s, const char* id, double& value, char (&buffer)[32], bool& editing, float width,
+                   const char* tooltip)
+    {
+      auto& tl = s.project.timeline;
+      if (!editing)
+        std::snprintf(buffer, sizeof(buffer), "%s", iris::FormatTime(value, tl.frameRate, tl.display).c_str());
+      ImGui::SetNextItemWidth(width);
+      const bool enter = ImGui::InputText(id, buffer, sizeof(buffer),
+                                          ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+      editing = ImGui::IsItemActive();
+      if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && !editing)
+        ImGui::SetTooltip("%s\nClick and type a time: 12.5 (seconds), 1:05 (min:sec), 90f (frames) or "
+                          "00:00:12:30 (timecode). Right-click: display format.", tooltip);
+      if (ImGui::BeginPopupContextItem())
+      {
+        if (ImGui::MenuItem("Timecode (HH:MM:SS:FF)", nullptr, tl.display == iris::TimeDisplay::Timecode))
+          tl.display = iris::TimeDisplay::Timecode;
+        if (ImGui::MenuItem("Seconds", nullptr, tl.display == iris::TimeDisplay::Seconds))
+          tl.display = iris::TimeDisplay::Seconds;
+        if (ImGui::MenuItem("Frames", nullptr, tl.display == iris::TimeDisplay::Frames))
+          tl.display = iris::TimeDisplay::Frames;
+        ImGui::EndPopup();
+      }
+      if (!enter)
+        return false;
+      editing = false;
+      const auto parsed = iris::ParseTime(buffer, tl.frameRate, tl.display);
+      if (!parsed)
+      {
+        Notify(std::string("Not a time: \"") + buffer + "\" (try 12.5, 1:05, 90f or 00:00:12:30)");
+        return false;
+      }
+      value = *parsed;
+      return true;
     }
 
     iris::ScalarCurve* SelectedCurve(Session& s, std::string* name)
@@ -148,18 +237,18 @@ namespace IW4Iris::Editor
                              k.tangentMode == iris::TangentMode::Aligned;
         if (handles)
         {
-          const ImVec2 hi(c.X(k.time + k.inHandle.dt), Y(k.value + k.inHandle.dv));
-          const ImVec2 ho(c.X(k.time + k.outHandle.dt), Y(k.value + k.outHandle.dv));
-          dl->AddLine(hi, p, IM_COL32(200, 200, 210, 120));
-          dl->AddLine(p, ho, IM_COL32(200, 200, 210, 120));
-          dl->AddCircleFilled(hi, 4.0f, IM_COL32(220, 220, 230, 255));
-          dl->AddCircleFilled(ho, 4.0f, IM_COL32(220, 220, 230, 255));
-          if (hovered && ImLengthSqr(ImVec2(mouse.x - hi.x, mouse.y - hi.y)) < 36.0f)
+          const ImVec2 inPt(c.X(k.time + k.inHandle.dt), Y(k.value + k.inHandle.dv));
+          const ImVec2 outPt(c.X(k.time + k.outHandle.dt), Y(k.value + k.outHandle.dv));
+          dl->AddLine(inPt, p, IM_COL32(200, 200, 210, 120));
+          dl->AddLine(p, outPt, IM_COL32(200, 200, 210, 120));
+          dl->AddCircleFilled(inPt, 4.0f, IM_COL32(220, 220, 230, 255));
+          dl->AddCircleFilled(outPt, 4.0f, IM_COL32(220, 220, 230, 255));
+          if (hovered && ImLengthSqr(ImVec2(mouse.x - inPt.x, mouse.y - inPt.y)) < 36.0f)
           {
             hoverKey = static_cast<int>(i);
             hoverHandle = -1;
           }
-          if (hovered && ImLengthSqr(ImVec2(mouse.x - ho.x, mouse.y - ho.y)) < 36.0f)
+          if (hovered && ImLengthSqr(ImVec2(mouse.x - outPt.x, mouse.y - outPt.y)) < 36.0f)
           {
             hoverKey = static_cast<int>(i);
             hoverHandle = 1;
@@ -285,14 +374,78 @@ namespace IW4Iris::Editor
       v.fitRequested = false;
     }
 
-    // Header
-    if (IconButton(Icons::EXPAND, "Fit the timeline"))
+    if (s.timelineFitRequested)
+    {
       FitView(s);
+      s.timelineFitRequested = false;
+    }
+
+    // Header: where we are, the in/out range, view and editing tools.
+    {
+      double t = s.playhead;
+      if (TimeField(s, "##time", t, v.timeText, v.timeEdit, 104, "Playhead (current time)"))
+        RequestSeek(s, t);
+      ImGui::SameLine();
+      if (IconButton(Icons::STEP_BACKWARD, "Previous edit point: key, marker, cut, clip, in/out (Up arrow)"))
+        if (const auto prev = iris::PreviousPoint(s.playhead, EditPoints(s)))
+          RequestSeek(s, *prev);
+      ImGui::SameLine();
+      if (IconButton(Icons::STEP_FORWARD, "Next edit point (Down arrow)"))
+        if (const auto next = iris::NextPoint(s.playhead, EditPoints(s)))
+          RequestSeek(s, *next);
+      ImGui::SameLine();
+      ImGui::TextDisabled("|");
+      ImGui::SameLine();
+      ImGui::AlignTextToFramePadding();
+      ImGui::TextUnformatted("In");
+      ImGui::SameLine();
+      double in = tl.inPoint;
+      if (TimeField(s, "##in", in, v.inText, v.inEdit, 96, "In point: the first frame that is rendered (I)"))
+        SetInPoint(s, in);
+      ImGui::SameLine();
+      ImGui::TextUnformatted("Out");
+      ImGui::SameLine();
+      double out = tl.outPoint;
+      if (TimeField(s, "##out", out, v.outText, v.outEdit, 96, "Out point: rendering stops here (O)"))
+        SetOutPoint(s, out);
+      ImGui::SameLine();
+      ImGui::TextDisabled("%s  |  %s FPS", iris::FormatTime(tl.outPoint - tl.inPoint, tl.frameRate, tl.display).c_str(),
+                          tl.frameRate.ToString().c_str());
+      ImGui::SameLine();
+      ImGui::SetNextItemWidth(110);
+      double length = tl.end - tl.start;
+      if (DragDouble("##length", &length, 0.1f, 1.0, 36000.0, "Length %.1f s"))
+      {
+        const bool outAtEnd = std::abs(tl.outPoint - tl.end) < 1e-6;
+        tl.end = tl.start + length;
+        if (outAtEnd)
+          tl.outPoint = tl.end;
+        tl.Normalize();
+        s.Commit("Timeline length", true);
+      }
+      if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+        ImGui::SetTooltip("How long the timeline is. Drag, or double-click to type.");
+    }
+    if (IconButton(Icons::EXPAND, "Show the whole timeline (\\)"))
+      FitView(s);
+    ImGui::SameLine();
+    if (IconButton(Icons::SEARCH, "Zoom to the in/out range"))
+      SetWindow(s, iris::WindowAround(tl.inPoint, tl.outPoint, Limits(s)));
+    ImGui::SameLine();
+    if (ImGui::SmallButton(" - "))
+      ZoomTimeline(s, 1.0 / 0.7);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+      ImGui::SetTooltip("Zoom out (-, or the mouse wheel)");
+    ImGui::SameLine();
+    if (ImGui::SmallButton(" + "))
+      ZoomTimeline(s, 0.7);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+      ImGui::SetTooltip("Zoom in (+, or the mouse wheel)");
     ImGui::SameLine();
     if (IconButton(Icons::CHART, "Graph editor (G)", v.graph))
       v.graph = !v.graph;
     ImGui::SameLine();
-    if (IconButton(Icons::FLAG, "Add marker (M)"))
+    if (IconButton(Icons::FLAG, "Add marker at the playhead (M)"))
       AddMarker(s);
     ImGui::SameLine();
     if (IconButton(Icons::SCISSORS, "Add a cut to the active camera at the playhead"))
@@ -313,7 +466,17 @@ namespace IW4Iris::Editor
       s.Commit("Add speed key");
     }
     ImGui::SameLine();
-    ImGui::Checkbox("Snap", &tl.snapToFrames);
+    ImGui::Checkbox("Frames", &tl.snapToFrames);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+      ImGui::SetTooltip("Snap times to whole frames");
+    ImGui::SameLine();
+    ImGui::Checkbox("Magnet", &v.magnet);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+      ImGui::SetTooltip("Drags stick to markers, keys, cuts, clip edges and in/out. Hold Alt to move freely.");
+    ImGui::SameLine();
+    ImGui::Checkbox("Follow", &v.follow);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+      ImGui::SetTooltip("Scroll the timeline with the playhead while playing");
     ImGui::SameLine();
     if (ImGui::Checkbox("Loop", &tl.loop.enabled))
     {
@@ -324,26 +487,23 @@ namespace IW4Iris::Editor
       }
       s.Commit("Loop region");
     }
-    ImGui::SameLine();
-    ImGui::TextDisabled("In %s  Out %s  |  %s FPS", iris::FormatTime(tl.inPoint, tl.frameRate, tl.display).c_str(),
-                        iris::FormatTime(tl.outPoint, tl.frameRate, tl.display).c_str(), tl.frameRate.ToString().c_str());
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(110);
-    double length = tl.end - tl.start;
-    if (DragDouble("##length", &length, 0.1f, 1.0, 36000.0, "Length %.1f s"))
-    {
-      tl.end = tl.start + length;
-      tl.Normalize();
-      s.Commit("Timeline length", true);
-    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+      ImGui::SetTooltip("Play the loop region over and over (right-click the in/out bar: \"Loop this range\")");
 
-    // Body: labels | canvas
+    // Body: labels | canvas, with the ruler and the in/out bar on top and
+    // the overview scroll bar at the bottom.
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    if (avail.x < kLabelWidth + 50 || avail.y < kRulerHeight + 20)
+    if (avail.x < kLabelWidth + 80 || avail.y < kHeaderHeight + kOverviewHeight + 20)
+    {
+      ImGui::TextDisabled("Make this panel larger to see the timeline.");
       return;
+    }
     auto* dl = ImGui::GetWindowDrawList();
     Canvas c{ImVec2(origin.x + kLabelWidth, origin.y), ImVec2(origin.x + avail.x, origin.y + avail.y), v.start, v.end};
+    const float rowsTop = c.min.y + kHeaderHeight;
+    const float rowsBottom = c.max.y - kOverviewHeight;
+    const float rangeTop = c.min.y + kRulerHeight;
     dl->AddRectFilled(origin, ImVec2(origin.x + avail.x, origin.y + avail.y), IM_COL32(14, 15, 18, 255));
     dl->AddRectFilled(origin, ImVec2(origin.x + kLabelWidth, origin.y + avail.y), IM_COL32(19, 20, 24, 255));
 
@@ -354,97 +514,285 @@ namespace IW4Iris::Editor
     const bool hovered = ImGui::IsItemHovered();
     const auto& io = ImGui::GetIO();
     const ImVec2 mouse = io.MousePos;
+    const bool overLabels = ImGui::IsWindowHovered() && mouse.x >= origin.x && mouse.x < c.min.x && mouse.y >= rowsTop &&
+                            mouse.y < rowsBottom;
+    const auto limits = Limits(s);
+    iris::TimeWindow w{v.start, v.end};
+    const float width = std::max(1.0f, c.max.x - c.min.x);
+    const auto pixelsToSeconds = [&](float px) { return static_cast<double>(px) / width * w.Span(); };
 
-    // Zoom (wheel) and pan (middle drag / shift+wheel)
-    if (hovered && io.MouseWheel != 0.0f)
+    // Rows scroll vertically when they do not fit.
+    const float visibleRows = std::max(1.0f, rowsBottom - rowsTop);
+    const float maxScroll = std::max(0.0f, v.contentHeight - visibleRows);
+
+    // Wheel: zoom around the mouse; Shift+wheel (or a sideways wheel) pans;
+    // Ctrl+wheel, or the wheel over the track names, scrolls the rows.
+    if ((hovered || overLabels) && (io.MouseWheel != 0.0f || io.MouseWheelH != 0.0f))
     {
-      const double span = v.end - v.start;
-      if (io.KeyShift)
+      if (overLabels || (io.KeyCtrl && io.MouseWheel != 0.0f))
+        v.scrollY -= io.MouseWheel * kRowHeight * 3.0f;
+      else if (io.KeyShift || io.MouseWheelH != 0.0f)
       {
-        const double d = -io.MouseWheel * span * 0.1;
-        v.start += d;
-        v.end += d;
+        const float amount = io.MouseWheelH != 0.0f ? -io.MouseWheelH : -io.MouseWheel;
+        w = iris::PanWindow(w, amount * 0.1 * w.Span(), limits);
       }
       else
-      {
-        const double pivot = c.T(mouse.x);
-        const double factor = io.MouseWheel > 0 ? 0.85 : 1.0 / 0.85;
-        v.start = pivot - (pivot - v.start) * factor;
-        v.end = pivot + (v.end - pivot) * factor;
-      }
+        w = iris::ZoomWindow(w, c.T(mouse.x), io.MouseWheel > 0 ? 0.8 : 1.0 / 0.8, limits);
     }
+    // Middle drag pans (and scrolls the rows).
     if (hovered && ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
     {
-      const double d = -io.MouseDelta.x / std::max(1.0f, c.max.x - c.min.x) * (v.end - v.start);
-      v.start += d;
-      v.end += d;
+      w = iris::PanWindow(w, -pixelsToSeconds(io.MouseDelta.x), limits);
+      v.scrollY -= io.MouseDelta.y;
     }
-    if (v.end - v.start < 0.05)
-      v.end = v.start + 0.05;
+    // Dragging something past the left or right edge scrolls the view.
+    auto& uiState = Ui();
+    const bool dragging = v.scrubbing || v.rangeDrag != 0 || v.draggingKeys || !uiState.objDragId.empty() ||
+                          v.draggingMarker >= 0 || v.boxSelecting;
+    if (dragging && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    {
+      float over = 0.0f;
+      if (mouse.x < c.min.x)
+        over = mouse.x - c.min.x;
+      else if (mouse.x > c.max.x)
+        over = mouse.x - c.max.x;
+      if (over != 0.0f)
+        w = iris::PanWindow(w, pixelsToSeconds(std::clamp(over, -200.0f, 200.0f)) * io.DeltaTime * 6.0, limits);
+    }
+    // Following the playhead while it plays.
+    if (v.follow && s.playing && !v.scrubbing && !dragging && !ImGui::IsMouseDown(ImGuiMouseButton_Middle) &&
+        v.overviewDrag == 0)
+      w = iris::FollowTime(w, s.playhead, limits);
+    w = iris::ClampWindow(w, limits);
+    v.start = w.start;
+    v.end = w.end;
     c.start = v.start;
     c.end = v.end;
+    v.scrollY = std::clamp(v.scrollY, 0.0f, maxScroll);
 
     dl->PushClipRect(c.min, c.max, true);
 
     // In/out and loop shading
-    dl->AddRectFilled(ImVec2(c.X(tl.inPoint), c.min.y), ImVec2(c.X(tl.outPoint), c.max.y), IM_COL32(255, 255, 255, 8));
+    dl->AddRectFilled(ImVec2(c.X(tl.inPoint), c.min.y), ImVec2(c.X(tl.outPoint), rowsBottom), IM_COL32(255, 255, 255, 8));
     if (tl.loop.enabled)
       dl->AddRectFilled(ImVec2(c.X(tl.loop.start), c.min.y), ImVec2(c.X(tl.loop.end), c.min.y + kRulerHeight),
                         ImGui::GetColorU32(CurrentPalette().accentSoft));
-    dl->AddRectFilled(ImVec2(c.min.x, c.min.y), ImVec2(c.X(tl.start), c.max.y), IM_COL32(0, 0, 0, 90));
-    dl->AddRectFilled(ImVec2(c.X(tl.end), c.min.y), ImVec2(c.max.x, c.max.y), IM_COL32(0, 0, 0, 90));
+    dl->AddRectFilled(ImVec2(c.min.x, c.min.y), ImVec2(c.X(tl.start), rowsBottom), IM_COL32(0, 0, 0, 90));
+    dl->AddRectFilled(ImVec2(c.X(tl.end), c.min.y), ImVec2(c.max.x, rowsBottom), IM_COL32(0, 0, 0, 90));
 
     // Ruler
+    dl->AddRectFilled(c.min, ImVec2(c.max.x, rangeTop), IM_COL32(24, 25, 30, 255));
     const double step = NiceStep(v.end - v.start, c.max.x - c.min.x);
     for (double t = std::floor(v.start / step) * step; t <= v.end; t += step)
     {
       const float x = c.X(t);
-      dl->AddLine(ImVec2(x, c.min.y + kRulerHeight * 0.55f), ImVec2(x, c.max.y), IM_COL32(255, 255, 255, 14));
+      dl->AddLine(ImVec2(x, rowsTop), ImVec2(x, rowsBottom), IM_COL32(255, 255, 255, 14));
       dl->AddLine(ImVec2(x, c.min.y + kRulerHeight * 0.55f), ImVec2(x, c.min.y + kRulerHeight), IM_COL32(170, 170, 180, 160));
       dl->AddText(ImVec2(x + 3, c.min.y + 2), IM_COL32(150, 150, 160, 255),
                   iris::FormatTime(t, tl.frameRate, tl.display).c_str());
     }
-    dl->AddLine(ImVec2(c.min.x, c.min.y + kRulerHeight), ImVec2(c.max.x, c.min.y + kRulerHeight), IM_COL32(60, 62, 72, 255));
-    dl->AddLine(ImVec2(c.X(tl.inPoint), c.min.y), ImVec2(c.X(tl.inPoint), c.max.y), ImGui::GetColorU32(CurrentPalette().accentSoft));
-    dl->AddLine(ImVec2(c.X(tl.outPoint), c.min.y), ImVec2(c.X(tl.outPoint), c.max.y), ImGui::GetColorU32(CurrentPalette().accentSoft));
+    dl->AddLine(ImVec2(c.min.x, rowsTop), ImVec2(c.max.x, rowsTop), IM_COL32(60, 62, 72, 255));
+    dl->AddLine(ImVec2(c.X(tl.inPoint), rangeTop), ImVec2(c.X(tl.inPoint), rowsBottom), ImGui::GetColorU32(CurrentPalette().accentSoft));
+    dl->AddLine(ImVec2(c.X(tl.outPoint), rangeTop), ImVec2(c.X(tl.outPoint), rowsBottom), ImGui::GetColorU32(CurrentPalette().accentSoft));
 
-    // Scrubbing on the ruler
-    const bool onRuler = mouse.y < c.min.y + kRulerHeight;
-    if (hovered && onRuler && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-      v.scrubbing = true;
-    if (v.scrubbing)
+    const bool onRuler = mouse.y < rangeTop;
+    const bool onRange = !onRuler && mouse.y < rowsTop;
+    const bool onOverview = mouse.y >= rowsBottom;
+    const bool vScrollShown = maxScroll > 0.0f;
+    const bool onVScroll = vScrollShown && !onRuler && !onRange && !onOverview && mouse.x >= c.max.x - kVScrollWidth - 2;
+    const bool inRows = hovered && !onRuler && !onRange && !onOverview && !onVScroll;
+    const bool leftClicked = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+
+    // In/out bar: drag the ends to set in and out, the middle to move the
+    // range, empty space to draw a new one; double-click for everything.
     {
-      s.scrubbing = true;
-      s.playhead = std::clamp(Snap(s, c.T(mouse.x)), tl.start, tl.end);
-      if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+      const float xi = c.X(tl.inPoint), xo = c.X(tl.outPoint);
+      const ImU32 accent = ImGui::GetColorU32(CurrentPalette().accent);
+      const ImU32 soft = ImGui::GetColorU32(CurrentPalette().accentSoft);
+      dl->AddRectFilled(ImVec2(c.min.x, rangeTop), ImVec2(c.max.x, rowsTop), IM_COL32(18, 19, 23, 255));
+      dl->AddRectFilled(ImVec2(xi, rangeTop + 2), ImVec2(xo, rowsTop - 2), soft, 3.0f);
+      dl->AddRectFilled(ImVec2(xi - 1, rangeTop + 1), ImVec2(xi + 3, rowsTop - 1), accent, 1.0f);
+      dl->AddRectFilled(ImVec2(xo - 3, rangeTop + 1), ImVec2(xo + 1, rowsTop - 1), accent, 1.0f);
+      int hit = 0;
+      if (hovered && onRange)
       {
-        v.scrubbing = false;
-        s.scrubbing = false;
-        RequestSeek(s, s.playhead);
+        const float di = std::abs(mouse.x - xi), dout = std::abs(mouse.x - xo);
+        if (std::min(di, dout) < 7.0f)
+          hit = di <= dout ? 1 : 2;
+        else if (mouse.x > xi && mouse.x < xo)
+          hit = 3;
+        else
+          hit = 4;
+        ImGui::SetMouseCursor(hit == 3 ? ImGuiMouseCursor_Hand : ImGuiMouseCursor_ResizeEW);
+        if (v.rangeDrag == 0)
+          ImGui::SetTooltip(hit == 1   ? "In point %s: drag to change (I sets it at the playhead)"
+                            : hit == 2 ? "Out point %s: drag to change (O sets it at the playhead)"
+                            : hit == 3 ? "Rendered range (%s): drag to move it, double-click for the whole timeline"
+                                       : "Drag here to draw a new in/out range (%s)",
+                            iris::FormatTime(hit == 1 ? tl.inPoint : hit == 2 ? tl.outPoint : tl.outPoint - tl.inPoint,
+                                             tl.frameRate, tl.display).c_str());
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        {
+          tl.inPoint = tl.start;
+          tl.outPoint = tl.end;
+          s.Commit("In/out: whole timeline");
+          hit = 0;
+        }
+        else if (leftClicked)
+        {
+          v.rangeDrag = hit;
+          v.rangeOrigIn = tl.inPoint;
+          v.rangeOrigOut = tl.outPoint;
+          v.rangeAnchor = hit == 4 ? Snap(s, c.T(mouse.x)) : c.T(mouse.x);
+        }
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+          ImGui::OpenPopup("range-menu");
+      }
+      if (v.rangeDrag != 0)
+      {
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+          auto points = EditPoints(s);
+          points.push_back(s.playhead);
+          std::erase_if(points, [&](double x) { return x == v.rangeOrigIn || x == v.rangeOrigOut; });
+          const double frame = 1.0 / std::max(1.0, tl.frameRate.Fps());
+          const double t = DragTime(s, c, mouse.x, points);
+          switch (v.rangeDrag)
+          {
+            case 1: tl.inPoint = std::clamp(t, tl.start, tl.outPoint - frame); break;
+            case 2: tl.outPoint = std::clamp(t, tl.inPoint + frame, tl.end); break;
+            case 3:
+            {
+              // The in edge snaps; the range keeps its length.
+              const double target = DragTime(s, c, c.X(v.rangeOrigIn + (c.T(mouse.x) - v.rangeAnchor)), points);
+              const auto moved = iris::MoveRange({v.rangeOrigIn, v.rangeOrigOut}, target - v.rangeOrigIn, tl.start, tl.end);
+              tl.inPoint = moved.in;
+              tl.outPoint = moved.out;
+              break;
+            }
+            case 4:
+            {
+              const double a = std::clamp(v.rangeAnchor, tl.start, tl.end), b = std::clamp(t, tl.start, tl.end);
+              if (std::abs(b - a) >= frame)
+              {
+                tl.inPoint = std::min(a, b);
+                tl.outPoint = std::max(a, b);
+              }
+              break;
+            }
+            default: break;
+          }
+          ImGui::SetMouseCursor(v.rangeDrag == 3 ? ImGuiMouseCursor_Hand : ImGuiMouseCursor_ResizeEW);
+          ImGui::SetTooltip("In %s   Out %s   (%s)", iris::FormatTime(tl.inPoint, tl.frameRate, tl.display).c_str(),
+                            iris::FormatTime(tl.outPoint, tl.frameRate, tl.display).c_str(),
+                            iris::FormatTime(tl.outPoint - tl.inPoint, tl.frameRate, tl.display).c_str());
+        }
+        else
+        {
+          v.rangeDrag = 0;
+          if (tl.inPoint != v.rangeOrigIn || tl.outPoint != v.rangeOrigOut)
+            s.Commit("Change in/out");
+        }
       }
     }
+    if (ImGui::BeginPopup("range-menu"))
+    {
+      if (ImGui::MenuItem("Set in point at the playhead", "I"))
+        SetInPoint(s, s.playhead);
+      if (ImGui::MenuItem("Set out point at the playhead", "O"))
+        SetOutPoint(s, s.playhead);
+      if (ImGui::MenuItem("Whole timeline", "double-click"))
+      {
+        tl.inPoint = tl.start;
+        tl.outPoint = tl.end;
+        s.Commit("In/out: whole timeline");
+      }
+      if (ImGui::MenuItem("Loop this range"))
+      {
+        tl.loop.enabled = true;
+        tl.loop.start = tl.inPoint;
+        tl.loop.end = tl.outPoint;
+        s.Commit("Loop region");
+      }
+      if (ImGui::MenuItem("Zoom to this range"))
+        SetWindow(s, iris::WindowAround(tl.inPoint, tl.outPoint, Limits(s)));
+      ImGui::EndPopup();
+    }
 
-    float y = c.min.y + kRulerHeight;
+    // Ruler: press and drag anywhere on it to move the playhead.
+    if (hovered && onRuler)
+    {
+      if (!v.scrubbing)
+      {
+        // Where a click would put the playhead.
+        const float x = mouse.x;
+        dl->AddLine(ImVec2(x, c.min.y), ImVec2(x, rowsBottom), IM_COL32(255, 255, 255, 40));
+        ImGui::SetTooltip("%s  -  click or drag to move the playhead\nRight-click: in / out / marker here",
+                          iris::FormatTime(Snap(s, c.T(x)), tl.frameRate, tl.display).c_str());
+      }
+      if (leftClicked)
+        v.scrubbing = true;
+      if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+      {
+        v.rangeAnchor = Snap(s, c.T(mouse.x));
+        ImGui::OpenPopup("ruler-menu");
+      }
+    }
+    if (ImGui::BeginPopup("ruler-menu"))
+    {
+      const double at = std::clamp(v.rangeAnchor, tl.start, tl.end);
+      ImGui::TextDisabled("%s", iris::FormatTime(at, tl.frameRate, tl.display).c_str());
+      if (ImGui::MenuItem("Move the playhead here"))
+        RequestSeek(s, at);
+      if (ImGui::MenuItem("Set in point here"))
+        SetInPoint(s, at);
+      if (ImGui::MenuItem("Set out point here"))
+        SetOutPoint(s, at);
+      if (ImGui::MenuItem("Add marker here"))
+      {
+        RequestSeek(s, at);
+        AddMarker(s);
+      }
+      if (ImGui::MenuItem("End the timeline here") && at > tl.start)
+      {
+        tl.end = at;
+        tl.Normalize();
+        s.Commit("Timeline length");
+      }
+      ImGui::EndPopup();
+    }
+
+    // Rows (scrolled by v.scrollY, clipped between the in/out bar and the
+    // overview).
+    dl->PopClipRect();
+    const ImVec2 rowsMin(c.min.x, rowsTop), rowsMax(c.max.x, rowsBottom);
+    dl->PushClipRect(rowsMin, rowsMax, true);
+    const float rowsStart = rowsTop - v.scrollY;
+    float y = rowsStart;
+    bool consumed = false;  // a row element took this click
     auto label = [&](const char* icon, const std::string& text, ImU32 color, bool selected) {
+      dl->PopClipRect();
+      dl->PushClipRect(ImVec2(origin.x, rowsTop), ImVec2(c.min.x, rowsBottom), true);
       if (selected)
         dl->AddRectFilled(ImVec2(origin.x, y), ImVec2(origin.x + kLabelWidth, y + kRowHeight), IM_COL32(255, 255, 255, 14));
-      dl->PopClipRect();
       dl->AddText(ImVec2(origin.x + 8, y + 3), color, icon);
       dl->AddText(ImVec2(origin.x + 28, y + 3), IM_COL32(210, 212, 220, 255), text.c_str());
-      dl->PushClipRect(c.min, c.max, true);
+      dl->PopClipRect();
+      dl->PushClipRect(rowsMin, rowsMax, true);
       dl->AddLine(ImVec2(c.min.x, y + kRowHeight), ImVec2(c.max.x, y + kRowHeight), IM_COL32(255, 255, 255, 10));
     };
     auto labelClicked = [&]() {
-      return ImGui::IsMouseClicked(ImGuiMouseButton_Left) && mouse.x >= origin.x && mouse.x < c.min.x && mouse.y >= y &&
-             mouse.y < y + kRowHeight && ImGui::IsWindowHovered();
+      return ImGui::IsMouseClicked(ImGuiMouseButton_Left) && overLabels && mouse.y >= y && mouse.y < y + kRowHeight;
     };
 
     if (v.graph)
     {
       Canvas g = c;
-      g.min.y = y + 4;
+      g.min.y = rowsTop + 4;
+      g.max.y = rowsBottom;
       DrawGraph(s, g, dl);
-      y = c.max.y;
+      y = rowsStart + visibleRows;
+      consumed = true;  // the graph editor handles its own clicks
     }
     else
     {
@@ -456,12 +804,21 @@ namespace IW4Iris::Editor
         const float x = c.X(m.time);
         const ImU32 col = ParseColor(m.color);
         dl->AddTriangleFilled(ImVec2(x - 5, y + 4), ImVec2(x + 5, y + 4), ImVec2(x, y + 14), col);
-        dl->AddLine(ImVec2(x, y + 14), ImVec2(x, c.max.y), (col & 0x00FFFFFF) | 0x30000000);
+        dl->AddLine(ImVec2(x, y + 14), ImVec2(x, rowsBottom), (col & 0x00FFFFFF) | 0x30000000);
         if (!m.name.empty())
           dl->AddText(ImVec2(x + 7, y + 3), IM_COL32(200, 200, 205, 200), m.name.c_str());
-        const bool hit = hovered && std::abs(mouse.x - x) < 6 && mouse.y >= y && mouse.y < y + kRowHeight;
+        const bool hit = inRows && std::abs(mouse.x - x) < 6 && mouse.y >= y && mouse.y < y + kRowHeight;
+        if (hit)
+        {
+          ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+          ImGui::SetTooltip("%s  %s\nDrag to move, double-click to jump there", m.name.empty() ? "Marker" : m.name.c_str(),
+                            iris::FormatTime(m.time, tl.frameRate, tl.display).c_str());
+        }
         if (hit && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
           v.draggingMarker = static_cast<int>(i);
+          consumed = true;
+        }
         if (hit && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
           RequestSeek(s, m.time);
       }
@@ -472,6 +829,7 @@ namespace IW4Iris::Editor
         else
         {
           v.draggingMarker = -1;
+          GrowTimelineToContent(s);
           s.Commit("Move marker");
         }
       }
@@ -491,7 +849,7 @@ namespace IW4Iris::Editor
           dl->AddRectFilled(ImVec2(c.X(t0) + 1, y + 3), ImVec2(c.X(t1) - 1, y + kRowHeight - 3), col, 3.0f);
           if (cam)
             dl->AddText(ImVec2(c.X(t0) + 5, y + 3), IM_COL32(240, 240, 245, 255), cam->name.c_str());
-          if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right) && mouse.x >= c.X(t0) && mouse.x < c.X(t1) &&
+          if (inRows && ImGui::IsMouseClicked(ImGuiMouseButton_Right) && mouse.x >= c.X(t0) && mouse.x < c.X(t1) &&
               mouse.y >= y && mouse.y < y + kRowHeight)
           {
             ImGui::OpenPopup("cut-menu");
@@ -552,10 +910,18 @@ namespace IW4Iris::Editor
           const bool sel = selectedCam && s.selectedKeys.contains(i);
           Diamond(dl, kp, sel ? 6.5f : 5.5f, sel ? ImGui::GetColorU32(CurrentPalette().accentStrong) : ParseColor(cam.color),
                   IM_COL32(10, 10, 12, 255));
-          if (hovered && std::abs(mouse.x - kp.x) < 7 && std::abs(mouse.y - kp.y) < 8)
+          if (inRows && std::abs(mouse.x - kp.x) < 7 && std::abs(mouse.y - kp.y) < 8)
             hitKey = static_cast<int>(i);
         }
-        const bool rowHovered = hovered && mouse.y >= y && mouse.y < y + kRowHeight && !onRuler;
+        const bool rowHovered = inRows && mouse.y >= y && mouse.y < y + kRowHeight;
+        if (rowHovered && hitKey >= 0 && !v.draggingKeys)
+        {
+          ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+          ImGui::SetTooltip("Key %d  %s\nDrag to retime, double-click to jump there, right-click for options", hitKey + 1,
+                            iris::FormatTime(keys[static_cast<std::size_t>(hitKey)].time, tl.frameRate, tl.display).c_str());
+        }
+        if (rowHovered && !state.locked && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+          consumed = true;
         if (rowHovered && !state.locked)
         {
           if (hitKey >= 0 && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -610,12 +976,18 @@ namespace IW4Iris::Editor
           dl->AddRectFilled(a, b, ImGui::GetColorU32(CurrentPalette().accentSoft));
           if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
           {
-            for (std::size_t i = 0; i < keys.size(); ++i)
+            if (b.x - a.x < 4.0f)
             {
-              const float x = c.X(keys[i].time);
-              if (x >= a.x && x <= b.x)
-                s.selectedKeys.insert(i);
+              // A click on empty space, not a box: move the playhead there.
+              RequestSeek(s, Snap(s, c.T(v.boxStart.x)));
             }
+            else
+              for (std::size_t i = 0; i < keys.size(); ++i)
+              {
+                const float x = c.X(keys[i].time);
+                if (x >= a.x && x <= b.x)
+                  s.selectedKeys.insert(i);
+              }
             v.boxSelecting = false;
           }
         }
@@ -649,7 +1021,10 @@ namespace IW4Iris::Editor
                 if (cam.path.Keys()[i] == m)
                   s.selectedKeys.insert(i);
             if (std::abs(delta) > 1e-6)
+            {
+              GrowTimelineToContent(s);
               s.Commit("Move keys");
+            }
           }
         }
         y += kRowHeight;
@@ -695,7 +1070,7 @@ namespace IW4Iris::Editor
       // graphic animations and effect plays.
       auto& ui = Ui();
       auto& sc = p.scene;
-      auto rowHovered = [&]() { return hovered && !onRuler && mouse.y >= y && mouse.y < y + kRowHeight; };
+      auto rowHovered = [&]() { return inRows && mouse.y >= y && mouse.y < y + kRowHeight; };
       bool removeBar = false;
       auto bar = [&](const std::string& objId, int index, double& start, double& duration, const std::string& text, ImU32 col) {
         const float x0 = c.X(start), x1 = std::max(c.X(start + duration), x0 + 3.0f);
@@ -706,10 +1081,15 @@ namespace IW4Iris::Editor
         const bool over = rowHovered() && mouse.x >= x0 - 2 && mouse.x <= x1 + 2;
         if (over)
         {
-          ImGui::SetTooltip("%s\n%s .. %s", text.c_str(), iris::FormatTime(start, tl.frameRate, tl.display).c_str(),
-                            iris::FormatTime(start + duration, tl.frameRate, tl.display).c_str());
+          const bool edge = mouse.x > x1 - 6;
+          ImGui::SetMouseCursor(edge ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_Hand);
+          if (ui.objDragId.empty())
+            ImGui::SetTooltip("%s\n%s .. %s\nDrag to move, drag the right edge to trim, right-click to delete", text.c_str(),
+                              iris::FormatTime(start, tl.frameRate, tl.display).c_str(),
+                              iris::FormatTime(start + duration, tl.frameRate, tl.display).c_str());
           if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ui.objDragId.empty())
           {
+            consumed = true;
             ui.objDragId = objId;
             ui.objDragIndex = index;
             ui.objDragMode = mouse.x > x1 - 6 ? 1 : 0;
@@ -733,7 +1113,10 @@ namespace IW4Iris::Editor
           const ImVec2 kp(c.X(t), y + kRowHeight * 0.5f);
           Diamond(dl, kp, 4.0f, col, IM_COL32(10, 10, 12, 255));
           if (rowHovered() && std::abs(mouse.x - kp.x) < 5 && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ui.objDragId.empty())
+          {
             RequestSeek(s, t);
+            consumed = true;
+          }
         }
       };
       for (auto& a : sc.actors)
@@ -811,9 +1194,34 @@ namespace IW4Iris::Editor
       {
         ui.objDragId.clear();
         ui.objDragIndex = -1;
+        GrowTimelineToContent(s);
         s.Commit("Retime");
       }
     }
+    v.contentHeight = y - rowsStart;
+    dl->PopClipRect();
+    dl->PushClipRect(c.min, c.max, true);
+
+    // Off-screen playhead: an arrow at the edge; clicking it brings it back.
+    const float playheadX = c.X(s.playhead);
+    const bool offscreenLeft = playheadX < c.min.x, offscreenRight = playheadX > c.max.x;
+    const float arrowX = offscreenLeft ? c.min.x + 2 : c.max.x - 2 - (vScrollShown ? kVScrollWidth + 2 : 0.0f);
+    const float arrowY = rowsTop + 10;
+    if ((offscreenLeft || offscreenRight) && inRows && std::abs(mouse.x - arrowX) < 12 && std::abs(mouse.y - arrowY) < 10)
+    {
+      ImGui::SetTooltip("The playhead is %s. Click to show it.", offscreenLeft ? "to the left" : "to the right");
+      if (leftClicked)
+      {
+        consumed = true;
+        const double span = v.end - v.start;
+        SetWindow(s, {s.playhead - 0.3 * span, s.playhead + 0.7 * span});
+      }
+    }
+
+    // A press on empty row space moves the playhead (and keeps scrubbing
+    // while the button is held), like the ruler.
+    if (inRows && leftClicked && !consumed && !v.scrubbing && v.rangeDrag == 0)
+      v.scrubbing = true;
 
     // Key context menu
     if (ImGui::BeginPopup("key-menu"))
@@ -847,11 +1255,270 @@ namespace IW4Iris::Editor
       ImGui::EndPopup();
     }
 
-    // Playhead
+    // Scrubbing: the playhead follows the mouse, sticking to edit points.
+    if (v.scrubbing)
+    {
+      s.scrubbing = true;
+      const double t = std::clamp(DragTime(s, c, mouse.x, EditPoints(s)), tl.start, tl.end);
+      s.playhead = t;
+      ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+      if (s.status.demoPlaying)
+      {
+        // Live preview in a demo. Seeking forward is cheap (the demo runs
+        // ahead); seeking back restarts the demo, so that only happens once
+        // the mouse rests, or on release.
+        const double now = ImGui::GetTime();
+        if (std::abs(t - v.lastScrubTime) > 1e-9)
+        {
+          v.lastScrubTime = t;
+          v.scrubRestTime = now;
+        }
+        const double scene = p.timeRemap.SceneTime(t);
+        const double frame = 1.0 / std::max(1.0, tl.frameRate.Fps());
+        const bool forward = scene > s.status.sceneTime + frame;
+        const bool backward = scene < s.status.sceneTime - frame;
+        const bool rested = now - v.scrubRestTime > 0.35;
+        if (!s.status.seeking && now - v.lastLiveSeek > 0.1 && (forward || (backward && rested)))
+        {
+          v.lastLiveSeek = now;
+          s.Post([scene] { DemoControl::Seek(scene); });
+        }
+      }
+      if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+      {
+        v.scrubbing = false;
+        s.scrubbing = false;
+        v.lastScrubTime = -1.0;
+        RequestSeek(s, s.playhead);
+      }
+    }
+
+    // Playhead: a line through the rows and a handle with the time on the ruler.
+    const ImU32 strong = ImGui::GetColorU32(CurrentPalette().accentStrong);
     const float px = c.X(s.playhead);
-    dl->AddLine(ImVec2(px, c.min.y), ImVec2(px, c.max.y), ImGui::GetColorU32(CurrentPalette().accentStrong), 1.5f);
-    dl->AddTriangleFilled(ImVec2(px - 6, c.min.y), ImVec2(px + 6, c.min.y), ImVec2(px, c.min.y + 8),
-                          ImGui::GetColorU32(CurrentPalette().accentStrong));
+    dl->AddLine(ImVec2(px, c.min.y), ImVec2(px, rowsBottom), strong, 1.5f);
+    dl->AddTriangleFilled(ImVec2(px - 6, rangeTop - 8), ImVec2(px + 6, rangeTop - 8), ImVec2(px, rangeTop), strong);
+    if (v.scrubbing || (hovered && onRuler))
+    {
+      const auto timeLabel = iris::FormatTime(s.playhead, tl.frameRate, tl.display);
+      const ImVec2 size = ImGui::CalcTextSize(timeLabel.c_str());
+      const float lx = std::clamp(px - size.x * 0.5f - 4, c.min.x, c.max.x - size.x - 8);
+      dl->AddRectFilled(ImVec2(lx, c.min.y + 1), ImVec2(lx + size.x + 8, c.min.y + size.y + 3), strong, 3.0f);
+      dl->AddText(ImVec2(lx + 4, c.min.y + 2), IM_COL32(12, 12, 16, 255), timeLabel.c_str());
+    }
+    if (offscreenLeft || offscreenRight)
+      dl->AddTriangleFilled(ImVec2(arrowX, arrowY), ImVec2(arrowX + (offscreenLeft ? 9.0f : -9.0f), arrowY - 6),
+                            ImVec2(arrowX + (offscreenLeft ? 9.0f : -9.0f), arrowY + 6), strong);
+
+    // Vertical scroll bar for the rows.
+    if (vScrollShown)
+    {
+      const float x0 = c.max.x - kVScrollWidth - 1, x1 = c.max.x - 1;
+      const float thumbH = std::max(20.0f, visibleRows * visibleRows / std::max(visibleRows, v.contentHeight));
+      const float thumbY = rowsTop + (visibleRows - thumbH) * (maxScroll > 0 ? v.scrollY / maxScroll : 0.0f);
+      dl->AddRectFilled(ImVec2(x0, rowsTop), ImVec2(x1, rowsBottom), IM_COL32(0, 0, 0, 80), 3.0f);
+      const bool overThumb = hovered && onVScroll;
+      dl->AddRectFilled(ImVec2(x0 + 1, thumbY), ImVec2(x1 - 1, thumbY + thumbH),
+                        overThumb || v.vScrollDrag ? IM_COL32(200, 200, 215, 200) : IM_COL32(140, 140, 155, 150), 3.0f);
+      if (overThumb && leftClicked)
+      {
+        v.vScrollDrag = true;
+        if (mouse.y < thumbY || mouse.y > thumbY + thumbH)  // click on the track jumps there
+          v.scrollY = std::clamp((mouse.y - rowsTop - thumbH * 0.5f) / std::max(1.0f, visibleRows - thumbH) * maxScroll, 0.0f, maxScroll);
+      }
+      if (v.vScrollDrag)
+      {
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+          v.scrollY = std::clamp(v.scrollY + io.MouseDelta.y * maxScroll / std::max(1.0f, visibleRows - thumbH), 0.0f, maxScroll);
+        else
+          v.vScrollDrag = false;
+      }
+    }
     dl->PopClipRect();
+
+    // Overview: the whole timeline; the bright box is what is visible. Drag
+    // the box to scroll, its ends to zoom, click elsewhere to jump there.
+    {
+      const float oy0 = rowsBottom + 1, oy1 = c.max.y - 1;
+      double a = std::min(limits.boundsStart, v.start), b = std::max(limits.boundsEnd, v.end);
+      if (v.overviewDrag != 0)
+      {
+        a = v.overviewA;
+        b = v.overviewB;
+      }
+      const double span = std::max(1e-6, b - a);
+      const auto ox = [&](double t) { return c.min.x + static_cast<float>((t - a) / span) * width; };
+      const auto ot = [&](float x) { return a + (x - c.min.x) / width * span; };
+      dl->AddRectFilled(ImVec2(c.min.x, oy0), ImVec2(c.max.x, oy1), IM_COL32(10, 10, 13, 255));
+      dl->AddRectFilled(ImVec2(ox(tl.inPoint), oy0 + 3), ImVec2(ox(tl.outPoint), oy1 - 3), ImGui::GetColorU32(CurrentPalette().accentSoft));
+      for (const auto& m : p.markers)
+        dl->AddLine(ImVec2(ox(m.time), oy0), ImVec2(ox(m.time), oy1), (ParseColor(m.color) & 0x00FFFFFF) | 0xA0000000);
+      dl->AddLine(ImVec2(ox(s.playhead), oy0), ImVec2(ox(s.playhead), oy1), strong, 2.0f);
+      const float vx0 = ox(v.start), vx1 = std::max(ox(v.end), vx0 + 6.0f);
+      const bool overOverview = hovered && onOverview;
+      int hit = 0;
+      if (overOverview)
+      {
+        if (std::abs(mouse.x - vx0) < 5)
+          hit = 2;
+        else if (std::abs(mouse.x - vx1) < 5)
+          hit = 3;
+        else if (mouse.x > vx0 && mouse.x < vx1)
+          hit = 1;
+        ImGui::SetMouseCursor(hit >= 2 ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_Hand);
+        if (v.overviewDrag == 0)
+          ImGui::SetTooltip("Whole timeline. Drag the box to scroll, its ends to zoom, click to jump there.\n"
+                            "Double-click: show everything.");
+      }
+      dl->AddRectFilled(ImVec2(vx0, oy0 + 1), ImVec2(vx1, oy1 - 1),
+                        overOverview || v.overviewDrag ? IM_COL32(255, 255, 255, 46) : IM_COL32(255, 255, 255, 28), 2.0f);
+      dl->AddRect(ImVec2(vx0, oy0 + 1), ImVec2(vx1, oy1 - 1), IM_COL32(220, 220, 235, 150), 2.0f);
+      if (overOverview && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+      {
+        FitView(s);
+        v.overviewDrag = 0;
+      }
+      else if (overOverview && leftClicked)
+      {
+        v.overviewA = a;
+        v.overviewB = b;
+        if (hit == 0)
+        {
+          // Jump: centre the view on the click, then keep dragging it.
+          const double half = 0.5 * (v.end - v.start);
+          SetWindow(s, {ot(mouse.x) - half, ot(mouse.x) + half});
+          hit = 1;
+        }
+        v.overviewDrag = hit;
+        v.overviewGrab = ot(mouse.x) - v.start;
+      }
+      if (v.overviewDrag != 0)
+      {
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+          const double t = ot(mouse.x);
+          iris::TimeWindow nw{v.start, v.end};
+          if (v.overviewDrag == 1)
+          {
+            const double len = nw.Span();
+            nw.start = t - v.overviewGrab;
+            nw.end = nw.start + len;
+          }
+          else if (v.overviewDrag == 2)
+            nw.start = std::min(t, nw.end - limits.minSpan);
+          else
+            nw.end = std::max(t, nw.start + limits.minSpan);
+          SetWindow(s, nw);
+        }
+        else
+          v.overviewDrag = 0;
+      }
+    }
+
+    // The label column's corner: how to navigate.
+    if (ImGui::IsWindowHovered() && mouse.x >= origin.x && mouse.x < c.min.x && mouse.y >= rowsBottom)
+      ImGui::SetTooltip("Timeline navigation\n"
+                        "  Click or drag the ruler / empty rows: move the playhead\n"
+                        "  Mouse wheel: zoom    Shift+wheel or middle drag: scroll\n"
+                        "  Wheel over the names / Ctrl+wheel: scroll the rows\n"
+                        "  Bottom bar: drag to scroll, drag its ends to zoom\n"
+                        "  In/out bar: drag the ends, the middle, or draw a new range\n"
+                        "  Left/Right: one frame (Shift: one second)   Up/Down: previous/next edit point\n"
+                        "  I / O: in / out at the playhead   Home / End: go to in / out\n"
+                        "  + / -: zoom   \\: show everything   Alt while dragging: no magnet");
+    dl->AddText(ImVec2(origin.x + 8, rowsBottom + 1), IM_COL32(120, 122, 135, 255), "Navigate (hover for help)");
+    dl->AddText(ImVec2(origin.x + 8, c.min.y + 4), IM_COL32(120, 122, 135, 255), "Time");
+    dl->AddText(ImVec2(origin.x + 8, rangeTop), IM_COL32(120, 122, 135, 255), "In / Out");
+  }
+
+  // ------------------------------------------------------------ navigation
+
+  std::vector<double> EditPoints(const Session& s)
+  {
+    const auto& p = s.project;
+    const auto& tl = p.timeline;
+    std::vector<double> pts{tl.start, tl.end, tl.inPoint, tl.outPoint};
+    if (tl.loop.enabled)
+    {
+      pts.push_back(tl.loop.start);
+      pts.push_back(tl.loop.end);
+    }
+    for (const auto& m : p.markers)
+      pts.push_back(m.time);
+    for (const auto& c : p.cuts.Cuts())
+      pts.push_back(c.time);
+    for (const auto& cam : p.cameras)
+      for (const auto& k : cam.path.Keys())
+        pts.push_back(k.time);
+    for (const auto& k : p.timeRemap.Speed().Keys())
+      pts.push_back(k.time);
+    for (const auto& t : p.tracks)
+      for (const auto& k : t.curve.Keys())
+        pts.push_back(k.time);
+    const auto addTrack = [&](const iris::TransformTrack& track) {
+      for (const double t : track.KeyTimes())
+        pts.push_back(t);
+    };
+    for (const auto& a : p.scene.actors)
+    {
+      for (const auto& clip : a.clips)
+      {
+        pts.push_back(clip.start);
+        pts.push_back(clip.start + clip.duration);
+      }
+      addTrack(a.track);
+    }
+    for (const auto& pr : p.scene.props)
+      addTrack(pr.track);
+    for (const auto& e : p.scene.effects)
+      pts.push_back(e.start);
+    for (const auto& g : p.scene.graphics)
+    {
+      for (const auto& an : g.animations)
+      {
+        pts.push_back(an.start);
+        pts.push_back(an.start + an.duration);
+      }
+      addTrack(g.track);
+    }
+    return pts;
+  }
+
+  void ZoomTimeline(Session& s, double factor)
+  {
+    auto& v = Ui().timeline;
+    iris::TimeWindow w{v.start, v.end};
+    // Around the playhead when it is visible, else around the centre.
+    const double pivot = s.playhead >= v.start && s.playhead <= v.end ? s.playhead : 0.5 * (v.start + v.end);
+    SetWindow(s, iris::ZoomWindow(w, pivot, factor, Limits(s)));
+  }
+
+  void FitTimeline(Session& s)
+  {
+    FitView(s);
+  }
+
+  void SetInPoint(Session& s, double t)
+  {
+    auto& tl = s.project.timeline;
+    const double frame = 1.0 / std::max(1.0, tl.frameRate.Fps());
+    t = Snap(s, std::clamp(t, tl.start, tl.end));
+    if (t >= tl.outPoint)
+      tl.outPoint = std::min(tl.end, t + frame);  // keep a valid range
+    tl.inPoint = std::min(t, tl.outPoint - frame);
+    tl.Normalize();
+    s.Commit("Set in point");
+  }
+
+  void SetOutPoint(Session& s, double t)
+  {
+    auto& tl = s.project.timeline;
+    const double frame = 1.0 / std::max(1.0, tl.frameRate.Fps());
+    t = Snap(s, std::clamp(t, tl.start, tl.end));
+    if (t <= tl.inPoint)
+      tl.inPoint = std::max(tl.start, t - frame);
+    tl.outPoint = std::max(t, tl.inPoint + frame);
+    tl.Normalize();
+    s.Commit("Set out point");
   }
 }

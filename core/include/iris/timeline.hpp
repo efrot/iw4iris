@@ -142,6 +142,13 @@ namespace iris
         double Advance(double playhead, double dt) const;
     };
 
+    // Fits the timeline to a source (a demo) of `length` cinematic seconds
+    // once it is known: a shorter timeline grows to the source, and an out
+    // point that was at the old end follows it. An untouched default timeline
+    // (0..10 s, in/out at its ends) that is longer than the source shrinks to
+    // it, unless content (keys, clips) lies beyond. Returns true on a change.
+    bool FitTimelineToSource(TimelineSettings& timeline, double length, double contentEnd);
+
     // Frames of a recording range [in, out): the first frame index and the
     // number of frames, at the given rate.
     struct FrameRange

@@ -2,6 +2,8 @@
 // Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
 #include "Graphics.hpp"
 
+#include "Capture.hpp"
+
 #include "Director.hpp"
 #include "Engine.hpp"
 #include "Log.hpp"
@@ -346,7 +348,10 @@ namespace IW4Iris::Graphics
         D3DFORMAT format = D3DFMT_INDEX32;
         if (!index32)
         {
-          idx16.assign(mesh.indices.begin() + sm.firstIndex, mesh.indices.begin() + sm.firstIndex + sm.indexCount);
+          // Checked above: every index fits in 16 bits.
+          idx16.resize(sm.indexCount);
+          for (std::size_t i = 0; i < sm.indexCount; ++i)
+            idx16[i] = static_cast<std::uint16_t>(mesh.indices[sm.firstIndex + i]);
           indices = idx16.data();
           format = D3DFMT_INDEX16;
         }
@@ -604,9 +609,24 @@ namespace IW4Iris::Graphics
     const DWORD zLess = static_cast<DWORD>(view.reversed ? D3DCMP_GREATEREQUAL : D3DCMP_LESSEQUAL);
     const DWORD zHidden = static_cast<DWORD>(view.reversed ? D3DCMP_LESS : D3DCMP_GREATER);
     int drawn = 0, triangles = 0;
-    std::set<std::string> graphicsDrawn;
+    std::set<std::string> graphicsDrawn, degraded;
+    bool preview = false;
+    {
+      std::lock_guard _(gfxMutex);
+      preview = status.previewWithoutOcclusion && !Capture::IsActive();
+    }
     for (const DrawItem* item : order)
     {
+      // A graphic that should hide behind walls is not drawn on top of
+      // everything when occlusion is unverified: that would be wrong in the
+      // video. The editor can opt in to a preview; captures never do.
+      if (!depthVerified && item->mode != iris::GraphicRenderMode::OnTop && !preview)
+      {
+        degraded.insert(item->graphic);
+        continue;
+      }
+      if (!depthVerified && item->mode != iris::GraphicRenderMode::OnTop)
+        degraded.insert(item->graphic);
       const bool depthTest = depthVerified && item->mode != iris::GraphicRenderMode::OnTop;
       const bool blend = translucent(item);
       device->SetRenderState(D3DRS_CULLMODE, item->doubleSided ? static_cast<DWORD>(D3DCULL_NONE) : cull);
@@ -669,6 +689,13 @@ namespace IW4Iris::Graphics
     }
     status.drawnGraphics = static_cast<int>(graphicsDrawn.size());
     status.drawnTriangles = triangles;
+    status.degraded.assign(degraded.begin(), degraded.end());
+  }
+
+  void SetPreviewWithoutOcclusion(bool enabled)
+  {
+    std::lock_guard _(gfxMutex);
+    status.previewWithoutOcclusion = enabled;
   }
 
   void DeviceLost()

@@ -210,8 +210,9 @@ This is the full workflow from demo to video file.
    **mouse wheel** to zoom. Release the button and the view stays where you
    are. Press **F** to keep flying without holding the button; **F** or
    **Esc** stops it again.
-3. **Pick moments.** Click the ruler at the top of the **Timeline** (bottom
-   panel) to move the playhead. Press **Space** to play or pause the demo.
+3. **Pick moments.** Click or drag the ruler (or empty space) in the
+   **Timeline** (bottom panel) to move the playhead, or type a time such as
+   `1:05` into the time field. Press **Space** to play or pause the demo.
 4. **Add keys.** At each moment you want, fly to a good spot and press
    **K** (this also works while you fly). Add at least three keys at
    different times. Each key appears as a
@@ -392,9 +393,23 @@ shakes the same way, also in recordings.
 
 ## 7. Timeline, keys and the graph editor
 
-* **Navigate:** click or drag the ruler to move the playhead. Mouse wheel
-  zooms, Shift+wheel or middle-drag pans, the expand button fits the whole
-  timeline.
+* **Move the playhead:** click or drag the ruler, or anywhere on empty
+  track space. The playhead sticks to keys, markers, cuts, clip edges and
+  in / out while you drag (*Magnet*; hold **Alt** to move freely). Or type a
+  time into the time field at the top left: `12.5` (seconds), `1:05`
+  (minutes:seconds), `90f` (frames) or `00:00:12:30` (timecode). **↑ / ↓**
+  and the arrow buttons jump to the previous / next edit point. In a demo
+  the picture follows while you drag forward; dragging backwards restarts
+  the demo, so that happens when you pause on a spot or let go.
+* **Look around:** mouse wheel zooms around the mouse, **Shift+wheel** or
+  middle-drag scrolls sideways, **+ / -** zoom, **\\** or the expand button
+  shows everything. The bar at the bottom shows the whole timeline: drag
+  its bright box to scroll, drag its ends to zoom, click to jump. With many
+  tracks, scroll the rows with the wheel over the track names (or
+  Ctrl+wheel). *Follow* keeps the playhead in view while playing.
+* **Demo length:** when a demo is loaded the timeline covers all of it
+  (it used to stay at 10 seconds). *Length* changes it; content dragged
+  past the end extends it.
 * **Select:** click a key; Ctrl+click toggles; Shift+click adds; drag in an
   empty part of a track for a box selection.
 * **Edit:** drag keys to retime them (snapped to frames when *Snap* is on);
@@ -410,8 +425,12 @@ shakes the same way, also in recordings.
   track in the track names, then drag keys in time and value, drag Bézier
   handles, and right-click for interpolation, tangent mode (auto, aligned,
   free, flat), add or delete.
-* **Range:** B / N set the in / out points used by recording and export;
-  *Loop* repeats the in / out region while playing.
+* **In / out (what is rendered):** the bar under the ruler. Drag its ends
+  to set in and out, drag the middle to move the range, drag on empty
+  space to draw a new one, double-click it for the whole timeline,
+  right-click for more. **I / O** set in / out at the playhead (B / N also
+  work), or type them into the *In* / *Out* fields. *Loop* repeats the
+  loop region while playing (right-click the bar: *Loop this range*).
 
 ---
 
@@ -556,8 +575,12 @@ markers that you can edit.
 | **U** | update the selected key from the view |
 | **Space** | play / pause |
 | **← / →** | previous / next frame (Shift: one second) |
-| **Home / End** | go to the in / out point |
-| **B / N** | set the in / out point |
+| **Home / End** | go to the in / out point (Shift: timeline start / end) |
+| **↑ / ↓** | previous / next edit point (key, marker, cut, clip, in / out) |
+| **I / O** (or B / N) | set the in / out point at the playhead |
+| **+ / -** | zoom the timeline in / out |
+| **\\** | show the whole timeline |
+| **Alt** (while dragging) | ignore the magnet |
 | **M** | add a marker |
 | **Del** | delete the selected keys |
 | **Ctrl+C / Ctrl+V** | copy / paste keys |

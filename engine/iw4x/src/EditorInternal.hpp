@@ -62,6 +62,24 @@ namespace IW4Iris::Editor
     int graphDragKey = -1;
     int graphDragHandle = 0;  // 0 key, -1 in-handle, +1 out-handle
     double graphMin = 0.0, graphMax = 1.0;
+    // navigation
+    bool follow = true;       // keep the playhead in view while playing
+    bool magnet = true;       // snap drags to markers, keys, cuts, in/out (Alt: off)
+    float scrollY = 0.0f;     // rows scrolled up, pixels
+    float contentHeight = 0.0f;  // height of all rows (last frame)
+    int rangeDrag = 0;        // 0 none, 1 in, 2 out, 3 move, 4 new range
+    double rangeAnchor = 0.0; // press time (new range) / offset (move)
+    double rangeOrigIn = 0.0, rangeOrigOut = 0.0;
+    int overviewDrag = 0;     // 0 none, 1 pan, 2 left edge, 3 right edge
+    double overviewGrab = 0.0;
+    double overviewA = 0.0, overviewB = 1.0;  // range the overview showed when the drag began
+    bool vScrollDrag = false;
+    bool pendingClick = false;  // camera row: press on empty space, a click unless it becomes a box
+    double lastLiveSeek = 0.0;  // ImGui time of the last seek while scrubbing a demo
+    double lastScrubTime = -1.0;
+    double scrubRestTime = 0.0;
+    char timeText[32]{}, inText[32]{}, outText[32]{};
+    bool timeEdit = false, inEdit = false, outEdit = false;
   };
 
   struct UiState
@@ -174,6 +192,12 @@ namespace IW4Iris::Editor
 
   // Shared actions (render thread; game work is posted to the main thread)
   void RequestSeek(Session& s, double t);
+  // Timeline navigation shared with the shortcuts.
+  std::vector<double> EditPoints(const Session& s);  // markers, cuts, keys, clip ends, in/out ...
+  void ZoomTimeline(Session& s, double factor);       // around the playhead
+  void FitTimeline(Session& s);
+  void SetInPoint(Session& s, double t);
+  void SetOutPoint(Session& s, double t);
   void TogglePlay(Session& s);
   void StepFrames(Session& s, int frames);
   void DeleteSelectedKeys(Session& s);

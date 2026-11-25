@@ -54,7 +54,10 @@ namespace IW4Iris::Capture
 
   // Validates the settings against the running game; returns the issues
   // (errors block a capture).
-  std::vector<iris::Issue> Check(const iris::RecordingSettings& settings);
+  // Settings checks plus, with a project, what the scene needs: a ready
+  // film set without failed objects, verified depth for graphics that hide
+  // behind the world.
+  std::vector<iris::Issue> Check(const iris::RecordingSettings& settings, const iris::Project* project = nullptr);
   std::optional<std::string> FindFfmpeg(const std::string& configured);
 
   // Main thread. Returns false (and the reason) when the capture cannot

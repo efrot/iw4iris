@@ -178,6 +178,35 @@ namespace iris
         return hi;
     }
 
+    bool FitTimelineToSource(TimelineSettings& tl, double length, double contentEnd)
+    {
+        if (!(length > 0.0) || !std::isfinite(length))
+            return false;
+        const double end = tl.start + length;
+        const double frame = 1.0 / std::max(1.0, tl.frameRate.Fps());
+        const TimelineSettings before = tl;
+        if (tl.end < end - frame)
+        {
+            const bool outAtEnd = std::abs(tl.outPoint - tl.end) <= frame;
+            tl.end = end;
+            if (outAtEnd)
+                tl.outPoint = end;
+        }
+        else if (tl.end > end + frame)
+        {
+            const TimelineSettings defaults;
+            const bool untouched = tl.start == defaults.start && tl.end == defaults.end &&
+                                   tl.inPoint == defaults.inPoint && tl.outPoint == defaults.outPoint;
+            if (untouched && contentEnd <= end)
+            {
+                tl.end = end;
+                tl.outPoint = end;
+            }
+        }
+        tl.Normalize();
+        return !(tl == before);
+    }
+
     void TimelineSettings::Normalize()
     {
         if (end < start)

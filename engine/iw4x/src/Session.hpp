@@ -105,6 +105,8 @@ namespace IW4Iris
     bool playing = false;
     double playbackRate = 1.0;    // multiplies the project's speed curve in preview
     bool scrubbing = false;       // the timeline's ruler is being dragged
+    bool timelineFitRequested = false;  // the timeline view should show everything (new demo, new project)
+    double demoLengthFitted = 0.0;      // demo length the timeline was fitted to (0: none yet)
 
     // Editor
     bool editorVisible = false;

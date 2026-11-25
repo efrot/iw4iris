@@ -49,7 +49,15 @@ namespace IW4Iris::Graphics
     int drawnTriangles = 0;
     std::map<std::string, std::string> errors;                 // graphic id -> why it has no geometry
     std::map<std::string, std::vector<std::string>> warnings;  // graphic id -> geometry warnings
+    // Graphics set to hide behind the world that were NOT drawn last frame
+    // because occlusion is not verified (never drawn on top silently).
+    std::vector<std::string> degraded;
+    bool previewWithoutOcclusion = false;  // the editor preview draws them on top anyway (never in a capture)
   };
+
+  // Editor preview only: draw depth-mode graphics on top while occlusion is
+  // unavailable, so they can be placed. Captures ignore it.
+  void SetPreviewWithoutOcclusion(bool enabled);
 
   void MainFrame(Session& session);  // main thread, session locked
   void OnView(Session& session, double t, const iris::CameraState& camera, int clientTime);

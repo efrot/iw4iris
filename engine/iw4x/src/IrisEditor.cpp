@@ -10,6 +10,7 @@
 
 #include <iris/exporters.hpp>
 #include <iris/presets.hpp>
+#include <iris/timeline_view.hpp>
 #include <iris/version.hpp>
 
 #include <atomic>
@@ -1503,7 +1504,7 @@ namespace IW4Iris::Editor
       if (Now() - ui.lastCheck > 1.0)
       {
         ui.lastCheck = Now();
-        ui.issues = Capture::Check(r);
+        ui.issues = Capture::Check(r, &s.project);
         const auto ff = Capture::FindFfmpeg(r.ffmpegPath.empty() ? s.settings.ffmpegPath : r.ffmpegPath);
         ui.ffmpegFound = ff.has_value();
         ui.ffmpegPathFound = ff.value_or("");
@@ -2032,7 +2033,15 @@ namespace IW4Iris::Editor
       }
       static const char* rows[][2] = {
         {"F1", "Show / hide the editor"}, {"Space", "Play / pause"}, {"Left / Right", "Previous / next frame (Shift: 1 s)"},
-        {"Home / End", "Go to the in / out point"}, {"B / N", "Set the in / out point"}, {"K", "Add a camera key from the view (also while flying)"},
+        {"Home / End", "Go to the in / out point (Shift: timeline start / end)"},
+        {"Up / Down", "Previous / next edit point (key, marker, cut, clip, in/out)"},
+        {"I / O", "Set the in / out point at the playhead (B / N also work)"},
+        {"+ / -", "Zoom the timeline in / out"}, {"\\", "Show the whole timeline"},
+        {"Timeline: click / drag", "Move the playhead (ruler or empty rows)"},
+        {"Timeline: wheel", "Zoom (Shift: scroll sideways, Ctrl or over names: scroll rows)"},
+        {"Timeline: middle drag", "Scroll the timeline"},
+        {"Alt while dragging", "Ignore the magnet (move freely)"},
+        {"K", "Add a camera key from the view (also while flying)"},
         {"U", "Update the selected key from the view"}, {"Del", "Delete the selected keys"}, {"Ctrl+C / Ctrl+V", "Copy / paste keys"},
         {"Ctrl+Z / Ctrl+Y", "Undo / redo"}, {"Ctrl+S", "Save"}, {"Ctrl+O", "Open"}, {"Ctrl+N", "New project"},
         {"M", "Add a marker"}, {"C", "Next camera"}, {"1 - 9", "Make camera 1 - 9 active"},
@@ -2169,21 +2178,27 @@ namespace IW4Iris::Editor
         if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
           StepFrames(s, io.KeyShift ? static_cast<int>(std::llround(t.frameRate.Fps())) : 1);
         if (pressed(ImGuiKey_Home))
-          RequestSeek(s, t.inPoint);
+          RequestSeek(s, io.KeyShift ? t.start : t.inPoint);
         if (pressed(ImGuiKey_End))
-          RequestSeek(s, t.outPoint);
-        if (pressed(ImGuiKey_B))
-        {
-          t.inPoint = s.playhead;
-          t.Normalize();
-          s.Commit("Set in point");
-        }
-        if (pressed(ImGuiKey_N))
-        {
-          t.outPoint = s.playhead;
-          t.Normalize();
-          s.Commit("Set out point");
-        }
+          RequestSeek(s, io.KeyShift ? t.end : t.outPoint);
+        // Up / Down: previous / next edit point (keys, markers, cuts, clips, in/out).
+        if (ImGui::IsKeyPressed(ImGuiKey_UpArrow))
+          if (const auto prev = iris::PreviousPoint(s.playhead, EditPoints(s)))
+            RequestSeek(s, *prev);
+        if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
+          if (const auto next = iris::NextPoint(s.playhead, EditPoints(s)))
+            RequestSeek(s, *next);
+        // In / out at the playhead: I and O (B and N still work).
+        if (pressed(ImGuiKey_I) || pressed(ImGuiKey_B))
+          SetInPoint(s, s.playhead);
+        if (pressed(ImGuiKey_O) || pressed(ImGuiKey_N))
+          SetOutPoint(s, s.playhead);
+        if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd))
+          ZoomTimeline(s, 0.7);
+        if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract))
+          ZoomTimeline(s, 1.0 / 0.7);
+        if (pressed(ImGuiKey_Backslash))
+          FitTimeline(s);
         if (pressed(ImGuiKey_K))
           s.Post([] { Runtime::AddKeyFromView(); });
         if (pressed(ImGuiKey_U))

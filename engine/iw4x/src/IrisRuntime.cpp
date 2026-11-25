@@ -463,6 +463,8 @@ namespace IW4Iris::Runtime
     st.paused = DemoControl::IsPaused();
     st.sceneTime = DemoControl::SceneTime();
     st.demoDuration = s.demoIndex ? s.demoIndex->DurationSeconds() : 0.0;
+    if (st.demoDuration <= 0.0)
+      s.demoLengthFitted = 0.0;  // the next demo is fitted again
     if (std::chrono::duration<double>(now - lastDvarCheck).count() > 2.0)
     {
       lastDvarCheck = now;
@@ -511,11 +513,20 @@ namespace IW4Iris::Runtime
             s.playhead = loop.start;
           }
         }
-        // The demo's length bounds the timeline.
-        if (st.demoDuration > 0.0 && project.timeline.end < 1.0)
+        // Once the demo's length is known the timeline covers all of it
+        // (it used to stay at the default 10 s, so most of a demo could not
+        // be reached with the playhead).
+        if (st.demoDuration > 0.0 && s.demoLengthFitted != st.demoDuration)
         {
-          project.timeline.end = st.demoDuration;
-          project.timeline.outPoint = st.demoDuration;
+          s.demoLengthFitted = st.demoDuration;
+          const double searchEnd = project.timeRemap.timelineStart + st.demoDuration * 50.0 + 60.0;
+          const double length = project.timeRemap.CinematicTime(st.demoDuration, searchEnd) - project.timeline.start;
+          if (iris::FitTimelineToSource(project.timeline, length, project.ContentEnd()))
+          {
+            s.Commit("Fit the timeline to the demo");
+            Log::Info("Timeline fitted to the demo: {:.2f} s", length);
+          }
+          s.timelineFitRequested = true;
         }
       }
       else if (s.playing)
@@ -768,6 +779,10 @@ namespace IW4Iris::Hooks
     // shows; otherwise from the playhead. A hidden editor keeps previewing
     // the project's cameras, so the shot can be watched clean.
     const auto captureTime = Capture::FrameTime();
+    // During a capture the frame's time is the authority for everything
+    // that reads the playhead (Director poses, effects, graphics, the UI).
+    if (captureTime)
+      s.playhead = *captureTime;
     const double t = captureTime.value_or(s.playhead);
     const iris::CameraDef* def = s.project.CameraAt(t);
     const bool flying = !captureTime && Runtime::IsFlying();

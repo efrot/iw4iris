@@ -974,6 +974,18 @@ namespace IW4Iris::Editor
     SectionHeader(Icons::INFO, "Renderer");
     const auto gs = Graphics::GetStatus();
     ImGui::TextWrapped("Depth occlusion: %s", gs.depth.empty() ? "not checked yet (no graphic drawn)" : gs.depth.c_str());
+    if (!gs.degraded.empty())
+    {
+      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f), "%s  %zu graphic(s) %s: they should hide behind walls, but "
+                         "occlusion is not available.", Icons::WARNING, gs.degraded.size(),
+                         gs.previewWithoutOcclusion ? "are previewed on top" : "are not drawn");
+      ImGui::TextWrapped("Set them to \"Always on top\" to render them without occlusion. Recording is blocked while "
+                         "they are set to hide behind walls.");
+    }
+    bool previewOnTop = gs.previewWithoutOcclusion;
+    if (ImGui::Checkbox("Preview hidden-mode graphics on top while occlusion is unavailable", &previewOnTop))
+      Graphics::SetPreviewWithoutOcclusion(previewOnTop);
+    ImGui::SetItemTooltip("Only in the editor, to place them. Recordings never draw them this way.");
     if (Pro(s))
     {
       ImGui::TextWrapped("View: %s%s", gs.matrices.empty() ? "-" : gs.matrices.c_str(), gs.reversedDepth ? ", reversed depth" : "");
@@ -1735,7 +1747,15 @@ namespace IW4Iris::Editor
         s.Commit("Render mode");
       }
       if (g.renderMode != iris::GraphicRenderMode::OnTop && !gs.depthAvailable && !gs.depth.empty())
-        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f), "%s  Occlusion: %s", Icons::WARNING, gs.depth.c_str());
+      {
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f), "%s  Occlusion unavailable (%s): %s", Icons::WARNING,
+                           gs.depth.c_str(), gs.previewWithoutOcclusion ? "previewed on top" : "not drawn");
+        if (ImGui::SmallButton("Use \"Always on top\""))
+        {
+          g.renderMode = iris::GraphicRenderMode::OnTop;
+          s.Commit("Render mode");
+        }
+      }
       if (ImGui::Checkbox("Double-sided", &g.doubleSided))
         s.Commit("Double-sided");
 

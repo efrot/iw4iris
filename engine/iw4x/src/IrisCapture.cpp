@@ -3,13 +3,17 @@
 #include "Capture.hpp"
 #include "Clock.hpp"
 #include "DemoControl.hpp"
+#include "Director.hpp"
+#include "Graphics.hpp"
 #include "Engine.hpp"
 #include "Log.hpp"
 #include "Session.hpp"
 
 #include <iris/version.hpp>
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <condition_variable>
 #include <deque>
 #include <thread>
@@ -426,7 +430,53 @@ namespace IW4Iris::Capture
     return std::nullopt;
   }
 
-  std::vector<iris::Issue> Check(const iris::RecordingSettings& s)
+  namespace
+  {
+    void AddSceneIssues(const iris::Project& p, std::vector<iris::Issue>& out)
+    {
+      using Sev = iris::Issue::Severity;
+      const auto& sc = p.scene;
+      const bool directorObjects = !sc.actors.empty() || !sc.props.empty() || !sc.effects.empty();
+      if (directorObjects)
+      {
+        if (Engine::IsDemoPlaying())
+          out.push_back({Sev::Warning, "Actors, props and effects exist only on Director Mode film sets; this demo "
+                                       "recording will not show them."});
+        else if (!Director::Ready())
+          out.push_back({Sev::Error, "The film set is not ready, so actors and props would be missing. Wait for "
+                                     "\"ready\" in the Director panel (or reload the set)."});
+        else
+        {
+          const auto st = Director::GetStatus();
+          if (!st.failures.empty())
+            out.push_back({Sev::Error, std::to_string(st.failures.size()) + " scene object(s) failed in the game (" +
+                                           st.failures.front() + "). Fix or delete them before recording."});
+          if (!st.needReload.empty())
+            out.push_back({Sev::Error, std::to_string(st.needReload.size()) +
+                                           " asset(s) are not loaded yet. Click \"Reload set\" in the Director panel."});
+          if (!st.unavailable.empty())
+            out.push_back({Sev::Warning, std::to_string(st.unavailable.size()) +
+                                             " asset(s) of this project are not on this map; those objects are left out."});
+        }
+      }
+      const auto gs = Graphics::GetStatus();
+      int needDepth = 0;
+      for (const auto& g : sc.graphics)
+        if (g.visible && g.kind != iris::GraphicKind::Anchor && g.renderMode != iris::GraphicRenderMode::OnTop)
+          ++needDepth;
+      if (needDepth > 0 && !gs.depthAvailable)
+        out.push_back({Sev::Error, std::to_string(needDepth) +
+                                       " graphic(s) are set to hide behind walls and characters, but occlusion is not "
+                                       "available (" + (gs.depth.empty() ? std::string("not checked yet") : gs.depth) +
+                                       "). They would be missing from the video. Set them to \"Always on top\" to render "
+                                       "them without occlusion."});
+      for (const auto& [id, message] : gs.errors)
+        if (const auto* g = sc.FindGraphic(id); g && g->visible)
+          out.push_back({Sev::Warning, "Graphic \"" + g->name + "\" has no geometry: " + message});
+    }
+  }  // namespace
+
+  std::vector<iris::Issue> Check(const iris::RecordingSettings& s, const iris::Project* project)
   {
     auto& session = GetSession();
     std::string ffmpeg;
@@ -437,6 +487,8 @@ namespace IW4Iris::Capture
     auto issues = iris::ValidateRecording(s, Engine::RenderWidth(), Engine::RenderHeight(), FindFfmpeg(ffmpeg).has_value());
     if (!Clock::Installed())
       issues.push_back({iris::Issue::Severity::Error, "The render clock is unavailable in this game build."});
+    if (project)
+      AddSceneIssues(*project, issues);
     return issues;
   }
 
@@ -447,7 +499,7 @@ namespace IW4Iris::Capture
       *error = "A capture is already running.";
       return false;
     }
-    const auto issues = Check(s);
+    const auto issues = Check(s, &project);
     for (const auto& i : issues)
       if (i.severity == iris::Issue::Severity::Error)
       {
@@ -475,6 +527,29 @@ namespace IW4Iris::Capture
       return false;
     }
     warmup = std::max(3, s.warmupFrames);
+    // Film sets: script-model animations play from their start and cannot be
+    // set to a time, so the capture begins early enough (pre-roll, not
+    // recorded) for every clip running at the first frame to start on time.
+    if (!Engine::IsDemoPlaying() && Director::InFilmSet())
+    {
+      const double first = s.frameRate.FrameToSeconds(range.first);
+      double earliest = first;
+      for (const auto& a : project.scene.actors)
+        if (a.visible)
+        {
+          const auto st = iris::EvaluateActor(a, first);
+          if (!st.anim.empty())
+            earliest = std::min(earliest, st.animStart);
+        }
+      const double preroll = std::clamp(first - earliest, 0.0, 15.0);
+      const auto prerollFrames = static_cast<int>(std::ceil(preroll * s.frameRate.Fps()));
+      if (prerollFrames > 0)
+      {
+        warmup += prerollFrames;
+        Log::Info("Capture: {:.2f} s pre-roll so the animations of the first frame start on time", preroll);
+      }
+      Director::RestartAnimations();
+    }
     steps = iris::ComputeFrameSteps(project.timeRemap, s.frameRate, range.first - warmup, range.count + warmup + 8);
     if (steps.hasFreeze)
     {

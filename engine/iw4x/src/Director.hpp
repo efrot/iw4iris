@@ -93,6 +93,7 @@ namespace IW4Iris::Director
   void ReloadFilmSet();
   void LeaveFilmSet();
   void MainFrame(Session& session);  // with the session locked
+  void RestartAnimations();          // re-send the current clips (a recording begins)
   std::vector<MapInfo> ListMaps();
   void Rediscover();                 // rebuild the catalog from the loaded zones
 
