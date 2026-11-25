@@ -13,6 +13,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <condition_variable>
+#include <thread>
 #include <cstring>
 #include <deque>
 #include <memory>
@@ -27,7 +29,8 @@ namespace IW4Iris::Graphics
 
     struct CacheEntry
     {
-      std::string key;
+      std::string key;          // what `geometry` was built from
+      std::string pendingKey;   // a build of this key is queued or running (empty: none)
       std::shared_ptr<const iris::GraphicGeometry> geometry;
     };
     std::map<std::string, CacheEntry> cache;
@@ -67,7 +70,51 @@ namespace IW4Iris::Graphics
     bool queryPending = false;
     int probeCountdown = 0;
     DWORD probePixels = 0;
-    std::map<std::string, IDirect3DTexture9*> textures;
+    // One texture per graphic, remade when its geometry is rebuilt (the old
+    // one is released: audit F-23, edits used to leak a texture each), and
+    // dropped when the graphic has not been drawn for a while or the cache
+    // goes over its budget (least recently used first).
+    struct CachedTexture
+    {
+      IDirect3DTexture9* texture = nullptr;
+      const void* source = nullptr;  // the geometry it was made from
+      std::size_t bytes = 0;
+      std::uint64_t lastUsed = 0;
+    };
+    std::map<std::string, CachedTexture> textures;
+    std::uint64_t drawFrame = 0;
+    constexpr std::uint64_t kTextureIdleFrames = 600;              // about 10 s at 60 fps
+    constexpr std::size_t kTextureBudget = 256u * 1024u * 1024u;   // bytes of texture memory
+
+    void TrimTextures()
+    {
+      std::size_t total = 0;
+      for (auto it = textures.begin(); it != textures.end();)
+      {
+        if (it->second.lastUsed + kTextureIdleFrames < drawFrame)
+        {
+          if (it->second.texture)
+            it->second.texture->Release();
+          it = textures.erase(it);
+          continue;
+        }
+        total += it->second.bytes;
+        ++it;
+      }
+      while (total > kTextureBudget && !textures.empty())
+      {
+        auto oldest = textures.begin();
+        for (auto it = textures.begin(); it != textures.end(); ++it)
+          if (it->second.lastUsed < oldest->second.lastUsed)
+            oldest = it;
+        if (oldest->second.lastUsed == drawFrame)
+          break;  // everything left is in use this frame
+        total -= oldest->second.bytes;
+        if (oldest->second.texture)
+          oldest->second.texture->Release();
+        textures.erase(oldest);
+      }
+    }
 
     std::filesystem::path FromUtf8(const std::string& s)
     {
@@ -75,6 +122,7 @@ namespace IW4Iris::Graphics
     }
 
     std::filesystem::path FontsFolder() { return GetSession().baseDirectory / "fonts"; }
+    std::mutex fontsMutex;  // `fonts` is shared by the build worker and synchronous builds
 
     std::filesystem::path WindowsFonts()
     {
@@ -83,11 +131,13 @@ namespace IW4Iris::Graphics
       return n ? std::filesystem::path(buffer) / "Fonts" : std::filesystem::path();
     }
 
-    std::shared_ptr<iris::Font> ResolveFont(const std::string& font, const std::filesystem::path& projectDir, std::string* error)
+    std::shared_ptr<iris::Font> ResolveFont(const std::string& font, const std::filesystem::path& projectDir,
+                                            const std::filesystem::path& fontsFolder, std::string* error)
     {
+      std::lock_guard fontsLock(fontsMutex);
       std::vector<std::filesystem::path> candidates;
       if (font.empty())
-        candidates.push_back(FontsFolder() / "Rubik-SemiBold.ttf");
+        candidates.push_back(fontsFolder / "Rubik-SemiBold.ttf");
       else
       {
         const auto p = FromUtf8(font);
@@ -97,7 +147,7 @@ namespace IW4Iris::Graphics
         {
           if (!projectDir.empty())
             candidates.push_back(projectDir / p);
-          candidates.push_back(FontsFolder() / p);
+          candidates.push_back(fontsFolder / p);
           candidates.push_back(WindowsFonts() / p);
         }
       }
@@ -121,6 +171,84 @@ namespace IW4Iris::Graphics
       if (error)
         *error = "The font \"" + font + "\" was not found.";
       return nullptr;
+    }
+
+    // ------------------------------------------------------ geometry builds
+    //
+    // Geometry is built on a worker thread (audit F-05: a long title or a
+    // detailed logo used to stall the game frame on every edit, with the
+    // session locked). The previous geometry stays on screen until the new
+    // one is ready; results for an outdated key are dropped. During a
+    // capture builds are synchronous, so every recorded frame shows the
+    // current scene. Builds are serialised (fonts are shared and not
+    // thread-safe). The state is never destroyed: the worker may still be
+    // waiting when the process exits.
+    struct BuildJob
+    {
+      std::string id, key;
+      iris::GraphicDef def;
+      std::filesystem::path projectDir, fontsFolder;
+    };
+    struct BuildResult
+    {
+      std::string id, key;
+      std::shared_ptr<const iris::GraphicGeometry> geometry;
+    };
+    struct Builder
+    {
+      std::mutex queueMutex;
+      std::condition_variable wake;
+      std::map<std::string, BuildJob> queued;  // the latest job per graphic
+      std::vector<BuildResult> done;
+      std::mutex buildMutex;                   // one build at a time
+      bool started = false;
+    };
+    Builder& Builds()
+    {
+      static Builder* builder = new Builder;  // intentionally never freed (see above)
+      return *builder;
+    }
+
+    std::shared_ptr<const iris::GraphicGeometry> BuildNow(const BuildJob& job)
+    {
+      std::lock_guard buildLock(Builds().buildMutex);
+      return std::make_shared<iris::GraphicGeometry>(iris::BuildGraphicGeometry(
+        job.def,
+        [&](const std::string& font, std::string* error) { return ResolveFont(font, job.projectDir, job.fontsFolder, error); },
+        job.projectDir));
+    }
+
+    void BuildWorker()
+    {
+      auto& b = Builds();
+      for (;;)
+      {
+        BuildJob job;
+        {
+          std::unique_lock queueLock(b.queueMutex);
+          b.wake.wait(queueLock, [&] { return !b.queued.empty(); });
+          auto it = b.queued.begin();
+          job = std::move(it->second);
+          b.queued.erase(it);
+        }
+        auto geometry = BuildNow(job);
+        std::lock_guard queueLock(b.queueMutex);
+        b.done.push_back({job.id, job.key, std::move(geometry)});
+      }
+    }
+
+    void Enqueue(BuildJob job)
+    {
+      auto& b = Builds();
+      std::lock_guard queueLock(b.queueMutex);
+      const std::string id = job.id;
+      b.queued[id] = std::move(job);
+      if (!b.started)
+      {
+        b.started = true;
+        std::thread(BuildWorker).detach();
+      }
+      b.wake.notify_one();
     }
 
     iris::Matrix4 ElementMatrix(const iris::GraphicElement& e, const iris::ElementPose& p)
@@ -289,9 +417,17 @@ namespace IW4Iris::Graphics
       const auto& img = item.geometry->texture;
       if (!img || !img->Valid())
         return nullptr;
-      const std::string key = item.graphic + "#" + std::to_string(reinterpret_cast<std::uintptr_t>(item.geometry.get()));
-      if (const auto it = textures.find(key); it != textures.end())
-        return it->second;
+      auto& cached = textures[item.graphic];
+      cached.lastUsed = drawFrame;
+      if (cached.texture && cached.source == item.geometry.get())
+        return cached.texture;
+      if (cached.texture)
+      {
+        cached.texture->Release();  // the geometry was rebuilt
+        cached.texture = nullptr;
+      }
+      cached.source = item.geometry.get();
+      cached.bytes = 0;
       IDirect3DTexture9* tex = nullptr;
       if (FAILED(device->CreateTexture(static_cast<UINT>(img->width), static_cast<UINT>(img->height), 1, D3DUSAGE_DYNAMIC,
                                        D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &tex, nullptr)))
@@ -313,7 +449,8 @@ namespace IW4Iris::Graphics
         }
         tex->UnlockRect(0);
       }
-      textures[key] = tex;
+      cached.texture = tex;
+      cached.bytes = static_cast<std::size_t>(img->width) * static_cast<std::size_t>(img->height) * 4u;
       return tex;
     }
 
@@ -368,29 +505,67 @@ namespace IW4Iris::Graphics
   void MainFrame(Session& s)
   {
     const std::filesystem::path projectDir = s.projectFile.empty() ? s.ProjectsDirectory() : s.projectFile.parent_path();
+    const std::filesystem::path fontsFolder = FontsFolder();
     std::lock_guard _(gfxMutex);
+    auto install = [&](CacheEntry& entry, const std::string& id, const std::string& key,
+                       std::shared_ptr<const iris::GraphicGeometry> geometry) {
+      if (!geometry->error.empty())
+        status.errors[id] = geometry->error;
+      else
+        status.errors.erase(id);
+      status.warnings[id] = geometry->warnings;
+      entry.key = key;
+      entry.pendingKey.clear();
+      entry.geometry = std::move(geometry);
+    };
+    // Finished background builds (only the latest key of each graphic counts).
+    std::vector<BuildResult> done;
+    {
+      std::lock_guard queueLock(Builds().queueMutex);
+      done.swap(Builds().done);
+    }
+    for (auto& r : done)
+      if (const auto it = cache.find(r.id); it != cache.end() && !it->second.pendingKey.empty() && it->second.pendingKey == r.key)
+        install(it->second, r.id, r.key, std::move(r.geometry));
+
+    const bool synchronous = Capture::IsActive();
     std::set<std::string> live;
+    int building = 0;
     for (const auto& g : s.project.scene.graphics)
     {
       live.insert(g.id);
       const std::string key = iris::GeometryKey(g) + "|" + projectDir.string();
       auto& entry = cache[g.id];
       if (entry.key == key && entry.geometry)
+      {
+        entry.pendingKey.clear();
         continue;
-      auto geometry = std::make_shared<iris::GraphicGeometry>(iris::BuildGraphicGeometry(
-        g, [&](const std::string& font, std::string* error) { return ResolveFont(font, projectDir, error); }, projectDir));
-      if (!geometry->error.empty())
-        status.errors[g.id] = geometry->error;
-      else
-        status.errors.erase(g.id);
-      status.warnings[g.id] = geometry->warnings;
-      entry.key = key;
-      entry.geometry = std::move(geometry);
+      }
+      BuildJob job{g.id, key, g, projectDir, fontsFolder};
+      if (synchronous)
+      {
+        {
+          std::lock_guard queueLock(Builds().queueMutex);
+          Builds().queued.erase(g.id);
+        }
+        install(entry, g.id, key, BuildNow(job));
+        continue;
+      }
+      ++building;
+      if (entry.pendingKey == key)
+        continue;  // already on its way
+      entry.pendingKey = key;
+      Enqueue(std::move(job));
     }
+    status.building = building;
     for (auto it = cache.begin(); it != cache.end();)
     {
       if (!live.contains(it->first))
       {
+        {
+          std::lock_guard queueLock(Builds().queueMutex);
+          Builds().queued.erase(it->first);
+        }
         status.errors.erase(it->first);
         status.warnings.erase(it->first);
         lastPoses.erase(it->first);
@@ -477,6 +652,10 @@ namespace IW4Iris::Graphics
 
   void Draw(IDirect3DDevice9* device)
   {
+    // Textures of graphics that are gone or idle are released even on
+    // frames that draw nothing.
+    ++drawFrame;
+    TrimTextures();
     Frame frame;
     {
       std::lock_guard _(gfxMutex);
@@ -706,9 +885,9 @@ namespace IW4Iris::Graphics
       occlusionQuery = nullptr;
     }
     queryPending = false;
-    for (auto& [key, tex] : textures)
-      if (tex)
-        tex->Release();
+    for (auto& [key, cached] : textures)
+      if (cached.texture)
+        cached.texture->Release();
     textures.clear();
   }
 

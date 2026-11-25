@@ -45,6 +45,7 @@ namespace IW4Iris::Graphics
     std::string matrices;         // which view / projection is used and why
     bool reversedDepth = false;
     bool timeSynced = false;      // the draw list matched the presented frame's scene time
+    int building = 0;             // graphics whose geometry is being (re)built in the background
     int drawnGraphics = 0;
     int drawnTriangles = 0;
     std::map<std::string, std::string> errors;                 // graphic id -> why it has no geometry

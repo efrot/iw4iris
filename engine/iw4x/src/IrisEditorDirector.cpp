@@ -991,6 +991,8 @@ namespace IW4Iris::Editor
     SectionHeader(Icons::INFO, "Renderer");
     const auto gs = Graphics::GetStatus();
     ImGui::TextWrapped("Depth occlusion: %s", gs.depth.empty() ? "not checked yet (no graphic drawn)" : gs.depth.c_str());
+    if (gs.building > 0)
+      ImGui::TextColored(CurrentPalette().accent, "%s  Building %d graphic(s) ...", Icons::SYNC, gs.building);
     if (!gs.degraded.empty())
     {
       ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f), "%s  %zu graphic(s) %s: they should hide behind walls, but "
