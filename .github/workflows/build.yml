@@ -1,0 +1,76 @@
+# IW4Iris — continuous integration.
+#
+#   windows-msvc: the release build the way IW4x's own CI builds (Visual
+#                 Studio 2022, premake5 vs2022, MSBuild), the launcher and the
+#                 tests with CMake (MSVC), the test run, the release package
+#                 and its checksums.
+#   linux-tests:  the game-independent tests with GCC and -Werror, and the
+#                 Blender add-on tests.
+#
+# A green run proves the build and the automated tests; it does not run the
+# game (see docs/TESTING.md for the in-game checks).
+name: Build
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-msvc:
+    name: Windows (MSVC) build, tests, package
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build, test and package
+        shell: pwsh
+        run: .\tools\build.ps1 -Configuration Release -Package
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -Filter *.zip | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)" | Tee-Object -FilePath dist\SHA256SUMS.txt -Append
+          }
+
+      - name: Upload the release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: IW4Iris-Windows-x86-msvc
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  linux-tests:
+    name: Linux (GCC) tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Debug -DIW4IRIS_WERROR=ON
+          cmake --build build/linux --parallel
+
+      - name: Test
+        run: |
+          ctest --test-dir build/linux --output-on-failure
+          python3 -I tests/python/test_blender_addon.py
