@@ -192,6 +192,10 @@ namespace IW4Iris::Editor
 
   // Shared actions (render thread; game work is posted to the main thread)
   void RequestSeek(Session& s, double t);
+  // Navigation camera vs shot camera.
+  void ShowShot(Session& s);           // leave the free view: the viewport shows the shot again
+  void CameraFromView(Session& s);     // a new static camera where the view is, made active
+  void MoveCameraToView(Session& s);   // the selected (or active) camera takes the view
   // Timeline navigation shared with the shortcuts.
   std::vector<double> EditPoints(const Session& s);  // markers, cuts, keys, clip ends, in/out ...
   void ZoomTimeline(Session& s, double factor);       // around the playhead
@@ -204,6 +208,15 @@ namespace IW4Iris::Editor
   void CopySelectedKeys(Session& s);
   void PasteKeys(Session& s);
   void AddMarker(Session& s);
+  void SaveProject(Session& s);        // Ctrl+S: save, or "save as" for a new project
+  void UseWorkspace(const std::string& name);
+  std::vector<std::string> WorkspaceNames();
+  // Quick creation (IrisEditorDirector.cpp)
+  void QuickAddText(Session& s);       // a 3D title in front of the camera, selected
+  void QuickImportLogo(Session& s);    // file picker; the logo is added when a file is chosen
+  // Command palette (IrisEditorPalette.cpp): Ctrl+K
+  void OpenCommandPalette();
+  void DrawCommandPalette(Session& s);
 
   // Widgets
   bool DragDouble(const char* label, double* v, float speed, double min, double max, const char* format = "%.3f");

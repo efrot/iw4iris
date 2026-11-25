@@ -111,6 +111,10 @@ namespace IW4Iris
     // Editor
     bool editorVisible = false;
     bool flying = false;          // free camera controlled by the mouse
+    // The viewport shows the navigation (free) camera instead of the shot.
+    // Flying turns it on; it never changes the project's cameras. Captures
+    // and a hidden editor always show the shot.
+    bool freeView = false;
     iris::FreeCameraController freeCamera;
     bool freeCameraPlaced = false;  // the free camera starts where the view is
     std::string selectedCamera;   // camera shown in the inspector

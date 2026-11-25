@@ -465,6 +465,9 @@ namespace IW4Iris::Editor
       if (IconButton(Icons::REDO, "Redo (Ctrl+Y)") && s.history.CanRedo())
         s.Redo();
       ImGui::SameLine();
+      if (IconButton(Icons::SEARCH, "Search every action: type what you want to do (Ctrl+K)"))
+        OpenCommandPalette();
+      ImGui::SameLine();
       ImGui::TextDisabled("|");
       ImGui::SameLine();
 
@@ -516,6 +519,32 @@ namespace IW4Iris::Editor
       ImGui::SameLine();
       if (IconButton(Icons::CROSSHAIRS, "Fly the free camera (F, or hold the right mouse button)", s.flying))
         s.flying = !s.flying;
+      ImGui::SameLine();
+      // What the viewport shows: the navigation camera or the shot.
+      if (s.freeView && !Capture::IsActive())
+      {
+        ImGui::PushStyleColor(ImGuiCol_Button, CurrentPalette().accentSoft);
+        if (ImGui::Button(" Free view: back to the shot (V) "))
+          ShowShot(s);
+        ImGui::PopStyleColor();
+        ImGui::SetItemTooltip("You are looking through the navigation camera. The shot cameras are unchanged.\n"
+                              "Click (or press V) to look through the shot camera again.");
+        ImGui::SameLine();
+        if (IconButton(Icons::PLUS, "Create a camera from this view (it becomes the active camera)"))
+          CameraFromView(s);
+        ImGui::SameLine();
+        if (IconButton(Icons::SYNC, "Move the selected camera here (a dolly camera gets a key at the playhead)"))
+          MoveCameraToView(s);
+      }
+      else
+      {
+        ImGui::BeginDisabled(Capture::IsActive());
+        if (ImGui::Button(" Shot "))
+          s.freeView = true;
+        ImGui::EndDisabled();
+        ImGui::SetItemTooltip("You are looking through the shot camera. Click (or press V) for the free view, to look "
+                              "around without changing the shot.");
+      }
       ImGui::SameLine();
       ImGui::TextDisabled("|");
       ImGui::SameLine();
@@ -2043,8 +2072,9 @@ namespace IW4Iris::Editor
         {"Alt while dragging", "Ignore the magnet (move freely)"},
         {"K", "Add a camera key from the view (also while flying)"},
         {"U", "Update the selected key from the view"}, {"Del", "Delete the selected keys"}, {"Ctrl+C / Ctrl+V", "Copy / paste keys"},
-        {"Ctrl+Z / Ctrl+Y", "Undo / redo"}, {"Ctrl+S", "Save"}, {"Ctrl+O", "Open"}, {"Ctrl+N", "New project"},
+        {"Ctrl+K", "Command palette: type what you want to do"}, {"Ctrl+Z / Ctrl+Y", "Undo / redo"}, {"Ctrl+S", "Save"}, {"Ctrl+O", "Open"}, {"Ctrl+N", "New project"},
         {"M", "Add a marker"}, {"C", "Next camera"}, {"1 - 9", "Make camera 1 - 9 active"},
+        {"V", "Free view / shot camera (flying never changes the shot)"},
         {"F", "Toggle flying the free camera (Esc also stops)"}, {"Right mouse", "Hold to fly the free camera"},
         {"W A S D", "Move (Space up, Ctrl down)"}, {"Q / E", "Roll"}, {"Shift / Alt", "Faster / slower"},
         {"Wheel (flying)", "Zoom (field of view)"}, {"G", "Toggle the graph editor"}, {"?", "This list"},
@@ -2162,6 +2192,8 @@ namespace IW4Iris::Editor
       }
       else if (ctrl && pressed(ImGuiKey_O))
         ui.openPopup = true;
+      else if (ctrl && (pressed(ImGuiKey_K) || (io.KeyShift && pressed(ImGuiKey_P))))
+        OpenCommandPalette();
       else if (ctrl && pressed(ImGuiKey_N))
         s.Post([] { Runtime::NewProject(); });
       else if (ctrl && pressed(ImGuiKey_C))
@@ -2217,6 +2249,13 @@ namespace IW4Iris::Editor
           DeleteSelectedKeys(s);
         if (pressed(ImGuiKey_M))
           AddMarker(s);
+        if (pressed(ImGuiKey_V) && !Capture::IsActive())
+        {
+          if (s.freeView)
+            ShowShot(s);
+          else
+            s.freeView = true;
+        }
         if (pressed(ImGuiKey_F))
           s.flying = !s.flying;
         if (pressed(ImGuiKey_G))
@@ -2257,6 +2296,27 @@ namespace IW4Iris::Editor
     Log::Info("{}", ui.message);
   }
 
+  void SaveProject(Session& s)
+  {
+    if (s.projectFile.empty())
+      ui.saveAsPopup = true;
+    else
+      SaveCurrent(s, s.projectFile.string());
+  }
+
+  void UseWorkspace(const std::string& name)
+  {
+    ApplyWorkspace(name);
+  }
+
+  std::vector<std::string> WorkspaceNames()
+  {
+    std::vector<std::string> names;
+    for (const auto& w : Workspaces())
+      names.push_back(w.name);
+    return names;
+  }
+
   void RequestSeek(Session& s, double t)
   {
     auto& tl = s.project.timeline;
@@ -2283,6 +2343,79 @@ namespace IW4Iris::Editor
     else
     {
       s.playing = !s.playing;
+    }
+    // Playback previews the shot: the free view would show a still camera.
+    if (s.playing && s.freeView)
+    {
+      s.freeView = false;
+      Notify("Playing through the shot camera (V: free view)");
+    }
+  }
+
+  void ShowShot(Session& s)
+  {
+    s.flying = false;
+    s.freeView = false;
+  }
+
+  void CameraFromView(Session& s)
+  {
+    const auto view = Runtime::LastAppliedCamera();
+    if (!view)
+    {
+      Notify("No view yet: load a demo or a map first");
+      return;
+    }
+    auto& p = s.project;
+    iris::CameraDef c;
+    c.id = iris::MakeUniqueId(p, "cam");
+    c.mode = iris::CameraMode::Static;
+    c.name = "Camera " + c.id.substr(4);
+    c.position = view->position;
+    c.angles = view->angles;
+    c.horizontalFov = view->horizontalFov;
+    p.cameras.push_back(c);
+    p.activeCameraId = c.id;
+    s.selectedCamera = c.id;
+    s.selectedKeys.clear();
+    ShowShot(s);
+    s.Commit("Camera from view");
+    Notify(p.useCameraCuts ? c.name + " created. Camera cuts decide what is shown: add a cut (scissors) to use it."
+                           : c.name + " created from the view and made the active camera.");
+  }
+
+  void MoveCameraToView(Session& s)
+  {
+    const auto view = Runtime::LastAppliedCamera();
+    auto* cam = s.SelectedCamera();
+    if (!cam)
+      cam = s.project.FindCamera(s.project.activeCameraId);
+    if (!view || !cam)
+    {
+      Notify(view ? "Select a camera first" : "No view yet: load a demo or a map first");
+      return;
+    }
+    switch (cam->mode)
+    {
+      case iris::CameraMode::Dolly:
+        s.selectedCamera = cam->id;
+        s.Post([] { Runtime::AddKeyFromView(); });
+        Notify("Key added to " + cam->name + " at the playhead");
+        return;  // the key is added on the main thread; stay in the free view to keep placing keys
+      case iris::CameraMode::Static:
+      case iris::CameraMode::Free:
+      case iris::CameraMode::Orbit:
+      case iris::CameraMode::Follow:
+        cam->position = view->position;
+        cam->angles = view->angles;
+        cam->horizontalFov = view->horizontalFov;
+        s.Commit("Move camera to view");
+        Notify(cam->name + " moved to the view");
+        ShowShot(s);
+        return;
+      default:
+        Notify(cam->name + " follows the game's own view; use \"Create a camera from this view\" instead");
+        return;
     }
   }
 
@@ -2586,8 +2719,21 @@ namespace IW4Iris::Editor
     DrawGettingStarted(s);
     DrawFilePopups(s);
     DrawNotification();
+    DrawCommandPalette(s);
     DrawSceneOverlay(s);
     DrawOverlay(s);
+    if (s.freeView && !Capture::IsActive())
+    {
+      // A banner so it is always clear the viewport is not the shot.
+      const auto* mainViewport = ImGui::GetMainViewport();
+      const char* text = "FREE VIEW  -  not the shot. V: back to the shot camera";
+      const ImVec2 size = ImGui::CalcTextSize(text);
+      const ImVec2 pos(mainViewport->WorkPos.x + (mainViewport->WorkSize.x - size.x) * 0.5f,
+                       mainViewport->WorkPos.y + mainViewport->WorkSize.y * 0.12f);
+      auto* dl = ImGui::GetBackgroundDrawList();
+      dl->AddRectFilled(ImVec2(pos.x - 10, pos.y - 5), ImVec2(pos.x + size.x + 10, pos.y + size.y + 5), IM_COL32(0, 0, 0, 140), 4.0f);
+      dl->AddText(pos, IM_COL32(255, 220, 140, 230), text);
+    }
     HandleShortcuts(s);
 
     // The game view is "hovered" when the mouse is over no editor window.

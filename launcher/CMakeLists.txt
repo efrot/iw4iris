@@ -24,6 +24,10 @@ if(MINGW)
   target_link_options(iw4iris_launcher PRIVATE -static -municode)
 elseif(MSVC)
   set_property(TARGET iw4iris_launcher PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  # res/launcher.rc embeds launcher.manifest (DPI awareness, common
+  # controls); the linker's own default manifest would be a duplicate
+  # resource (CVT1100).
+  target_link_options(iw4iris_launcher PRIVATE /MANIFEST:NO)
 endif()
 # Only the launcher's own sources get the strict warnings.
 set_source_files_properties(src/Main.cpp src/Environment.cpp src/InstallPlan.cpp PROPERTIES COMPILE_OPTIONS

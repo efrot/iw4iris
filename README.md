@@ -209,7 +209,13 @@ This is the full workflow from demo to video file.
    **Q** / **E** to roll, **Shift** for faster, **Alt** for slower and the
    **mouse wheel** to zoom. Release the button and the view stays where you
    are. Press **F** to keep flying without holding the button; **F** or
-   **Esc** stops it again.
+   **Esc** stops it again. Flying looks through a separate *navigation
+   camera*: the banner **FREE VIEW** shows that you are not looking through
+   the shot, and your cameras are not changed. **V** (or the toolbar's
+   *back to the shot* button) switches back; pressing **Space** to play
+   does it too. While in the free view, the toolbar's **+** button creates
+   a camera from the view and the arrows button moves the selected camera
+   there.
 3. **Pick moments.** Click or drag the ruler (or empty space) in the
    **Timeline** (bottom panel) to move the playhead, or type a time such as
    `1:05` into the time field. Press **Space** to play or pause the demo.
@@ -364,7 +370,7 @@ between cameras over time.
 | --- | --- |
 | **Game view** (first person) | the demo's own view, unchanged (the default) |
 | **Third person** | the game's third-person camera; range and angle adjustable |
-| **Free** | flown by hand; flying from the game view switches to it automatically |
+| **Free** | a shot flown by hand (flying itself never changes the active camera: it uses the free view, **V**) |
 | **Dolly** | the keyframed path, the main shot camera |
 | **Orbit** | circles a player or a point: distance, height, speed, start angle, roll |
 | **Follow** | keeps an offset to a player or point and looks at it |
@@ -582,6 +588,7 @@ markers that you can edit.
 | **\\** | show the whole timeline |
 | **Alt** (while dragging) | ignore the magnet |
 | **M** | add a marker |
+| **V** | free view (navigation camera) / back to the shot camera |
 | **Del** | delete the selected keys |
 | **Ctrl+C / Ctrl+V** | copy / paste keys |
 | **Ctrl+Z / Ctrl+Y** (or Ctrl+Shift+Z) | undo / redo |

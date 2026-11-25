@@ -200,6 +200,23 @@ namespace IW4Iris::Editor
 
   // ---------------------------------------------------------------- shared
 
+  void QuickAddText(Session& s)
+  {
+    auto g = NewGraphic(s, iris::GraphicKind::Text, "Title");
+    g.text = "IW4IRIS";
+    g.materials.front = iris::MakeMaterial("matte_white");
+    AddGraphic(s, std::move(g));
+    Shown(Panel::ObjectInspector) = true;
+    Notify("3D text added in front of the camera: edit it in the Object panel");
+  }
+
+  void QuickImportLogo(Session& s)
+  {
+    (void)s;
+    Shown(Panel::Graphics) = true;  // the panel adds the logo once a file is picked
+    PickFile("new-logo", kLogoFilter);
+  }
+
   bool ObjectExists(const Session& s, const std::string& id)
   {
     return !id.empty() && s.project.scene.Contains(id);
@@ -2397,12 +2414,7 @@ namespace IW4Iris::Editor
         st.angles = iris::LookAt(st.position, centre);
         s.freeCamera.SetState(st);
         s.freeCameraPlaced = true;
-        for (const auto& c : s.project.cameras)
-          if (c.mode == iris::CameraMode::Free)
-          {
-            s.project.activeCameraId = c.id;
-            break;
-          }
+        s.freeView = true;  // look through the navigation camera; the shot is unchanged
       }
     }
     else

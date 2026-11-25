@@ -167,21 +167,15 @@ namespace IW4Iris::Runtime
           mouseCenter = {(rc.left + rc.right) / 2, (rc.top + rc.bottom) / 2};
           ClientToScreen(window, &mouseCenter);
           SetCursorPos(mouseCenter.x, mouseCenter.y);
-          // Start from wherever the camera is now, and keep the free camera
-          // as the shot when flying away from the game's own view.
+          // Start from wherever the camera is now. Flying looks through the
+          // navigation camera; the project's shot cameras stay as they are
+          // (audit F-02: flying used to switch the active camera).
           if (const auto cam = LastAppliedCamera())
           {
             s.freeCamera.SetState(*cam);
             s.freeCameraPlaced = true;
           }
-          const auto* active = s.project.ActiveCamera();
-          if (!active || active->mode == iris::CameraMode::FirstPerson || active->mode == iris::CameraMode::ThirdPerson)
-            for (const auto& c : s.project.cameras)
-              if (c.mode == iris::CameraMode::Free)
-              {
-                s.project.activeCameraId = c.id;
-                break;
-              }
+          s.freeView = true;
         }
         else
         {
@@ -539,7 +533,8 @@ namespace IW4Iris::Runtime
       UpdateFlying(s, dt);
 
     const iris::CameraDef* camera = project.CameraAt(s.playhead);
-    const bool modCamera = mouseCaptured || (camera && camera->mode != iris::CameraMode::FirstPerson &&
+    const bool modCamera = mouseCaptured || (s.freeView && editorVisible && !Capture::IsActive()) ||
+                           (camera && camera->mode != iris::CameraMode::FirstPerson &&
                                              camera->mode != iris::CameraMode::ThirdPerson);
     if (st.cgameReady)
     {
@@ -785,7 +780,9 @@ namespace IW4Iris::Hooks
       s.playhead = *captureTime;
     const double t = captureTime.value_or(s.playhead);
     const iris::CameraDef* def = s.project.CameraAt(t);
-    const bool flying = !captureTime && Runtime::IsFlying();
+    // The navigation camera: while flying, and in free view with the editor
+    // shown. Never in a capture.
+    const bool flying = !captureTime && (Runtime::IsFlying() || (s.freeView && Runtime::editorVisible.load()));
 
     std::optional<iris::CameraState> camera;
     if (!s.freeCameraPlaced)

@@ -47,6 +47,7 @@ add_library(iw4iris_core STATIC
   core/src/camera.cpp
   core/src/timeline.cpp
   core/src/timeline_view.cpp
+  core/src/search.cpp
   core/src/recording.cpp
   core/src/project.cpp
   core/src/rig.cpp
@@ -56,6 +57,7 @@ add_library(iw4iris_core STATIC
   core/src/mesh.cpp
   core/src/font.cpp
   core/src/logo.cpp
+  core/src/nanosvg_impl.cpp
   core/src/model.cpp
   core/src/projection.cpp
   core/src/transform.cpp
@@ -85,6 +87,7 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_camera.cpp
     tests/test_timeline.cpp
     tests/test_timeline_view.cpp
+    tests/test_search.cpp
     tests/test_recording.cpp
     tests/test_project.cpp
     tests/test_history.cpp
