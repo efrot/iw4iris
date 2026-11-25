@@ -309,9 +309,16 @@ namespace IW4Iris::Editor
 
       if (ImGui::BeginMenu("Help"))
       {
+        if (ImGui::MenuItem("Search every action ...", "Ctrl+K"))
+          OpenCommandPalette();
+        if (ImGui::MenuItem("Start screen"))
+        {
+          s.settings.showHome = true;
+          ui.homeOpen = true;
+        }
         ImGui::MenuItem("Getting started", nullptr, &Shown(Panel::GettingStarted));
         ImGui::MenuItem("Keyboard shortcuts", "?", &Shown(Panel::Shortcuts));
-        ImGui::MenuItem("Diagnostics", nullptr, &Shown(Panel::Diagnostics));
+        ImGui::MenuItem("Diagnostics and self-test", nullptr, &Shown(Panel::Diagnostics));
         ImGui::Separator();
         ImGui::TextDisabled("%s", iris::kVersionString.data());
         ImGui::TextDisabled("IW4x %s", IW4IRIS_IW4X_REVISION);

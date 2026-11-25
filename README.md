@@ -141,9 +141,18 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
 
 ### Step 3: set up the cinematic environment
 
-1. Double-click **IW4Iris Launcher.exe**. It does not need administrator
-   rights. If Windows SmartScreen asks, choose *More info* and then *Run
-   anyway* (the program is not signed).
+**The quick way:** double-click **IW4Iris Launcher.exe** (no administrator
+rights needed; if Windows SmartScreen asks, choose *More info* and then
+*Run anyway*, the program is not signed). When it found your IW4x
+installation, the **Home** page shows one button, **Install & Launch**: it
+does everything below and starts the game. If the game folder was not
+found, the button **Choose the game folder** leads to the steps below.
+Later, when a new IW4Iris package is unpacked, the same button reads
+**Update & Launch**.
+
+**Step by step (or to change the defaults):**
+
+1. Double-click **IW4Iris Launcher.exe**.
 2. Click **Setup** on the left.
 3. Click **Detect installations**. Your Modern Warfare 2 folder appears in
    the list; click it. If it is not found, type the folder that contains
@@ -171,6 +180,12 @@ What setup did:
 * It installed the **Director Mod** scripts into its own `userraw\scripts\`
   (the Setup page shows "Director Mod: installed and up to date"). They only
   run when the editor starts a film set.
+* If something fails part-way (a locked file, a full disk), setup removes
+  what it had created in that run, so the environment is never left half
+  installed. The launcher's **Diagnostics** page shows the state of the
+  installation, the client, the Director Mod, FFmpeg and the free disk
+  space, and saves a support report (without your home folder or account
+  name).
 
 ### Step 4: FFmpeg (optional, for video formats)
 
@@ -187,10 +202,16 @@ IW4Iris never downloads anything by itself.
 
 ### Step 5: launch
 
-1. Click **Home**, then **Launch IW4Iris (offline)**.
+1. Click **Home**, then **Launch IW4Iris (offline)** (or **Install &
+   Launch** the first time).
 2. The game starts from the cinematic copy. Press **F1** in the game to
-   show the editor. The **Getting Started** window walks you through the
-   first steps.
+   show the editor. The **start screen** offers the ways in: *Edit a
+   recorded demo*, *Create a cinematic on a map*, *Open a project*,
+   *Browse templates*, and your recent projects. **Ctrl+K** searches every
+   action by name; **?** lists the keyboard shortcuts.
+3. **Help → Diagnostics** (or Ctrl+K "diagnostics") shows what works in
+   your game (Ready / Checking / Limited / Not available / Failed, with
+   what to do), runs a guided self-test and saves a support bundle.
 
 To check that everything works, open the game console with **~** and type
 `iw4iris_status`; it answers with the recorder's state. The log file
