@@ -64,6 +64,7 @@ add_library(iw4iris_core STATIC
   core/src/assets.cpp
   core/src/shots.cpp
   core/src/templates.cpp
+  core/src/director_sync.cpp
 )
 target_include_directories(iw4iris_core PUBLIC core/include)
 target_include_directories(iw4iris_core SYSTEM PUBLIC "${IW4IRIS_JSON_INCLUDE}")
@@ -92,6 +93,8 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_launcher.cpp
     tests/test_geometry.cpp
     tests/test_director.cpp
+    tests/test_director_sync.cpp
+    tests/test_sources.cpp
     tests/test_samples.cpp
     launcher/src/InstallPlan.cpp
   )

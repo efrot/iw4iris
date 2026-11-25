@@ -732,7 +732,8 @@ namespace iris
             result.error = "The file has no schema version; it is not an IW4Iris project.";
             return result;
         }
-        if (doc.contains("format") && doc["format"] != kProjectFormatName)
+        if (const auto fmt = doc.find("format");
+            fmt != doc.end() && (!fmt->is_string() || fmt->get<std::string>() != kProjectFormatName))
         {
             result.error = "The file is not an IW4Iris project (format '" + doc["format"].dump() + "').";
             return result;

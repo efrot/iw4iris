@@ -119,7 +119,7 @@ TEST_CASE("launcher: the shipped Director Mod manifest lists files that exist")
     const auto m = ParseModManifest(text, &error);
     CHECK_MSG(m.has_value(), error);
     CHECK(m->id == "iw4iris_director");
-    CHECK(m->protocol == 1);
+    CHECK(m->protocol == 2);
     for (const auto& f : m->files)
         CHECK_MSG(std::filesystem::is_regular_file(dir / f), f);
     // The entry point must live where IW4x loads multiplayer scripts from.

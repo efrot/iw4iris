@@ -16,6 +16,7 @@
 #pragma once
 
 #include <iris/assets.hpp>
+#include <iris/director_sync.hpp>
 #include <iris/scene.hpp>
 
 #include <optional>
@@ -29,7 +30,7 @@ namespace IW4Iris
 
 namespace IW4Iris::Director
 {
-  inline constexpr int kProtocol = 1;
+  inline constexpr int kProtocol = 2;
 
   // Called from the component's constructor, before any script compiles.
   void RegisterBuiltins();
@@ -57,8 +58,12 @@ namespace IW4Iris::Director
     std::string map;
     std::string capabilities;     // from the mod
     std::string lastError;
-    std::size_t pendingRequests = 0;
-    std::size_t objects = 0;      // spawned scene objects
+    std::size_t pendingRequests = 0;  // queued + sent, not answered
+    std::size_t objects = 0;      // scene objects the mod confirmed
+    std::uint64_t timedOut = 0;   // requests that got no answer in time
+    std::uint64_t staleAnswers = 0;
+    int protocol = 0;             // the mod's protocol (0: no answer yet)
+    std::vector<std::string> failures;  // objects whose operations gave up
     int precachedModels = 0;
     int precachedAnimations = 0;
     int precachedWeapons = 0;
@@ -106,6 +111,8 @@ namespace IW4Iris::Director
   Catalog GetCatalog();
   int CatalogVersion();
   bool InFilmSet();                  // a film set was requested and is loading or ready
+  // Engine state of a scene object (spawning, ready, failed ...).
+  iris::director::ObjectStatus ObjectStatusOf(const std::string& id);
   bool Ready();
   // World transform of an actor's attach point ("origin", "head", "neck",
   // "chest", "pelvis", "rightHand", "leftHand", "weapon") at the client's

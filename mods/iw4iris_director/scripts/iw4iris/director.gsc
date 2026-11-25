@@ -12,7 +12,7 @@
       4. reports the bone positions the editor asked for (graphics that
          track an actor's head, hands, ...).
 
-    Requests and transforms come from IW4Iris builtins (protocol 1, see
+    Requests and transforms come from IW4Iris builtins (protocol 2, see
     docs/DIRECTOR_PROTOCOL.md). Only assets the editor validated and listed
     in the manifest are used, and the manifest is precached in init() as
     the engine requires, so a missing asset can never reach setModel().
@@ -26,7 +26,7 @@
 init()
 {
     level.iw4iris = spawnStruct();
-    level.iw4iris.protocol = 1;
+    level.iw4iris.protocol = 2;
     level.iw4iris.objects = [];
     level.iw4iris.fx = [];
 
@@ -112,40 +112,85 @@ frameLoop()
     {
         // A bounded number per frame keeps a large scene load from stalling
         // the server frame; the rest follow next frame.
+        // Every request and step runs in its own thread: a script error
+        // ends only that thread (the editor then sees the request time out
+        // and retries or reports it), never this loop.
         for ( n = 0; n < 48; n++ )
         {
             request = IW4IrisNextRequest();
             if ( request.size == 0 )
                 break;
-            handleRequest( request );
+            level thread handleRequest( request );
         }
 
-        applyPoses();
-        playEffects();
-        reportTags();
+        level thread applyPoses();
+        level thread playEffects();
+        level thread reportTags();
         wait 0.05;
     }
 }
 
+// Every request is [op, request id, arguments...] and is answered exactly
+// once, "ok" only after the operation was carried out.
 handleRequest( r )
 {
+    if ( r.size < 2 )
+        return;
+
     op = r[0];
     id = r[1];
     switch ( op )
     {
-        case "spawnActor":       spawnActor( id, r[2], r[3], r[4] ); break;
-        case "setWeapon":        setWeapon( id, r[2], r[3], r[4], int( r[5] ) ); break;
-        case "attach":           attachModel( id, r[2], r[3], r[4], r[5], int( r[6] ) ); break;
-        case "clearAttachments": clearAttachments( id, r[2] ); break;
-        case "anim":             playAnimation( id, r[2], r[3] ); break;
-        case "spawnProp":        spawnProp( id, r[2], r[3] ); break;
-        case "linkProp":         linkProp( id, r[2], r[3], r[4] ); break;
-        case "unlinkProp":       unlinkProp( id, r[2] ); break;
-        case "delete":           deleteObject( id, r[2] ); break;
-        case "clear":            clearAll( id ); break;
-        case "ping":             IW4IrisRespond( id, "ok", "protocol " + level.iw4iris.protocol ); break;
-        default:                 IW4IrisRespond( id, "error", "unknown operation " + op ); break;
+        case "spawnActor":
+            if ( hasArgs( r, 5 ) )
+                spawnActor( id, r[2], r[3], r[4] );
+            break;
+        case "setWeapon":
+            if ( hasArgs( r, 6 ) )
+                setWeapon( id, r[2], r[3], r[4], int( r[5] ) );
+            break;
+        case "setAttachments":
+            if ( hasArgs( r, 4 ) && hasArgs( r, 4 + int( r[3] ) * 4 ) )
+                setAttachments( id, r );
+            break;
+        case "anim":
+            if ( hasArgs( r, 4 ) )
+                playAnimation( id, r[2], r[3] );
+            break;
+        case "spawnProp":
+            if ( hasArgs( r, 4 ) )
+                spawnProp( id, r[2], r[3] );
+            break;
+        case "linkProp":
+            if ( hasArgs( r, 5 ) )
+                linkProp( id, r[2], r[3], r[4] );
+            break;
+        case "unlinkProp":
+            if ( hasArgs( r, 3 ) )
+                unlinkProp( id, r[2] );
+            break;
+        case "delete":
+            if ( hasArgs( r, 3 ) )
+                deleteObject( id, r[2] );
+            break;
+        case "clear":
+            clearAll( id );
+            break;
+        case "ping":
+            IW4IrisRespond( id, "ok", "protocol " + level.iw4iris.protocol );
+            break;
+        default:
+            IW4IrisRespond( id, "error", "unknown operation " + op );
+            break;
     }
+}
+
+hasArgs( r, count )
+{
+    if ( r.size >= count )
+        return true;
+    IW4IrisRespond( r[1], "error", r[0] + " needs " + count + " fields, got " + r.size );
+    return false;
 }
 
 objectOrFail( requestId, objectId )
@@ -226,31 +271,11 @@ setWeapon( requestId, objectId, weapon, tag, camo )
     IW4IrisRespond( requestId, "ok", "" );
 }
 
-attachModel( requestId, objectId, kind, name, tag, camo )
+// [op, id, object, count, (kind, name, tag, camo) x count]: replaces every
+// extra model of the actor in one step.
+setAttachments( requestId, r )
 {
-    obj = objectOrFail( requestId, objectId );
-    if ( !isDefined( obj ) )
-        return;
-
-    model = name;
-    if ( kind == "weapon" )
-        model = getWeaponModel( name, camo );
-    part = spawnOnTag( obj.body, model, tag );
-    if ( kind == "weapon" )
-    {
-        hidden = getWeaponHideTags( name );
-        for ( i = 0; i < hidden.size; i++ )
-            part hidePart( hidden[i], model );
-    }
-    if ( !obj.visible )
-        part hide();
-    obj.attachments[obj.attachments.size] = part;
-    IW4IrisRespond( requestId, "ok", "" );
-}
-
-clearAttachments( requestId, objectId )
-{
-    obj = objectOrFail( requestId, objectId );
+    obj = objectOrFail( requestId, r[2] );
     if ( !isDefined( obj ) )
         return;
 
@@ -260,6 +285,30 @@ clearAttachments( requestId, objectId )
         obj.attachments[i] delete();
     }
     obj.attachments = [];
+
+    count = int( r[3] );
+    for ( k = 0; k < count; k++ )
+    {
+        base = 4 + k * 4;
+        kind = r[base];
+        name = r[base + 1];
+        tag = r[base + 2];
+        camo = int( r[base + 3] );
+
+        model = name;
+        if ( kind == "weapon" )
+            model = getWeaponModel( name, camo );
+        part = spawnOnTag( obj.body, model, tag );
+        if ( kind == "weapon" )
+        {
+            hidden = getWeaponHideTags( name );
+            for ( i = 0; i < hidden.size; i++ )
+                part hidePart( hidden[i], model );
+        }
+        if ( !obj.visible )
+            part hide();
+        obj.attachments[obj.attachments.size] = part;
+    }
     IW4IrisRespond( requestId, "ok", "" );
 }
 

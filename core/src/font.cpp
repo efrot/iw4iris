@@ -178,6 +178,10 @@ namespace iris
         return contours;
     }
 
+    // U+FFFD, written as a number: the sources stay ASCII so that compilers
+    // reading them in a legacy code page (MSVC without /utf-8) agree.
+    constexpr char32_t kReplacementCharacter = 0xFFFD;
+
     std::u32string DecodeUtf8(std::string_view text)
     {
         std::u32string out;
@@ -187,7 +191,7 @@ namespace iris
             int len = c < 0x80 ? 1 : (c >> 5) == 0x6 ? 2 : (c >> 4) == 0xE ? 3 : (c >> 3) == 0x1E ? 4 : 0;
             if (len == 0 || i + static_cast<std::size_t>(len) > text.size())
             {
-                out += U'�';
+                out += kReplacementCharacter;
                 ++i;
                 continue;
             }
@@ -200,7 +204,7 @@ namespace iris
                     ok = false;
                 cp = (cp << 6) | (cc & 0x3F);
             }
-            out += ok ? cp : U'�';
+            out += ok ? cp : kReplacementCharacter;
             i += ok ? static_cast<std::size_t>(len) : 1;
         }
         return out;

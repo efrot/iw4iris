@@ -131,7 +131,7 @@ namespace iris
         st.duration = duration;
         auto shot = MakeShot(type, subject, st, second);
         shot.camera.id = MakeUniqueId(p, "cam");
-        shot.camera.name = ShotLabel(type) + " – " + actor.name;
+        shot.camera.name = ShotLabel(type) + " - " + actor.name;
         const std::string id = shot.camera.id;
         p.cameras.push_back(std::move(shot.camera));
         return id;
@@ -151,7 +151,7 @@ namespace iris
         st.duration = duration;
         auto shot = MakeShot(ShotType::Orbit, subject, st);
         shot.camera.id = MakeUniqueId(p, "cam");
-        shot.camera.name = "Orbit – " + g.name;
+        shot.camera.name = "Orbit - " + g.name;
         const std::string id = shot.camera.id;
         p.cameras.push_back(std::move(shot.camera));
         return id;

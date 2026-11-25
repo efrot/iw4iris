@@ -11,7 +11,10 @@
 #include "Runtime.hpp"
 #include "Session.hpp"
 
+#include <iris/director_sync.hpp>
 #include <iris/templates.hpp>
+
+#include <chrono>
 
 #include <algorithm>
 #include <deque>
@@ -34,27 +37,22 @@ namespace IW4Iris::Director
     std::string lastError;
     std::deque<std::string> logLines;
 
-    std::deque<std::vector<std::string>> requests;
-    std::uint64_t nextRequest = 1;
-    std::map<std::string, std::string> pending;  // request id -> what it does
+    // Desired scene vs. engine state: only acknowledged operations count
+    // (iris::director::Reconciler, unit-tested against a simulated mod).
+    iris::director::Reconciler reconciler;
+    int protocolSeen = 0;
+    std::uint64_t failuresLogged = 0;
+
+    double Now()
+    {
+      static const auto start = std::chrono::steady_clock::now();
+      return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    }
 
     std::set<std::string> precachedModels, precachedAnims, precachedWeapons, precachedEffects;
     Catalog catalog;
     std::set<std::string> knownModels, knownAnims, knownWeapons, knownEffects;
     std::vector<std::string> needReload, unavailable;
-
-    struct Spawned
-    {
-      bool actor = true;
-      std::string body, head, model;
-      std::string weapon, weaponTag;
-      int camo = 0;
-      std::string attachments;  // key of the attachment list
-      std::string anim;
-      double animStart = -1e9;
-      std::string link;         // prop: "actor|tag"
-    };
-    std::map<std::string, Spawned> spawned;
 
     struct TagSample
     {
@@ -91,14 +89,6 @@ namespace IW4Iris::Director
       while (logLines.size() > 200)
         logLines.pop_front();
       Log::Info("Director: {}", line);
-    }
-
-    void Queue(std::vector<std::string> request, const std::string& what)
-    {
-      const std::string id = "r" + std::to_string(nextRequest++);
-      request.insert(request.begin() + 1, id);
-      pending[id] = what;
-      requests.push_back(std::move(request));
     }
 
     bool Has(const std::set<std::string>& set, const std::string& name) { return !name.empty() && set.contains(name); }
@@ -209,11 +199,10 @@ namespace IW4Iris::Director
       return out;
     }
 
+    // A new level (or none): the engine has none of our entities.
     void ResetObjects()
     {
-      requests.clear();
-      pending.clear();
-      spawned.clear();
+      reconciler.BeginGeneration();
       tagSamples.clear();
       tagRequests.clear();
       fxQueue.clear();
@@ -263,121 +252,88 @@ namespace IW4Iris::Director
 
     // ------------------------------------------------------------ scene sync
 
-    std::string AttachmentKey(const iris::ActorDef& a)
-    {
-      std::string k;
-      for (const auto& at : a.attachments)
-        k += at.model + "|" + at.tag + "|" + std::to_string(at.camo) + ";";
-      return k;
-    }
-
     bool IsWeapon(const std::string& name) { return name.size() > 3 && name.compare(name.size() - 3, 3, "_mp") == 0; }
 
-    void SyncScene(Session& s)
+    // The desired engine state at the playhead, limited to assets the level
+    // precached (others are reported in the status, never sent).
+    iris::director::Desired DesiredState(const Session& s)
     {
+      iris::director::Desired d;
       const iris::Scene& scene = s.project.scene;
-      std::set<std::string> live;
-      std::set<std::string> respawnedActors;
-
+      std::set<std::string> actors;
       for (const auto& a : scene.actors)
       {
         if (!Has(precachedModels, a.bodyModel))
-          continue;  // reported in the status; never sent to the game
-        live.insert(a.id);
-        const std::string head = Has(precachedModels, a.headModel) ? a.headModel : std::string();
-        auto it = spawned.find(a.id);
-        if (it == spawned.end() || it->second.body != a.bodyModel || it->second.head != head)
+          continue;
+        iris::director::DesiredActor da;
+        da.id = a.id;
+        da.body = a.bodyModel;
+        da.head = Has(precachedModels, a.headModel) ? a.headModel : std::string();
+        da.weapon = Has(precachedWeapons, a.weapon) ? a.weapon : std::string();
+        da.weaponTag = a.weaponTag.empty() ? "tag_weapon_right" : a.weaponTag;
+        da.camo = a.camo;
+        for (const auto& at : a.attachments)
         {
-          Queue({"spawnActor", a.id, a.bodyModel, head}, "spawn " + a.name);
-          Spawned sp;
-          sp.body = a.bodyModel;
-          sp.head = head;
-          it = spawned.insert_or_assign(a.id, sp).first;
-          respawnedActors.insert(a.id);
+          const bool weaponPart = IsWeapon(at.model);
+          if (weaponPart ? Has(precachedWeapons, at.model) : Has(precachedModels, at.model))
+            da.attachments.push_back({weaponPart ? "weapon" : "model", at.model, at.tag, at.camo});
         }
-        Spawned& sp = it->second;
-        const std::string weapon = Has(precachedWeapons, a.weapon) ? a.weapon : std::string();
-        if (sp.weapon != weapon || sp.weaponTag != a.weaponTag || sp.camo != a.camo || respawnedActors.contains(a.id))
-        {
-          Queue({"setWeapon", a.id, weapon, a.weaponTag, std::to_string(a.camo)}, "weapon of " + a.name);
-          sp.weapon = weapon;
-          sp.weaponTag = a.weaponTag;
-          sp.camo = a.camo;
-        }
-        const std::string key = AttachmentKey(a);
-        if (sp.attachments != key || respawnedActors.contains(a.id))
-        {
-          Queue({"clearAttachments", a.id}, "attachments of " + a.name);
-          for (const auto& at : a.attachments)
-          {
-            const bool weaponPart = IsWeapon(at.model);
-            if (weaponPart ? !Has(precachedWeapons, at.model) : !Has(precachedModels, at.model))
-              continue;
-            Queue({"attach", a.id, weaponPart ? "weapon" : "model", at.model, at.tag, std::to_string(at.camo)},
-                  "attach " + at.model + " to " + a.name);
-          }
-          sp.attachments = key;
-        }
-        // Animation: the clip (or idle) that covers the playhead.
         const auto st = iris::EvaluateActor(a, s.playhead);
-        const bool restart = s.playing && !wasPlaying;
-        if (!st.anim.empty() && Has(precachedAnims, st.anim) &&
-            (st.anim != sp.anim || std::abs(st.animStart - sp.animStart) > 1e-6 || restart ||
-             respawnedActors.contains(a.id)))
+        if (Has(precachedAnims, st.anim))
         {
-          Queue({"anim", a.id, st.anim}, "animation of " + a.name);
-          sp.anim = st.anim;
-          sp.animStart = st.animStart;
+          da.anim = st.anim;
+          da.animStart = st.animStart;
         }
+        actors.insert(a.id);
+        d.actors.push_back(std::move(da));
       }
-
       for (const auto& p : scene.props)
       {
         if (!Has(precachedModels, p.model))
           continue;
-        live.insert(p.id);
-        auto it = spawned.find(p.id);
-        bool fresh = false;
-        if (it == spawned.end() || it->second.model != p.model)
+        iris::director::DesiredProp dp;
+        dp.id = p.id;
+        dp.model = p.model;
+        if (!p.attachActor.empty() && actors.contains(p.attachActor))
         {
-          Queue({"spawnProp", p.id, p.model}, "spawn " + p.name);
-          Spawned sp;
-          sp.actor = false;
-          sp.model = p.model;
-          it = spawned.insert_or_assign(p.id, sp).first;
-          fresh = true;
+          dp.linkActor = p.attachActor;
+          dp.linkTag = AttachTag(p.attachTag);
         }
-        const bool attach = !p.attachActor.empty() && live.contains(p.attachActor);
-        const std::string link = attach ? p.attachActor + "|" + AttachTag(p.attachTag) : std::string();
-        if (it->second.link != link || fresh || (attach && respawnedActors.contains(p.attachActor)))
-        {
-          if (attach)
-            Queue({"linkProp", p.id, p.attachActor, AttachTag(p.attachTag)}, "attach " + p.name);
-          else if (!it->second.link.empty())
-            Queue({"unlinkProp", p.id}, "detach " + p.name);
-          it->second.link = link;
-        }
+        d.props.push_back(std::move(dp));
       }
+      return d;
+    }
 
-      for (auto it = spawned.begin(); it != spawned.end();)
-      {
-        if (!live.contains(it->first))
-        {
-          Queue({"delete", it->first}, "delete " + it->first);
-          it = spawned.erase(it);
-        }
-        else
-          ++it;
-      }
+    void SyncScene(Session& s)
+    {
+      const iris::Scene& scene = s.project.scene;
+      if (s.playing && !wasPlaying)
+        reconciler.RestartAnimations();  // clips play from their start
+      reconciler.Reconcile(DesiredState(s), Now());
 
       // Bones the graphics follow (tag reports from the mod).
       tagRequests.clear();
       for (const auto& g : scene.graphics)
-        if (g.tracking.mode == iris::TrackingMode::Actor && g.tracking.attach != "origin" && spawned.contains(g.tracking.actor))
+        if (g.tracking.mode == iris::TrackingMode::Actor && g.tracking.attach != "origin" && reconciler.Exists(g.tracking.actor))
           tagRequests.insert({g.tracking.actor, AttachTag(g.tracking.attach)});
       for (const auto& e : scene.effects)
-        if (!e.attachActor.empty() && !e.attachTag.empty() && e.attachTag != "origin" && spawned.contains(e.attachActor))
+        if (!e.attachActor.empty() && !e.attachTag.empty() && e.attachTag != "origin" && reconciler.Exists(e.attachActor))
           tagRequests.insert({e.attachActor, AttachTag(e.attachTag)});
+
+      // New final failures go to the log once.
+      const auto failures = reconciler.Failures();
+      std::uint64_t finals = 0;
+      for (const auto& f : failures)
+        if (f.final)
+          ++finals;
+      if (finals > failuresLogged)
+        for (const auto& f : failures)
+          if (f.final)
+          {
+            lastError = f.object + " " + iris::director::ToString(f.facet) + ": " + f.message;
+            Note("gave up after " + std::to_string(f.attempts) + " attempts: " + lastError);
+          }
+      failuresLogged = finals;
     }
 
     void UpdateAvailability(const iris::Scene& scene)
@@ -461,37 +417,52 @@ namespace IW4Iris::Director
     Script::AddFunction("IW4IrisReady", [] {
       std::lock_guard _(bridgeMutex);
       capabilities = ArgString(0);
-      state = SetState::Ready;
       ResetObjects();  // a fresh level has no entities of ours
+      // "protocol <n> ..."
+      protocolSeen = 0;
+      if (capabilities.rfind("protocol ", 0) == 0)
+        protocolSeen = std::atoi(capabilities.c_str() + 9);
+      if (protocolSeen != kProtocol)
+      {
+        state = SetState::Failed;
+        lastError = "The Director Mod in the environment speaks protocol " + std::to_string(protocolSeen) +
+                    ", this client protocol " + std::to_string(kProtocol) +
+                    ". Repair the installation in the IW4Iris launcher (Setup > Repair / update).";
+        Note(lastError);
+        return;
+      }
+      state = SetState::Ready;
       Note("Director Mod ready: " + capabilities);
     });
 
     // IW4IrisNextRequest(): the next request as [op, id, args...], or [].
     Script::AddFunction("IW4IrisNextRequest", [] {
       std::lock_guard _(bridgeMutex);
-      if (requests.empty())
+      if (state != SetState::Ready)
       {
         Game::Scr_MakeArray();
         return;
       }
-      const auto r = std::move(requests.front());
-      requests.pop_front();
-      ReturnStrings(r);
+      const auto r = reconciler.NextRequest(Now());
+      if (!r)
+      {
+        Game::Scr_MakeArray();
+        return;
+      }
+      ReturnStrings(*r);
     });
 
     // IW4IrisRespond(<id>, <"ok" | "error">, <message>)
     Script::AddFunction("IW4IrisRespond", [] {
       std::lock_guard _(bridgeMutex);
       const std::string id = ArgString(0), status = ArgString(1), message = ArgString(2);
-      const auto it = pending.find(id);
-      const std::string what = it != pending.end() ? it->second : id;
-      if (it != pending.end())
-        pending.erase(it);
-      if (status != "ok")
-      {
-        lastError = what + ": " + message;
-        Note("request failed: " + lastError);
-      }
+      const auto r = reconciler.OnResponse(id, status == "ok", message, Now());
+      if (r == iris::director::Response::Stale)
+        Log::Debug("Director: stale answer {} ignored", id);
+      else if (r == iris::director::Response::Unknown)
+        Log::Debug("Director: answer {} matches no pending request", id);
+      else if (status != "ok")
+        Note("request " + id + " failed: " + message);
     });
 
     // IW4IrisRegister(<object id>, <part>, <entity number>)
@@ -521,7 +492,7 @@ namespace IW4Iris::Director
       Game::Scr_MakeArray();
       for (const auto& a : s.project.scene.actors)
       {
-        if (!spawned.contains(a.id))
+        if (!reconciler.Exists(a.id))
           continue;
         const auto st = iris::EvaluateActor(a, t);
         AddString(a.id);
@@ -536,7 +507,7 @@ namespace IW4Iris::Director
       }
       for (const auto& p : s.project.scene.props)
       {
-        if (!spawned.contains(p.id))
+        if (!reconciler.Exists(p.id))
           continue;
         const auto st = iris::EvaluateProp(p, t);
         AddString(p.id);
@@ -834,8 +805,14 @@ namespace IW4Iris::Director
     st.map = requestedMap;
     st.capabilities = capabilities;
     st.lastError = lastError;
-    st.pendingRequests = requests.size() + pending.size();
-    st.objects = spawned.size();
+    st.pendingRequests = reconciler.Queued() + reconciler.InFlight();
+    st.objects = reconciler.ExistingObjects().size();
+    st.timedOut = reconciler.TimedOut();
+    st.staleAnswers = reconciler.RejectedStale();
+    st.protocol = protocolSeen;
+    for (const auto& f : reconciler.Failures())
+      if (f.final)
+        st.failures.push_back(f.object + " (" + iris::director::ToString(f.facet) + "): " + f.message);
     st.precachedModels = static_cast<int>(precachedModels.size());
     st.precachedAnimations = static_cast<int>(precachedAnims.size());
     st.precachedWeapons = static_cast<int>(precachedWeapons.size());
@@ -856,6 +833,12 @@ namespace IW4Iris::Director
   {
     std::lock_guard _(bridgeMutex);
     return catalog.version;
+  }
+
+  iris::director::ObjectStatus ObjectStatusOf(const std::string& id)
+  {
+    std::lock_guard _(bridgeMutex);
+    return reconciler.Status(id);
   }
 
   bool InFilmSet()
