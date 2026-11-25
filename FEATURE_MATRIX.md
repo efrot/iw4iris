@@ -162,9 +162,9 @@ no IW4x installation is available to the development and CI environments.
 | Steam library detection, manual folder, validation | Implemented | rules unit-tested |
 | Isolated environment (junctions, copies, own players / userraw) | Implemented | |
 | Repair, uninstall (only what it created, never through junctions) | Implemented | |
-| Setup rollback: a failed setup removes what it created; atomic manifest | Implemented | not run on Windows yet |
-| Install & Launch / Update & Launch (one click), quick actions | Implemented | client and Director Mod compared with the package |
-| Diagnostics page with support report (home folder and account name removed) | Implemented | report model and redaction unit-tested |
+| Setup rollback: a failed setup removes what it created; atomic manifest | Windows-built | not run on Windows yet |
+| Install & Launch / Update & Launch (one click), quick actions | Windows-built | client and Director Mod compared with the package |
+| Diagnostics page with support report (home folder and account name removed) | Windows-built | report model and redaction unit-tested |
 | Launch offline, launch with a project | Implemented | |
 | FFmpeg: locate, choose, open download page with consent | Implemented | no automatic download |
 | Logs, projects, recordings | Implemented | |
