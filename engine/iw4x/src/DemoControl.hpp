@@ -26,6 +26,9 @@ namespace IW4Iris::DemoControl
 {
   bool Play(const std::filesystem::path& demo, std::string* error);
   void Stop();
+  // Ends pause / seek and gives the engine's timescale back (1.0). Called
+  // when a demo ends or is stopped, and before a film set loads.
+  void ReleaseTime();
 
   void Update();  // once per frame
 

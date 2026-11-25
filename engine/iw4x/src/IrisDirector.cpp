@@ -1,6 +1,7 @@
 // IW4Iris — Cinematic Studio for IW4x
 // Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
 #include "Director.hpp"
+#include "DemoControl.hpp"
 
 #include "../ArenaLength.hpp"
 #include "../FastFiles.hpp"
@@ -399,16 +400,36 @@ namespace IW4Iris::Director
     // IW4IrisDirectorActive(): 1 only for a film set the editor started.
     Script::AddFunction("IW4IrisDirectorActive", [] {
       std::lock_guard _(bridgeMutex);
-      Game::Scr_AddInt(requested && OfflineGuard::GetStatus().installed ? 1 : 0);
+      const bool active = requested && OfflineGuard::GetStatus().installed;
+      // Each step of a film set's start is logged, so a set that hangs
+      // shows in iw4iris.log how far it got.
+      if (requested)
+        Note(active ? "map loaded, Director Mod scripts started" : "map loaded, but the offline guard is not installed: "
+                                                                   "the Director Mod stays off");
+      Game::Scr_AddInt(active ? 1 : 0);
     });
 
     // IW4IrisManifest(): ["model:<name>", "anim:<name>", "weapon:<name>", "fx:<name>", ...]
     Script::AddFunction("IW4IrisManifest", [] {
-      auto& s = GetSession();
-      std::lock_guard sl(s.mutex);
+      // This runs while the level loads. The editor draws on the render
+      // thread with the session locked; never wait on it for long here
+      // (the scene is only needed for the assets it references), and do
+      // not hold the session while enumerating the asset database.
+      iris::Scene scene;
+      {
+        auto& s = GetSession();
+        std::unique_lock sl(s.mutex, std::defer_lock);
+        for (int i = 0; i < 400 && !sl.try_lock(); ++i)
+          Sleep(5);
+        if (sl.owns_lock())
+          scene = s.project.scene;
+        else
+          Log::Warn("Director: the editor kept the session busy for 2 s; precaching the map's characters only");
+      }
       std::lock_guard _(bridgeMutex);
+      Note("reading the map's assets for the precache list");
       DiscoverAssets();
-      const auto manifest = BuildManifest(s.project.scene);
+      const auto manifest = BuildManifest(scene);
       Note(std::format("precache list: {} entries", manifest.size()));
       ReturnStrings(manifest);
     });
@@ -596,9 +617,14 @@ namespace IW4Iris::Director
       ResetObjects();
       Note("loading film set " + map + " (" + gt + ")");
     }
-    // A local listen server under the offline guard: no match timer, no
-    // score limit, no pre-match countdown.
-    Engine::Execute(std::format("set g_gametype {0}; set scr_{0}_timelimit 0; set scr_{0}_scorelimit 0; "
+    // A paused or slowed demo leaves the timescale near 0; the film set
+    // must start at normal speed or it seems to hang while loading.
+    DemoControl::ReleaseTime();
+    // Leave a playing demo first, then start a local listen server under
+    // the offline guard: no match timer, no score limit, no pre-match
+    // countdown.
+    const char* leaveDemo = Engine::IsDemoPlaying() ? "disconnect; " : "";
+    Engine::Execute(leaveDemo + std::format("set g_gametype {0}; set scr_{0}_timelimit 0; set scr_{0}_scorelimit 0; "
                                 "set scr_{0}_numlives 0; set scr_game_matchstarttime 0; set scr_game_playerwaittime 0; "
                                 "map {1}",
                                 gt, map));
@@ -616,6 +642,7 @@ namespace IW4Iris::Director
       ResetObjects();
       Note("reloading the film set");
     }
+    DemoControl::ReleaseTime();
     Engine::Execute("map_restart");
   }
 
@@ -645,6 +672,16 @@ namespace IW4Iris::Director
       // as "script compile error") stops the level before it starts. The
       // most likely cause is a broken or outdated Director Mod in the
       // environment, which the launcher replaces.
+      // A timescale near 0 (left over from a paused demo, or set in the
+      // console) makes the server crawl: the map then never leaves the
+      // loading screen. Put it back after a few seconds of loading.
+      if (state == SetState::Loading && loadingFrames == 300 && Game::com_timescale && *Game::com_timescale &&
+          std::abs((*Game::com_timescale)->current.value - 1.0f) > 0.001f)
+      {
+        Note(std::format("timescale was {:.3f} while the film set loaded: set back to 1",
+                         (*Game::com_timescale)->current.value));
+        Game::Dvar_SetFloat(*Game::com_timescale, 1.0f);
+      }
       if (state == SetState::Loading && ++loadingFrames > 1800)
       {
         state = SetState::Failed;

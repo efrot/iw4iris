@@ -7,6 +7,7 @@
 
 #include <iris/demo.hpp>
 
+#include <cmath>
 #include <thread>
 
 namespace IW4Iris::DemoControl
@@ -40,8 +41,16 @@ namespace IW4Iris::DemoControl
       return 0.001f;
     }
 
+    // Demo control changes the engine's timescale only while a demo plays
+    // (pause holds it near 0, speed ramps change it). It must give it back:
+    // a film set or a local map started afterwards would otherwise run at
+    // the demo's paused timescale, about 1000 times too slow, and seem to
+    // hang on the loading screen.
+    bool ownsTimescale = false;
+
     void ApplyTimescale(double value)
     {
+      ownsTimescale = std::abs(value - 1.0) > 1e-6;
       if (const auto d = Engine::FloatDomain("timescale"))
         value = std::clamp(value, static_cast<double>(d->first), static_cast<double>(d->second));
       // com_timescale is the engine's "timescale" dvar (Game::com_timescale in IW4x).
@@ -108,8 +117,7 @@ namespace IW4Iris::DemoControl
     firstServerTime.reset();
     currentDemo = std::string(kTempFolder) + "/" + stem;
     currentFile = demo;
-    paused = false;
-    seek = Seek::Idle;
+    ReleaseTime();
     {
       auto& s = GetSession();
       std::lock_guard _(s.mutex);
@@ -124,9 +132,19 @@ namespace IW4Iris::DemoControl
 
   void Stop()
   {
+    ReleaseTime();
+    Engine::Execute("disconnect");
+  }
+
+  void ReleaseTime()
+  {
     seek = Seek::Idle;
     paused = false;
-    Engine::Execute("disconnect");
+    if (ownsTimescale)
+    {
+      ApplyTimescale(1.0);
+      Log::Info("Demo control: timescale back to 1");
+    }
   }
 
   double SceneTime()
@@ -219,6 +237,9 @@ namespace IW4Iris::DemoControl
       if (seek == Seek::Restart)
         return;  // still loading the restarted demo
       firstServerTime.reset();
+      // The demo ended or was left: pause and speed belonged to it.
+      if (ownsTimescale || paused)
+        ReleaseTime();
       seek = Seek::Idle;
       return;
     }
