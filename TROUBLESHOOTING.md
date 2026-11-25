@@ -24,6 +24,18 @@ component; you may need an exception for the environment folder.
 
 ## In the game
 
+**"script compile error / bad syntax" when creating a scene on a map.**
+Version 0.3.0 and earlier shipped a Director Mod script the game's
+compiler rejects (`anim` is a reserved word of the script language). Fixed
+in mod 0.3.1. Close the game, delete any `iw4iris_director` folder you
+copied into IW4x's own `mods` folder (the launcher installs the mod into
+the cinematic environment; a copy in `mods` is not needed), start the
+launcher and click **Update & Launch**: it compares the installed scripts
+with the package and replaces them. If the error stays, open the console
+with ~: the line above the error names the script file and line; please
+report it together with a support bundle (**Help → Diagnostics → Save a
+support bundle**).
+
 **F1 does nothing.** Check the log for "offline guard". If it says FAILED,
 the tools stay disabled by design. Make sure you started the game from the
 launcher (the environment's `iw4x.exe`, not your normal installation).

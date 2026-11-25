@@ -134,6 +134,11 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
    docs\  samples\  presets\  README.md  LICENSE  ...
    ```
 
+   **Do not copy `mods\iw4iris_director` into IW4x's own `mods` folder.**
+   The launcher installs the Director Mod into the cinematic environment
+   and keeps it up to date; a copy in IW4x's `mods` folder is not used for
+   film sets and goes out of date.
+
    The Blender add-on is `resources\tools\blender\iw4iris_import.py` in
    the release package and `tools\blender\iw4iris_import.py` in the GitHub
    ZIP. `PREBUILT-SHA256SUMS.txt` in the GitHub ZIP lists the checksums of
@@ -688,9 +693,10 @@ the log). The most common problems:
 | "Freeze frames cannot be rendered offline yet" | raise the playback speed above 0 in the range |
 | "Frame sync NOT verified" | check the first frames of the recording, and report it |
 | Recording is slow | expected; output timing is still exact. Lower the frame queue at 4K if memory runs out |
-| "The Director Mod did not start on this map" | launcher → Setup → **Repair / update**; check the console (~) for a script error and report it |
+| "script compile error / bad syntax" when creating a scene on a map | an outdated Director Mod (fixed in 0.3.1): close the game, delete any `iw4iris_director` you copied into IW4x's `mods` folder, start the launcher and click **Update & Launch**. If it persists, open the console (~): it names the file and line; please report that line |
+| "The Director Mod did not start on this map" / "the film set's map did not load" | the same: launcher → **Update & Launch** (or Repair); check the console (~) for a script error and report it |
+| "Depth occlusion: unavailable ..." and a graphic is missing | graphics set to hide behind walls are not drawn without occlusion (they would be wrong in the video); set them to **Always on top**, or tick the editor-only preview in Motion Graphics |
 | A character / animation is missing in a film set | that map does not load it, or it appears after **Reload set** |
-| "Depth occlusion: unavailable ..." | your system presents frames without a usable depth buffer; graphics are drawn on top. Report the text |
 
 More: [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
