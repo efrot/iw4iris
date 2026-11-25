@@ -1,6 +1,6 @@
 # Roadmap
 
-Each phase must build and test on its own. Status as of v0.2.0.
+Each phase must build and test on its own. Status as of v0.3.0 (Creator Preview).
 
 ## Phase 0 — research and feasibility · done
 

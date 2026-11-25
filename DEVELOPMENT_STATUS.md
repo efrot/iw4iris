@@ -3,21 +3,23 @@
 Persistent notes so development can continue across sessions. Update this
 file with every significant change.
 
-_Last updated: 2026-11-24 — v0.2.0 preview (Director Mode, motion graphics)._
+_Last updated: 2026-11-25 — v0.3.0 "Creator Preview" (audit fixes, timeline
+navigation, free view, command palette, diagnostics). Audit findings and
+their verification state: [docs/BACKLOG.md](docs/BACKLOG.md)._
 
 ## State
 
 | Area | State |
 | --- | --- |
-| Core library (`core/`) | scene, assets, shots, templates and motion graphics geometry added; 115 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) |
+| Core library (`core/`) | scene, Director reconciler, timeline navigation, fuzzy search, diagnostics model and redaction added; 137 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) |
 | Director Mod (`mods/iw4iris_director`) | written; **never compiled by the game** (GSC is compiled at map load; no game here) |
 | Director bridge, graphics renderer, Director / motion graphics editor | implemented; cross-compile warning-free; **never run in the game** |
-| IW4x component (`engine/iw4x/`) | implemented; **cross-compiles and links** into IW4x `912099b7c405` with IW4x's `-Werror` flags; **never run in the game** |
+| IW4x component (`engine/iw4x/`) | implemented; **cross-compiles and links** into IW4x `912099b7c405` with IW4x's `-Werror` flags; **builds with MSVC in the Windows CI job** (client DLL since run 3); **never run in the game** |
 | Launcher (`launcher/`) | implemented; cross-compiles; install rules unit-tested; never run on Windows |
 | Blender add-on | helpers tested against the C++ exporter; not run inside Blender |
 | After Effects script | generated and structure-tested; not run in AE |
-| Windows (MSVC) build | scripted in `tools/build.ps1` following IW4x's CI; not run |
-| Win32 test binary | cross-compiles; could not run (Wine segfaults in the container) |
+| Windows (MSVC) build | GitHub Actions `windows-2022` job runs `tools/build.ps1`: **green since run 5** (455594a): client DLL, launcher and tests built with Visual Studio 2022, the test suite runs and passes on Windows, the package is uploaded as an artifact |
+| Win32 test binary | cross-compiles; runs and passes on Windows in the CI job (MSVC build); Wine does not run in the container |
 
 ## How the current binaries were produced (Linux container)
 

@@ -4,6 +4,7 @@
 #include "Capture.hpp"
 #include "Clock.hpp"
 #include "DemoControl.hpp"
+#include "Director.hpp"
 #include "Log.hpp"
 #include "OfflineGuard.hpp"
 #include "Runtime.hpp"
@@ -467,6 +468,37 @@ namespace IW4Iris::Editor
       ImGui::SameLine();
       if (IconButton(Icons::SEARCH, "Search every action: type what you want to do (Ctrl+K)"))
         OpenCommandPalette();
+      ImGui::SameLine();
+      // One place to add anything to the shot.
+      if (ImGui::Button((std::string(Icons::PLUS) + " Add").c_str()))
+        ImGui::OpenPopup("##add-menu");
+      ImGui::SetItemTooltip("Add a camera, a key, a marker, an actor, a prop or effect, 3D text or a logo");
+      if (ImGui::BeginPopup("##add-menu"))
+      {
+        if (ImGui::MenuItem("Camera from the view"))
+          CameraFromView(s);
+        if (ImGui::MenuItem("Camera key from the view", "K"))
+          s.Post([] { Runtime::AddKeyFromView(); });
+        if (ImGui::MenuItem("Marker at the playhead", "M"))
+          AddMarker(s);
+        ImGui::Separator();
+        const bool filmSet = Director::InFilmSet();
+        if (ImGui::MenuItem(filmSet ? "Actor ..." : "Actor ... (needs a film set)"))
+          Shown(filmSet ? Panel::Actors : Panel::Director) = true;
+        if (ImGui::MenuItem(filmSet ? "Prop or effect ..." : "Prop or effect ... (needs a film set)"))
+          Shown(filmSet ? Panel::Assets : Panel::Director) = true;
+        ImGui::Separator();
+        if (ImGui::MenuItem("3D text"))
+          QuickAddText(s);
+        if (ImGui::MenuItem("Logo (SVG / PNG) ..."))
+          QuickImportLogo(s);
+        if (ImGui::MenuItem("More graphics (image, shape, model, title templates) ..."))
+          Shown(Panel::Graphics) = true;
+        ImGui::Separator();
+        if (ImGui::MenuItem("Shot preset (orbit, reveal, push-in ...) ..."))
+          Shown(Panel::Presets) = true;
+        ImGui::EndPopup();
+      }
       ImGui::SameLine();
       ImGui::TextDisabled("|");
       ImGui::SameLine();

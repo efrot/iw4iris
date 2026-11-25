@@ -37,7 +37,7 @@ The script
 3. runs `tools\premake5.exe vs2022` and builds `build\iw4x.sln` with MSBuild
    (exactly as IW4x's CI does),
 4. builds the launcher and tests with CMake (`-A Win32`) and runs the tests,
-5. with `-Package`, writes `dist\IW4Iris-v0.2.0-Windows-x86.zip`.
+5. with `-Package`, writes `dist\IW4Iris-v0.3.0-Windows-x86.zip`.
 
 The cinematic client is `build\iw4x-cinematic\build\bin\Win32\Release\iw4x.dll`.
 
@@ -51,7 +51,7 @@ originals in `engine\iw4x\src` and re-run the overlay, or the build script).
 
 ## Linux (MinGW-w64 cross build)
 
-This is how the v0.1.0 and v0.2.0 binaries were produced and checked. Requirements:
+This is how the v0.1.0 to v0.3.0 binaries were produced and checked. Requirements:
 
 * `i686-w64-mingw32-g++` with POSIX threads, GCC ≥ 13
   (Ubuntu 24.04: `g++-mingw-w64-i686-posix`)
@@ -70,7 +70,7 @@ tools/cross/build-all.sh
 ```
 
 builds the cinematic client (`tools/cross/build-iw4x.sh`), the launcher and
-the Windows test binary, and packages `dist/IW4Iris-v0.2.0-Windows-x86.zip`.
+the Windows test binary, and packages `dist/IW4Iris-v0.3.0-Windows-x86.zip`.
 
 With GCC 13, `tools/cross/build-iw4x.sh` applies build-environment
 workarounds that do not change the program: it force-includes

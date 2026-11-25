@@ -1,0 +1,68 @@
+# Audit backlog and verification state
+
+This is the working list from the repository audit for the *Creator
+Preview*: what was found, what was done, and **how far each item is
+verified**. A higher state includes the lower ones.
+
+| State | Meaning |
+| --- | --- |
+| **Planned** | designed or decided, not implemented |
+| **Implemented** | code written |
+| **Unit-tested** | game-independent logic covered by automated tests (`build/linux/iw4iris_tests`, CI job *Linux (GCC) tests*) |
+| **Cross-compiled** | the cinematic client / launcher builds with MinGW-w64 here (`tools/cross/build-iw4x.sh`, warnings as errors) and passes `tools/cross/msvc-lint.sh` |
+| **Windows-built** | the GitHub Actions job *Windows (MSVC) build* compiled it with Visual Studio 2022 (IW4x's own `/W4 /WX` settings) |
+| **Runtime-tested** | run in IW4x (or the launcher on Windows) and observed to work |
+| **End-to-end verified** | the full user workflow (install, launch, edit, record) done in the game with the result checked |
+| **Blocked** | cannot progress without something outside the repository |
+
+**Nothing in this list is Runtime-tested or End-to-end verified.** There is
+no IW4x installation (game assets) in the development or CI environment,
+and none is downloaded or shipped. Running the in-game acceptance
+procedure in [TESTING.md](TESTING.md) on a real installation is the next
+step for every engine item below.
+
+Finding numbers are the audit's. Numbers that are not listed were merged
+into the items below during the audit and are not tracked separately.
+
+## Critical and high
+
+| ID | Finding | Severity | Files | Solution | Acceptance | Status | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| F-01 | The Director bridge marked objects as spawned when a request was *queued*; weapons, animations and attachments were sent to actors that never existed; failures were never rolled back; nothing timed out. | Critical | `core/src/director_sync.cpp`, `engine/iw4x/src/IrisDirector.cpp`, `mods/iw4iris_director/scripts/iw4iris/director.gsc` | Reconciler with desired / in-flight / confirmed / failed state per facet, acknowledgements, timeouts, bounded retries, dependency ordering, generation ids, stale-answer rejection, bounded queues; protocol 2 with field-count validation and atomic `setAttachments`. | Spawn failure leaves no dependent requests; answers from an older level are ignored; queue never exceeds its bounds. | Unit-tested (reconciler), Windows-built (bridge) | `tests/test_director_sync.cpp` (10 cases against a simulated mod); CI run 3 and 4 built the client with MSVC |
+| F-27 | During a capture the playhead stood still, so actors, props, effects and graphics did not move in recordings (only the camera did). | Critical | `engine/iw4x/src/IrisRuntime.cpp` | The capture's frame time drives the playhead. | A recording of a moving actor shows it moving frame by frame. | Windows-built | CI run 3 (3f97910) |
+| F-28 | The timeline stayed at its default 10 s for any demo (the length was only applied to a timeline shorter than 1 s), so most of a demo could not be reached with the playhead ("the time cannot be moved"). | High | `core/src/timeline.cpp`, `engine/iw4x/src/IrisRuntime.cpp` | `FitTimelineToSource` once the demo index is known: grow to the demo, out point follows when it was at the end, an untouched default shrinks to a short demo. | Loading a 3-minute demo gives a 3-minute timeline. | Unit-tested, Windows-built | `tests/test_timeline.cpp` "fits a demo's length"; CI run 3 |
+| F-29 | Only a 24 px ruler moved the playhead; in/out could only be set with B / N; no scroll bar, no typed times, rows did not scroll. | High (user report) | `engine/iw4x/src/IrisEditorTimeline.cpp`, `core/src/timeline_view.cpp` | Scrub on the ruler and on empty rows with magnetic edit points; editable time / in / out fields; in/out bar (drag ends, move, draw, double-click, menu); overview scroll bar; vertical scrolling; follow playhead; Up/Down edit points; I / O; +/- zoom. | Every navigation listed in README section 7 works with the mouse alone. | Unit-tested (arithmetic), Windows-built (UI) | `tests/test_timeline_view.cpp` (6 cases); CI run 3 |
+| F-02 | Flying the free camera rewrote the project's active camera (a shot setting changed silently). | High | `engine/iw4x/src/IrisRuntime.cpp`, `IrisEditor.cpp`, `IrisEditorDirector.cpp` | Session-only *free view* through a navigation camera; banner and toolbar state; V / "back to the shot"; play returns to the shot; captures always use the shot; "camera from view", "move camera to view". | Flying and stopping leaves `activeCameraId` unchanged; a capture never shows the free view. | Windows-built | CI run 4 (c4630ce) |
+| F-03 | Graphics set to hide behind walls were drawn on top of everything when occlusion was unverified (wrong pictures, silently). | High | `engine/iw4x/src/IrisGraphics.cpp`, `IrisEditorDirector.cpp` | Not drawn and reported as degraded; editor-only opt-in preview (never in captures); one-click "Always on top". | With occlusion unavailable a depth-mode graphic is absent from a recording and listed in Diagnostics. | Windows-built | CI run 3 |
+| F-04 | Recording started without checking the scene (film set not ready, failed objects, assets awaiting a reload, depth graphics without occlusion). | High | `engine/iw4x/src/IrisCapture.cpp` | Project-aware `Capture::Check`: errors block, warnings are shown (demo recordings do not contain Director objects). | Each condition shows its message in the Recording panel and blocks *Record*. | Windows-built | CI run 3 |
+| F-08 | Film-set recordings started clips late: script-model animations cannot be set to a time. | High | `engine/iw4x/src/IrisCapture.cpp`, `IrisDirector.cpp` | Pre-roll (not recorded) so clips running at the first frame start on time, capped at 15 s; animations restarted at the start. | An actor mid-animation at the in point is in the right pose on frame 1. | Windows-built | CI run 3 |
+| F-30 | A setup that failed part-way left junctions and copies that no manifest listed (repair and uninstall could not clean them); the manifest write was not atomic. | High | `launcher/src/Environment.cpp` | Roll back everything the failed run created (junctions removed as links); manifest written to a temporary file and renamed. | A setup that fails part-way (a locked file, a full disk) leaves the environment as it was before. | Cross-compiled | MinGW build; CI pending for the launcher (see F-31) |
+| F-31 | The Windows (MSVC) build had never run: C2015 (raw U+FFFD literal), C2666 (json vs string_view), C4456 (shadowed local), C4267 (size_t to uint16_t), CVT1100 (duplicate manifest resource), C4702 (nanosvg). | High | several | Each fixed at its cause (no global suppression); ASCII-source test; `tools/cross/msvc-lint.sh` approximates MSVC's shadow / conversion warnings before pushing. | The *Windows (MSVC)* job is green. | Windows-built | CI run 5 (455594a) green: client DLL, launcher and tests built with MSVC, the test suite **ran and passed on Windows**, package uploaded |
+
+## Medium
+
+| ID | Finding | Severity | Files | Solution | Acceptance | Status | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| F-05 / F-06 / F-23 | Graphic geometry is built on the render thread; meshes are drawn with `DrawIndexedPrimitiveUP` every frame (no persistent GPU buffers); the texture cache has no bound. | Medium | `engine/iw4x/src/IrisGraphics.cpp` | Worker-thread geometry builds; persistent VB/IB in `D3DPOOL_DEFAULT` with an LRU byte budget released on device loss; bounded texture cache. | A 2,000-glyph title does not stall a frame; memory stays within the budget. | Planned | — |
+| F-32 | After the first camera keys the game's own view stayed the shot, so pressing Play showed nothing moving. | Medium (usability) | `engine/iw4x/src/IrisRuntime.cpp` | The first key of a dolly makes it the shot when the game view was active (same undo step, with a message); other keys say which camera they went to. | New users see their path on the first Play. | Windows-built | CI run 5 |
+| F-33 | No overview of what works: diagnostics were raw values; no self-test; no support bundle. | Medium | `engine/iw4x/src/IrisEditorDiagnostics.cpp`, `core/src/diagnostics.cpp`, `launcher/src/Main.cpp` | Capability states (Ready / Checking / Limited / Not available / Failed) with fixes in the editor and the launcher; guided self-test whose steps pass only on real events; redacted support bundle. | A broken render clock shows *Failed* with its fix; the bundle contains no home folder or account name. | Unit-tested (model, redaction; also on Windows), Windows-built (editor) | `tests/test_diagnostics.cpp`; CI run 5 |
+| F-34 | No obvious first step: an empty editor, no search for actions, the launcher needed a visit to Setup before Launch. | Medium (usability) | `IrisEditor.cpp`, `IrisEditorPalette.cpp`, `core/src/search.cpp`, `launcher/src/Main.cpp` | Start screen (four ways in, recent projects); command palette (Ctrl+K, fuzzy, typed times); launcher *Install & Launch* / *Update & Launch*. | A first-time user reaches the editor with one click in the launcher and one in the start screen. | Unit-tested (search), Windows-built (start screen, palette) | `tests/test_search.cpp`; CI run 5 |
+
+## Blocked or planned capabilities
+
+| Item | State | Why |
+| --- | --- | --- |
+| Every engine item above at Runtime-tested | Blocked | needs an IW4x installation with game assets; none is in CI or may be shipped |
+| Bone camera, weapon-mounted camera, projectile follow | Blocked | needs DObj bone bindings that are not researched yet; no engine addresses are guessed |
+| Snapshot-checkpoint demo rewinding | Planned | the record scanner already indexes snapshot offsets |
+| Setting a script-model animation to a time | Blocked | the engine offers no such call to scripts; worked around by restarting clips and pre-roll |
+| Post-process grading (lift / gamma / gain, LUTs, grain) | Planned | needs a post-process pass |
+
+## How to move an item up
+
+* **Runtime-tested:** run the matching step of [TESTING.md](TESTING.md) in
+  the game, note the IW4x revision and the result in the item's evidence.
+* **End-to-end verified:** the in-game acceptance procedure from launcher
+  to recorded file, with the file checked frame by frame.
+* Never mark an item from compilation alone, and never by editing a test
+  until it passes.

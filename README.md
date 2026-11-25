@@ -13,13 +13,16 @@ cinematics.
 > normal IW4x installation stays as it is, and you keep playing online with
 > that one.
 
-> **Status: v0.2.0 preview, not yet tested in the game.** The editor, the
-> camera system, demo control, the recorder, Director Mode (actors, props,
-> effects on film sets) and native motion graphics (3D text and logos) are
-> implemented, and the cinematic client builds. None of the engine
-> integration has been run in IW4x by the authors yet. The game-independent
-> code (scene, directions, shots, geometry, fonts, logos, ...) is covered by
-> 115 automated tests.
+> **Status: v0.3.0 "Creator Preview", not yet tested in the game.** The
+> editor, the camera system, demo control, the recorder, Director Mode
+> (actors, props, effects on film sets) and native motion graphics (3D text
+> and logos) are implemented; the cinematic client builds with MinGW and
+> with Visual Studio (Windows CI). None of the engine integration has been
+> run in IW4x by the authors yet. The game-independent code (scene,
+> Director synchronisation, timeline, geometry, fonts, logos, diagnostics,
+> ...) is covered by 137 automated test cases.
+> [docs/BACKLOG.md](docs/BACKLOG.md) lists every audit finding with how far
+> it is verified.
 > [FEATURE_MATRIX.md](FEATURE_MATRIX.md) lists exactly what is verified,
 > implemented, experimental or planned. [docs/TESTING.md](docs/TESTING.md)
 > shows how to help verify it.
@@ -113,7 +116,7 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
   then **Download ZIP**. The ZIP holds one folder (named after the
   repository and branch) with `IW4Iris Launcher.exe` at its top, next to
   `client\` and `resources\`, plus the source code.
-* **The release package** `IW4Iris-v0.2.0-Windows-x86.zip`: only the
+* **The release package** `IW4Iris-v0.3.0-Windows-x86.zip`: only the
   program, documentation, samples and presets.
 
 1. Download one of them.
@@ -713,7 +716,7 @@ git clone --recursive https://github.com/efrot/iw4iris.git
 
 The script checks out the pinned IW4x revision, installs the IW4Iris
 component into it, builds it with IW4x's own build, builds the launcher and
-tests with CMake, and packages `dist\IW4Iris-v0.2.0-Windows-x86.zip`.
+tests with CMake, and packages `dist\IW4Iris-v0.3.0-Windows-x86.zip`.
 Requirements and details: [BUILD.md](BUILD.md).
 
 ---
@@ -727,7 +730,7 @@ Optional FFmpeg für Videoformate.
 **Installation**
 
 1. Auf der GitHub-Seite **Code → Download ZIP** klicken (oder das
-   Release-Paket `IW4Iris-v0.2.0-Windows-x86.zip` nehmen) und **außerhalb**
+   Release-Paket `IW4Iris-v0.3.0-Windows-x86.zip` nehmen) und **außerhalb**
    des Spielordners entpacken (z. B. `C:\Tools\IW4Iris`). Im entpackten
    Ordner (beim GitHub-ZIP im Ordner darin) liegt **IW4Iris Launcher.exe**
    direkt oben, daneben `client\` und `resources\`. Die Dateien zusammen
@@ -779,8 +782,8 @@ Material, Fase, Animation und Tracking (z. B. Name über dem Kopf eines
 Actors) im Panel **Object**.
 
 **Wichtig:** Die Cinematic-Version ist **nur offline** nutzbar und blockiert
-jeden Netzwerkverkehr. Version 0.2.0 ist eine Vorschau und wurde im Spiel
-noch nicht getestet; Probleme bitte mit der Logdatei
+jeden Netzwerkverkehr. Version 0.3.0 ("Creator Preview") ist eine Vorschau
+und wurde im Spiel noch nicht getestet; Probleme bitte mit der Logdatei
 `iw4iris\logs\iw4iris.log` melden.
 
 **Deinstallieren:** Launcher → **Setup** → **Uninstall**. Entfernt nur, was

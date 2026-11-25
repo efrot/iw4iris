@@ -1,58 +1,60 @@
 # Feature matrix
 
-Status labels:
+Status labels (the same verification states as [docs/BACKLOG.md](docs/BACKLOG.md)):
 
-* **Verified** — implemented and covered by automated tests (game-independent code) or by the build.
-* **Implemented** — implemented and compiled into the cinematic client, **not yet tested in the game**.
-* **Experimental** — implemented, but known to depend on engine behaviour that is still unconfirmed.
+* **Unit-tested** — game-independent logic covered by the automated tests (Linux CI job).
+* **Windows-built** — compiled into the cinematic client by the Windows (MSVC) CI job and the MinGW cross build, **not yet run in the game**.
+* **Implemented** — compiled into the cinematic client (MinGW cross build), **not yet run in the game**.
+* **Experimental** — implemented, but depends on engine behaviour that is still unconfirmed.
 * **Planned** — designed, not implemented; the project format already stores it where noted.
 * **Blocked** — needs engine research or bindings that are not available yet.
 
-Nothing marked Implemented or Experimental has been runtime-verified in IW4x by the authors yet.
+Nothing in this matrix is **Runtime-tested** or **End-to-end verified** yet:
+no IW4x installation is available to the development and CI environments.
 
 ## Core (game independent)
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Engine-convention angles / axes, quaternions, slerp, squad | Verified | tested against id Tech 3 `AngleVectors` |
-| Keyframe curves: hold, linear, smooth (auto-clamped), Bézier handles, eases | Verified | |
-| Camera paths: linear, smooth, centripetal Catmull-Rom, Bézier tangents, hold | Verified | |
-| Quaternion and Euler (multi-turn) rotation | Verified | |
-| Constant-speed traversal, reverse, retime, shift, smooth | Verified | |
-| Lens: focal length ↔ FOV, sensors, anamorphic, `cg_fov` conversion, thin-lens DoF | Verified | |
-| Rational frame rates, timecode, frame ranges | Verified | 23.976 / 29.97 / 59.94 exact |
-| Speed ramps, slow motion (time remap) | Verified | |
-| Camera cuts, markers, loop / in / out | Verified | |
-| `.iw4iris` project format, migrations, atomic save, relative paths, autosave paths | Verified | |
-| Undo / redo with merged steps | Verified | |
-| IWXMVM / T6Iris campath import | Verified | |
-| Recording validation, FFmpeg arguments, command-line quoting, disk estimate | Verified | |
-| Exact per-frame clock steps | Verified | |
-| Blender / After Effects / CSV exporters | Verified | Blender add-on tested against the exporter's output; AE script not run in AE |
-| Demo metadata, record scanning | Verified | against IW4x's own Huffman coder and record layout; not against real demos |
-| Shot presets (12) | Verified | keys stay editable |
-| Scene model: actors, clips, props, effects, graphics, evaluation at time t | Verified | |
-| Directions (wait, walk / run to, turn, face actor / camera, play animation, crouch, aim, enter, exit, follow) compiled to tracks | Verified | deterministic, warnings for missing targets |
-| Asset library: readable names and categories from engine asset names, body-head pairing, search | Verified | against representative names; real lists come from the game |
-| Shot generator (17 framed shot types from a subject) | Verified | the subject lands in the frame centre at the lens' distance |
-| Scene and title templates | Verified | build ordinary editable content |
-| Project schema 2 (scene section), schema 1 migration | Verified | |
-| 2D geometry: contours, nesting (even-odd / non-zero), earcut triangulation | Verified | |
-| Extrusion with round / chamfer bevels, oversize bevel reduction | Verified | closed, outward-wound solids |
-| Fonts: TrueType / OpenType (CFF) outlines, kerning, alignment, lines, vertical, circular text | Verified | no complex-script shaping (one glyph per code point) |
-| SVG logos (fills, fill rules, colours, transforms) | Verified | strokes are not converted (warning); gradients become solid colours |
-| Transparent PNG / JPEG / TGA / BMP tracing into silhouettes with holes | Verified | WebP not supported |
-| OBJ model import (polygons, normals, groups, MTL colours, limits) | Verified | glTF / FBX planned |
-| Graphic animation presets (18) and easings, seeded randomness | Verified | same time, same pose |
-| Graphic tracking: world, actor attach point, billboard, camera lens, parenting | Verified (maths) | in-game bone reports unverified |
-| View / projection maths for renderer, gizmos and picking | Verified | both depth conventions |
-| Deterministic shake | Verified | |
+| Engine-convention angles / axes, quaternions, slerp, squad | Unit-tested | tested against id Tech 3 `AngleVectors` |
+| Keyframe curves: hold, linear, smooth (auto-clamped), Bézier handles, eases | Unit-tested | |
+| Camera paths: linear, smooth, centripetal Catmull-Rom, Bézier tangents, hold | Unit-tested | |
+| Quaternion and Euler (multi-turn) rotation | Unit-tested | |
+| Constant-speed traversal, reverse, retime, shift, smooth | Unit-tested | |
+| Lens: focal length ↔ FOV, sensors, anamorphic, `cg_fov` conversion, thin-lens DoF | Unit-tested | |
+| Rational frame rates, timecode, frame ranges | Unit-tested | 23.976 / 29.97 / 59.94 exact |
+| Speed ramps, slow motion (time remap) | Unit-tested | |
+| Camera cuts, markers, loop / in / out | Unit-tested | |
+| `.iw4iris` project format, migrations, atomic save, relative paths, autosave paths | Unit-tested | |
+| Undo / redo with merged steps | Unit-tested | |
+| IWXMVM / T6Iris campath import | Unit-tested | |
+| Recording validation, FFmpeg arguments, command-line quoting, disk estimate | Unit-tested | |
+| Exact per-frame clock steps | Unit-tested | |
+| Blender / After Effects / CSV exporters | Unit-tested | Blender add-on tested against the exporter's output; AE script not run in AE |
+| Demo metadata, record scanning | Unit-tested | against IW4x's own Huffman coder and record layout; not against real demos |
+| Shot presets (12) | Unit-tested | keys stay editable |
+| Scene model: actors, clips, props, effects, graphics, evaluation at time t | Unit-tested | |
+| Directions (wait, walk / run to, turn, face actor / camera, play animation, crouch, aim, enter, exit, follow) compiled to tracks | Unit-tested | deterministic, warnings for missing targets |
+| Asset library: readable names and categories from engine asset names, body-head pairing, search | Unit-tested | against representative names; real lists come from the game |
+| Shot generator (17 framed shot types from a subject) | Unit-tested | the subject lands in the frame centre at the lens' distance |
+| Scene and title templates | Unit-tested | build ordinary editable content |
+| Project schema 2 (scene section), schema 1 migration | Unit-tested | |
+| 2D geometry: contours, nesting (even-odd / non-zero), earcut triangulation | Unit-tested | |
+| Extrusion with round / chamfer bevels, oversize bevel reduction | Unit-tested | closed, outward-wound solids |
+| Fonts: TrueType / OpenType (CFF) outlines, kerning, alignment, lines, vertical, circular text | Unit-tested | no complex-script shaping (one glyph per code point) |
+| SVG logos (fills, fill rules, colours, transforms) | Unit-tested | strokes are not converted (warning); gradients become solid colours |
+| Transparent PNG / JPEG / TGA / BMP tracing into silhouettes with holes | Unit-tested | WebP not supported |
+| OBJ model import (polygons, normals, groups, MTL colours, limits) | Unit-tested | glTF / FBX planned |
+| Graphic animation presets (18) and easings, seeded randomness | Unit-tested | same time, same pose |
+| Graphic tracking: world, actor attach point, billboard, camera lens, parenting | Unit-tested (maths) | in-game bone reports unverified |
+| View / projection maths for renderer, gizmos and picking | Unit-tested | both depth conventions |
+| Deterministic shake | Unit-tested | |
 
 ## Editor and engine integration
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Native IW4x component, cross-compiles and links | Verified (build) | MinGW-w64; MSVC build path scripted, not run |
+| Native IW4x component, compiles and links | Windows-built | MinGW-w64 cross build and the MSVC CI job (client DLL built with MSVC since CI run 3) |
 | Offline guard (engine sends, Winsock, HTTP, session check) | Implemented | fail closed when the packet hook cannot be installed |
 | Editor overlay toggle (F1), docking UI, theme, workspaces | Implemented | |
 | Free camera (WASD, vertical, roll, speed, acceleration, smoothing, FOV wheel, gamepad) | Implemented | |
@@ -62,7 +64,13 @@ Nothing marked Implemented or Experimental has been runtime-verified in IW4x by 
 | Bone camera, weapon-mounted, projectile follow | Blocked | needs DObj bone bindings |
 | Path / key / frustum overlay (never recorded) | Implemented | |
 | Viewport gizmo for scene objects (move along X / Y / Z, rotate, size; Ctrl snaps) | Implemented | camera keys are still moved with "update from view" and the inspector |
-| Multitrack timeline: keys, box select, drag, snap, zoom, pan, markers, cuts, speed | Implemented | |
+| Multitrack timeline: keys, box select, drag, snap, zoom, pan, markers, cuts, speed | Windows-built | |
+| Timeline navigation: scrub on ruler or empty rows, magnet (Alt: off), typed times, in/out bar, overview scroll bar, row scrolling, follow, edit-point stepping | Windows-built | arithmetic unit-tested (`iris/timeline_view`) |
+| Timeline fits a loaded demo's length | Windows-built | `FitTimelineToSource` unit-tested |
+| Free view (navigation camera) separate from the shot; camera from view; move camera to view | Windows-built | flying never changes the project's cameras |
+| Command palette (Ctrl+K) | Windows-built | fuzzy matching unit-tested |
+| Start screen | Windows-built | |
+| Diagnostics: capability states, guided self-test, redacted support bundle | Windows-built | model and redaction unit-tested |
 | Graph editor: values, Bézier handles, tangent modes | Implemented | |
 | Track lock / hide | Implemented | stored per track |
 | Ripple editing, nested track groups | Planned | |
@@ -154,6 +162,9 @@ Nothing marked Implemented or Experimental has been runtime-verified in IW4x by 
 | Steam library detection, manual folder, validation | Implemented | rules unit-tested |
 | Isolated environment (junctions, copies, own players / userraw) | Implemented | |
 | Repair, uninstall (only what it created, never through junctions) | Implemented | |
+| Setup rollback: a failed setup removes what it created; atomic manifest | Implemented | not run on Windows yet |
+| Install & Launch / Update & Launch (one click), quick actions | Implemented | client and Director Mod compared with the package |
+| Diagnostics page with support report (home folder and account name removed) | Implemented | report model and redaction unit-tested |
 | Launch offline, launch with a project | Implemented | |
 | FFmpeg: locate, choose, open download page with consent | Implemented | no automatic download |
 | Logs, projects, recordings | Implemented | |

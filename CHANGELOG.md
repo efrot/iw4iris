@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.3.0 — 2026-11-25 ("Creator Preview": audit fixes and usability, not yet tested in the game)
+
+Verification states of every item: [docs/BACKLOG.md](docs/BACKLOG.md).
+
+### Fixed
+
+* **The time could not be moved through a demo:** the timeline stayed at
+  its default 10 seconds whatever the demo's length. It now covers the
+  whole demo once the demo index is known (F-28).
+* Recordings showed actors, props, effects and graphics frozen: the
+  playhead did not follow the capture (F-27).
+* The Director bridge treated objects as spawned before the mod answered;
+  it now changes state only on acknowledgement, with timeouts, bounded
+  retries, ordering, stale-answer rejection and bounded queues. Director
+  Mod protocol 2 (F-01).
+* Flying changed the project's active camera; flying now uses a separate
+  free view (F-02).
+* Graphics meant to hide behind walls were drawn on top of everything when
+  occlusion was unverified; they are now reported as degraded instead
+  (F-03).
+* Recording now checks the scene (film set ready, failed objects, assets
+  needing a reload, occlusion for depth graphics) (F-04) and pre-rolls
+  film-set animations so they start on time (F-08).
+* A failed launcher setup left links and copies behind; it now rolls back
+  (F-30).
+* The first Windows (MSVC) builds found six compiler errors GCC accepted;
+  all fixed at their cause (F-31).
+
+### Added
+
+* **Timeline navigation:** drag on the ruler or empty rows, magnetic
+  snapping (Alt to move freely), typed times (`12.5`, `1:05`, `90f`,
+  timecode), an in/out bar (drag ends, move, draw, double-click), an
+  overview scroll bar, row scrolling, follow playhead, previous / next
+  edit point (Up / Down), I / O, + / -, \.
+* **Free view** (V) with "camera from view" and "move camera to view".
+* **Command palette** (Ctrl+K) and a single **+ Add** menu in the toolbar.
+* **Start screen** with the four ways in and recent projects.
+* **Diagnostics:** capability states with fixes, a guided self-test, a
+  redacted support bundle; a launcher Diagnostics page.
+* **Launcher:** Install & Launch / Update & Launch in one click.
+* Windows CI (MSVC) and Linux CI; `tools/cross/msvc-lint.sh`.
+
 ## 0.2.0 — 2026-11-24 (Director Mode and motion graphics preview, not yet tested in the game)
 
 ### Added
