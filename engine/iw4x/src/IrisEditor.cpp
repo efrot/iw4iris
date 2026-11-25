@@ -1943,6 +1943,7 @@ namespace IW4Iris::Editor
         ImGui::EndCombo();
       }
       c |= ImGui::Checkbox("Show getting-started guide", &u.onboarding);
+      c |= ImGui::Checkbox("Show the start screen when nothing is loaded", &u.showHome);
       c |= ImGui::Checkbox("Camera path overlay", &u.showPathOverlay);
       c |= ImGui::Checkbox("Camera frustums", &u.showFrustums);
       ImGui::SeparatorText("Free camera");
@@ -1983,6 +1984,13 @@ namespace IW4Iris::Editor
     void DrawDiagnostics(Session& s)
     {
       if (!ImGui::Begin(PanelName(Panel::Diagnostics), &Shown(Panel::Diagnostics)))
+      {
+        ImGui::End();
+        return;
+      }
+      DrawDiagnosticsOverview(s);
+      ImGui::Spacing();
+      if (!ImGui::CollapsingHeader("Technical details"))
       {
         ImGui::End();
         return;
@@ -2123,7 +2131,8 @@ namespace IW4Iris::Editor
         {s.status.demoPlaying || s.status.cgameReady, "Load a demo: View > Demos, double-click one."},
         {s.status.gameView.has_value(), "Fly: hold the right mouse button in the view, move with WASD."},
         {dolly && dolly->path.Size() >= 3, "Add three or more keys with K at different times (Space plays)."},
-        {dolly && s.project.activeCameraId == dolly->id, "Make the dolly the active camera to preview the path."},
+        {dolly && s.project.activeCameraId == dolly->id,
+         "The dolly is the active camera (the first key does it; else pick it in the toolbar's camera box)."},
         {!s.projectFile.empty(), "Save the project (Ctrl+S)."},
         {Capture::GetProgress().state == Capture::State::Done, "Record it in the Recording panel."},
       };
@@ -2143,8 +2152,118 @@ namespace IW4Iris::Editor
       ImGui::End();
     }
 
-    void DrawNotification()
+    // The start screen: the four ways in, recent projects, and where help is.
+    void DrawHome(Session& s)
     {
+      if (!ui.homeOpen || !s.settings.showHome)
+        return;
+      // Close by itself once there is something to work on.
+      if (s.status.demoPlaying || s.status.cgameReady || !s.projectFile.empty())
+      {
+        ui.homeOpen = false;
+        return;
+      }
+      const auto* vp = ImGui::GetMainViewport();
+      ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x * 0.5f, vp->WorkPos.y + vp->WorkSize.y * 0.45f),
+                              ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+      ImGui::SetNextWindowSize(ImVec2(std::min(620.0f, vp->WorkSize.x - 40.0f), 0.0f), ImGuiCond_Appearing);
+      bool open = true;
+      if (!ImGui::Begin("IW4Iris Studio###Home", &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking |
+                                                            ImGuiWindowFlags_AlwaysAutoResize))
+      {
+        ImGui::End();
+        ui.homeOpen = open;
+        return;
+      }
+      ImGui::PushFont(boldFont, 0.0f);
+      ImGui::TextColored(CurrentPalette().accent, "What do you want to make?");
+      ImGui::PopFont();
+      ImGui::Spacing();
+      const float w = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+      const ImVec2 size(w, 64);
+      auto tile = [&](const char* icon, const char* title, const char* text) {
+        const bool clicked = ImGui::Button((std::string(icon) + "  " + title + "##" + title).c_str(), size);
+        ImGui::SetItemTooltip("%s", text);
+        return clicked;
+      };
+      if (tile(Icons::FILM, "Edit a recorded demo", "Fly cameras through a demo you recorded: camera paths, slow motion, "
+                                                    "cuts, look, depth of field. Then render it."))
+      {
+        ApplyWorkspace("Cinematic");
+        Shown(Panel::Demos) = true;
+        ImGui::SetWindowFocus(PanelName(Panel::Demos));
+        Notify("Double-click a demo in the Demos panel to load it");
+        ui.homeOpen = false;
+      }
+      ImGui::SameLine();
+      if (tile(Icons::USER, "Create a cinematic on a map", "An offline film set: place characters, props, effects and 3D "
+                                                           "titles on any installed map, then film them."))
+      {
+        ApplyWorkspace("Director");
+        Shown(Panel::Director) = true;
+        ui.wizardOpen = true;
+        ui.wizardStep = 0;
+        ui.mapsRequested = false;
+        ui.homeOpen = false;
+      }
+      if (tile(Icons::FOLDER_OPEN, "Open a project", "Continue a saved .iw4iris project"))
+      {
+        ui.openPopup = true;
+        ui.homeOpen = false;
+      }
+      ImGui::SameLine();
+      if (tile(Icons::MAGIC, "Browse templates", "Ready-made scenes (duel, squad, title card ...) built on a film set of "
+                                                "your choice"))
+      {
+        ApplyWorkspace("Director");
+        Shown(Panel::Director) = true;
+        ui.wizardOpen = true;
+        ui.wizardStep = 0;
+        ui.mapsRequested = false;
+        ui.homeOpen = false;
+      }
+      if (!s.settings.recentProjects.empty())
+      {
+        ImGui::Spacing();
+        ImGui::TextDisabled("Recent projects");
+        int shown = 0;
+        for (const auto& r : s.settings.recentProjects)
+        {
+          if (shown++ >= 5)
+            break;
+          const std::string name = std::filesystem::path(std::u8string(r.begin(), r.end())).filename().string();
+          if (ImGui::Selectable((std::string(Icons::FILE) + "  " + name + "##" + r).c_str()))
+          {
+            OpenProject(s, r);
+            ui.homeOpen = false;
+          }
+          ImGui::SetItemTooltip("%s", r.c_str());
+        }
+      }
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::TextDisabled("Ctrl+K: search every action   ?: keyboard shortcuts   F1: hide / show the editor");
+      bool showAtStart = s.settings.showHome;
+      if (ImGui::Checkbox("Show this at start", &showAtStart))
+      {
+        s.settings.showHome = showAtStart;
+        SaveSettings(s);
+      }
+      ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 80.0f);
+      if (ImGui::Button("Close", ImVec2(80, 0)))
+        open = false;
+      ImGui::End();
+      if (!open)
+        ui.homeOpen = false;
+    }
+
+    void DrawNotification(Session& s)
+    {
+      if (!s.notice.empty())
+      {
+        Notify(s.notice);
+        s.notice.clear();
+      }
       if (ui.message.empty() || Now() - ui.messageTime > 6.0)
         return;
       const auto* vp = ImGui::GetMainViewport();
@@ -2716,9 +2835,11 @@ namespace IW4Iris::Editor
     if (Shown(Panel::History))
       DrawHistory(s);
     DrawShortcuts();
-    DrawGettingStarted(s);
+    DrawHome(s);
+    if (!ui.homeOpen || !s.settings.showHome)
+      DrawGettingStarted(s);
     DrawFilePopups(s);
-    DrawNotification();
+    DrawNotification(s);
     DrawCommandPalette(s);
     DrawSceneOverlay(s);
     DrawOverlay(s);

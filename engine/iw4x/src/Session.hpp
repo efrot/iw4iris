@@ -28,6 +28,7 @@ namespace IW4Iris
     double uiScale = 1.0;
     int accent = 0;                  // theme accent preset
     bool onboarding = true;          // show the getting-started window
+    bool showHome = true;            // the start screen when nothing is loaded
     double mouseSensitivity = 0.11;  // degrees per mouse count
     iris::FreeCameraSettings freeCamera;
     std::vector<std::string> demoFolders;
@@ -99,6 +100,7 @@ namespace IW4Iris
     bool dirty = false;
     iris::History<iris::Project> history{300};
     std::string lastError;
+    std::string notice;           // a message for the editor's notification (main thread -> UI)
 
     // Time
     double playhead = 0.0;        // cinematic seconds

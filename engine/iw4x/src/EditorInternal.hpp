@@ -99,6 +99,7 @@ namespace IW4Iris::Editor
     std::string openPath;
     std::string saveAsPath;
     bool openPopup = false;
+    bool homeOpen = true;     // the start screen (closed once something is chosen or loaded)
     bool saveAsPopup = false;
     std::string message;          // transient status line
     double messageTime = 0.0;
@@ -216,6 +217,8 @@ namespace IW4Iris::Editor
   void QuickImportLogo(Session& s);    // file picker; the logo is added when a file is chosen
   // Command palette (IrisEditorPalette.cpp): Ctrl+K
   void OpenCommandPalette();
+  // Diagnostics (IrisEditorDiagnostics.cpp): capability states, self-test, support bundle
+  void DrawDiagnosticsOverview(Session& s);
   void DrawCommandPalette(Session& s);
 
   // Widgets

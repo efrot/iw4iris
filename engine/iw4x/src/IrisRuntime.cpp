@@ -751,6 +751,24 @@ namespace IW4Iris::Runtime
     const auto index = dolly.path.AddKey(key);
     s.selectedCamera = dolly.id;
     s.selectedKeys = {index};
+    // The first key of a dolly while the game's own view is the shot: the
+    // user is building this camera, so it becomes the shot (part of the
+    // same undo step, and said so).
+    const auto* active = s.project.ActiveCamera();
+    const bool gameView = !active || active->mode == iris::CameraMode::FirstPerson ||
+                          active->mode == iris::CameraMode::ThirdPerson;
+    if (gameView && !s.project.useCameraCuts && dolly.path.Size() == 1)
+    {
+      s.project.activeCameraId = dolly.id;
+      s.notice = "First key of " + dolly.name + ": it is now the active camera. Add keys at other times, then press Space.";
+    }
+    else
+    {
+      s.notice = "Key " + std::to_string(index + 1) + " of " + dolly.name + " at " +
+                 iris::FormatTime(key.time, s.project.timeline.frameRate, s.project.timeline.display);
+      if (s.project.CameraAt(s.playhead) != &dolly)
+        s.notice += " (not the camera shown now: pick it in the toolbar's camera box to watch it)";
+    }
     s.Commit("Add camera key");
   }
 }

@@ -48,6 +48,7 @@ add_library(iw4iris_core STATIC
   core/src/timeline.cpp
   core/src/timeline_view.cpp
   core/src/search.cpp
+  core/src/diagnostics.cpp
   core/src/recording.cpp
   core/src/project.cpp
   core/src/rig.cpp
@@ -88,6 +89,7 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_timeline.cpp
     tests/test_timeline_view.cpp
     tests/test_search.cpp
+    tests/test_diagnostics.cpp
     tests/test_recording.cpp
     tests/test_project.cpp
     tests/test_history.cpp

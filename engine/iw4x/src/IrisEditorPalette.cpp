@@ -150,6 +150,10 @@ namespace IW4Iris::Editor
       add("Save as ...", "", "project copy", [](Session&) { Ui().saveAsPopup = true; });
       add("Open a project ...", "Ctrl+O", "load", [](Session&) { Ui().openPopup = true; });
       add("New project", "Ctrl+N", "empty start", [](Session& x) { x.Post([] { Runtime::NewProject(); }); });
+      add("Start screen", "", "home welcome begin", [](Session& x) {
+        x.settings.showHome = true;
+        Ui().homeOpen = true;
+      });
       add("Undo", "Ctrl+Z", "back revert", [](Session& x) { x.Undo(); })->enabled = s.history.CanUndo();
       add("Redo", "Ctrl+Y", "again", [](Session& x) { x.Redo(); })->enabled = s.history.CanRedo();
 

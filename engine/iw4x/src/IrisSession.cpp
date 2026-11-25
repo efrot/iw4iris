@@ -103,6 +103,7 @@ namespace IW4Iris
       u.uiScale = std::clamp(j.value("uiScale", u.uiScale), 0.6, 2.5);
       u.accent = j.value("accent", u.accent);
       u.onboarding = j.value("onboarding", u.onboarding);
+      u.showHome = j.value("showHome", u.showHome);
       u.mouseSensitivity = std::clamp(j.value("mouseSensitivity", u.mouseSensitivity), 0.005, 2.0);
       u.freeCamera.speed = std::clamp(j.value("freeCamSpeed", u.freeCamera.speed), 1.0, 20000.0);
       u.freeCamera.acceleration = std::clamp(j.value("freeCamAcceleration", u.freeCamera.acceleration), 0.5, 100.0);
@@ -141,6 +142,7 @@ namespace IW4Iris
     const nlohmann::json j{{"uiScale", u.uiScale},
                            {"accent", u.accent},
                            {"onboarding", u.onboarding},
+                           {"showHome", u.showHome},
                            {"mouseSensitivity", u.mouseSensitivity},
                            {"freeCamSpeed", u.freeCamera.speed},
                            {"freeCamAcceleration", u.freeCamera.acceleration},

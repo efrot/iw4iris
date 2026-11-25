@@ -224,9 +224,12 @@ This is the full workflow from demo to video file.
    different times. Each key appears as a
    diamond on the *Dolly 1* track and as a point of the path drawn in the
    view.
-5. **Preview.** Double-click **Dolly 1** in the **Scene** panel to make it
-   the active camera (or pick it in the toolbar's camera box). Move the
-   playhead back and press **Space**: the camera follows the path.
+5. **Preview.** The first key makes **Dolly 1** the active camera when
+   the game's own view was active (a message says so; otherwise
+   double-click it in the **Scene** panel or pick it in the toolbar's
+   camera box). Move the playhead back and press **Space**: playback
+   switches from the free view to the shot, and the camera follows the
+   path.
 6. **Refine.** Click a key on the timeline and change it in the
    **Inspector** (right): time, position, angles, field of view, focus,
    aperture, interpolation, ease in / out. Fly somewhere and press **U** to
