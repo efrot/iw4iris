@@ -6,6 +6,7 @@ add_executable(iw4iris_launcher WIN32
   src/Environment.cpp
   src/InstallPlan.cpp
   res/launcher.rc
+  ${CMAKE_SOURCE_DIR}/core/src/diagnostics.cpp
   ${IMGUI_DIR}/imgui.cpp
   ${IMGUI_DIR}/imgui_draw.cpp
   ${IMGUI_DIR}/imgui_tables.cpp

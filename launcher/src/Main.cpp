@@ -24,7 +24,10 @@
 
 #include "Environment.hpp"
 
+#include <iris/diagnostics.hpp>
 #include <iris/version.hpp>
+
+#include <ctime>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -104,6 +107,7 @@ namespace
     bool busy = false;
     std::string status;
     bool removeUserData = false;
+    bool launchAfterSetup = false;  // "Install & Launch": start the game when the setup succeeds
   } state;
 
   fs::path ExeFolder()
@@ -227,13 +231,83 @@ namespace
           ffmpeg = FindFfmpeg(o.environmentFolder);
         WriteEditorSettings(o.environmentFolder, ffmpeg, demos, &error);
         state.status = "Ready. Your normal IW4x installation was not changed.";
+        if (state.launchAfterSetup)
+        {
+          std::string launchError;
+          if (LaunchGame(o.environmentFolder, L"", &launchError))
+          {
+            Log("Started the cinematic build");
+            state.status += " Starting IW4Iris ...";
+          }
+          else
+          {
+            state.status = "Set up, but the game did not start: " + launchError;
+            Log(state.status);
+          }
+        }
       }
       else
       {
         state.status = "Setup failed: " + error;
         Log(state.status);
       }
+      state.launchAfterSetup = false;
     });
+  }
+
+  // What the package and the environment look like (cached: the checks
+  // read files).
+  struct Health
+  {
+    bool gameValid = false;
+    std::vector<std::string> gameMissing;
+    bool envReady = false;
+    ClientStatus client;
+    ModStatus mod;
+    std::optional<fs::path> ffmpeg;
+    unsigned long long freeBytes = 0;
+    double checkedAt = -10.0;
+  };
+
+  const Health& CurrentHealth()
+  {
+    static Health h;
+    if (ImGui::GetTime() - h.checkedAt < 1.0 || state.busy)
+      return h;
+    h = {};
+    h.checkedAt = ImGui::GetTime();
+    if (!state.gameFolder.empty())
+    {
+      const auto v = ValidateGameFolder(ListFolder(Utf8Path(state.gameFolder)));
+      h.gameValid = v.ok;
+      h.gameMissing = v.missing;
+    }
+    h.envReady = EnvironmentReady();
+    const auto env = Utf8Path(state.environmentFolder);
+    h.client = CheckClient(ExeFolder() / "client", env);
+    if (h.envReady)
+      h.mod = CheckDirectorMod(ExeFolder() / "mods" / "iw4iris_director", env);
+    h.ffmpeg = state.ffmpeg.empty() ? (h.envReady ? FindFfmpeg(env) : std::nullopt) : std::optional(Utf8Path(state.ffmpeg));
+    ULARGE_INTEGER free{};
+    std::error_code ec;
+    auto probe = env;
+    while (!probe.empty() && !fs::exists(probe, ec) && probe.has_parent_path() && probe.parent_path() != probe)
+      probe = probe.parent_path();
+    if (GetDiskFreeSpaceExW(probe.wstring().c_str(), &free, nullptr, nullptr))
+      h.freeBytes = free.QuadPart;
+    return h;
+  }
+
+  bool NeedsSetup(const Health& h)
+  {
+    return !h.envReady || !h.client.upToDate || (h.mod.shipped && !h.mod.upToDate);
+  }
+
+  void InstallAndLaunch()
+  {
+    SaveLauncherSettings();
+    state.launchAfterSetup = true;
+    Setup();
   }
 
   void Header(const char* text)
@@ -248,27 +322,250 @@ namespace
     ImGui::TextWrapped("IW4Iris runs a separate, offline copy of IW4x with the cinematic editor built in. Your normal "
                        "game installation is only read, never modified.");
     ImGui::Spacing();
-    const bool ready = EnvironmentReady();
-    if (ready)
-      ImGui::TextColored(ImVec4(0.5f, 0.9f, 0.6f, 1.0f), "Cinematic environment ready: %s", state.environmentFolder.c_str());
-    else
-      ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.4f, 1.0f), "Not set up yet. Open Setup first.");
-    ImGui::Spacing();
-    ImGui::BeginDisabled(!ready || state.busy);
-    if (ImGui::Button("Launch IW4Iris (offline)", ImVec2(280, 44)))
+    const auto& h = CurrentHealth();
+    const ImVec4 good(0.5f, 0.9f, 0.6f, 1.0f), warn(1.0f, 0.75f, 0.4f, 1.0f), bad(1.0f, 0.45f, 0.45f, 1.0f);
+    const ImVec2 big(300, 48);
+    if (state.busy)
     {
-      std::string error;
-      if (LaunchGame(Utf8Path(state.environmentFolder), L"", &error))
-        Log("Started the cinematic build");
-      else
-        Log("Launch failed: " + error);
+      ImGui::TextColored(warn, "Working ... (see Logs)");
     }
-    ImGui::EndDisabled();
+    else if (!h.client.shipped)
+    {
+      ImGui::TextColored(bad, "client\\iw4x.dll (the IW4Iris build) is missing next to the launcher.");
+      ImGui::TextWrapped("Download the complete package again: the launcher needs its client folder.");
+    }
+    else if (state.gameFolder.empty() || !h.gameValid)
+    {
+      ImGui::TextColored(warn, state.gameFolder.empty() ? "IW4x was not found automatically."
+                                                        : "The chosen folder is not a complete IW4x installation.");
+      for (const auto& m : h.gameMissing)
+        ImGui::BulletText("missing: %s", m.c_str());
+      if (ImGui::Button("Choose the game folder", ImVec2(240, 36)))
+        state.page = 1;
+    }
+    else if (NeedsSetup(h))
+    {
+      ImGui::TextColored(warn, "%s", !h.envReady              ? "One step left: install the cinematic environment."
+                                     : !h.client.upToDate ? "This package has a newer IW4Iris client than the environment."
+                                                          : "The Director Mod in the environment is out of date.");
+      if (ImGui::Button(h.envReady ? "Update & Launch" : "Install & Launch", big))
+        InstallAndLaunch();
+      ImGui::SetItemTooltip("Creates (or updates) the offline copy in\n%s\nthen starts it. The game folder is only read.",
+                            state.environmentFolder.c_str());
+    }
+    else
+    {
+      ImGui::TextColored(good, "Ready.");
+      if (ImGui::Button("Launch IW4Iris (offline)", big))
+      {
+        std::string error;
+        if (LaunchGame(Utf8Path(state.environmentFolder), L"", &error))
+        {
+          Log("Started the cinematic build");
+          state.status = "Starting IW4Iris ... In the game, F1 shows the editor.";
+        }
+        else
+        {
+          state.status = "Launch failed: " + error;
+          Log(state.status);
+        }
+      }
+    }
     ImGui::Spacing();
-    ImGui::TextDisabled("In game: F1 shows the editor. Load a demo from the Demos panel.");
+    ImGui::TextDisabled("In the game: F1 shows the editor. Its start screen shows the ways in.");
+    ImGui::Spacing();
+    // Quick actions
+    ImGui::BeginDisabled(state.busy || !h.envReady);
+    const auto env = Utf8Path(state.environmentFolder);
+    if (ImGui::Button("Open recordings"))
+      OpenFolder(env / "iw4iris" / "recordings");
+    ImGui::SameLine();
+    if (ImGui::Button("Open projects"))
+      state.page = 3;
+    ImGui::SameLine();
+    if (ImGui::Button("Repair"))
+    {
+      SaveLauncherSettings();
+      Setup();
+    }
+    ImGui::SetItemTooltip("Re-creates the links and copies the launcher made, and updates the client and the Director Mod.");
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Diagnostics"))
+      state.page = 5;
     ImGui::Spacing();
     if (!state.status.empty())
       ImGui::TextWrapped("%s", state.status.c_str());
+  }
+
+  // ------------------------------------------------------------ diagnostics
+
+  std::string EnvVar(const wchar_t* name)
+  {
+    wchar_t buffer[1024];
+    const DWORD n = GetEnvironmentVariableW(name, buffer, static_cast<DWORD>(std::size(buffer)));
+    return n == 0 || n >= std::size(buffer) ? std::string() : Narrow(std::wstring(buffer, n));
+  }
+
+  iris::Redaction ThisPc()
+  {
+    iris::Redaction r;
+    for (const wchar_t* v : {L"USERPROFILE", L"APPDATA", L"LOCALAPPDATA"})
+      if (auto value = EnvVar(v); !value.empty())
+        r.homes.push_back(value);
+    if (auto user = EnvVar(L"USERNAME"); !user.empty())
+      r.userNames.push_back(user);
+    return r;
+  }
+
+  iris::DiagnosticsReport LauncherReport()
+  {
+    using S = iris::CapabilityState;
+    const auto& h = CurrentHealth();
+    iris::DiagnosticsReport r;
+    r.product = std::string(iris::kVersionString) + " launcher";
+    r.build = "Windows";
+    {
+      const auto now = std::time(nullptr);
+      std::tm tm{};
+      gmtime_s(&tm, &now);
+      char buf[32];
+      std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm);
+      r.createdAt = buf;
+    }
+    auto add = [&](const char* id, const char* name, const char* area, S st, std::string detail, std::string fix = {}) {
+      r.capabilities.push_back({id, name, area, st, std::move(detail), std::move(fix)});
+    };
+    if (h.gameValid)
+      add("game", "IW4x installation", "Installation", S::Ready, state.gameFolder);
+    else
+    {
+      std::string missing;
+      for (const auto& m : h.gameMissing)
+        missing += (missing.empty() ? "" : ", ") + m;
+      add("game", "IW4x installation", "Installation", S::Failed,
+          state.gameFolder.empty() ? "not found" : "missing: " + missing, "Setup page: choose the folder with iw4x.exe.");
+    }
+    add("package", "IW4Iris client in this package", "Installation", h.client.shipped ? S::Ready : S::Failed,
+        h.client.shipped ? "client\\iw4x.dll" : "client\\iw4x.dll is missing",
+        h.client.shipped ? "" : "Download the complete package again.");
+    if (!h.envReady)
+      add("environment", "Cinematic environment", "Installation", S::NotAvailable, "not installed yet",
+          "Home: Install & Launch.");
+    else
+      add("environment", "Cinematic environment", "Installation", S::Ready, state.environmentFolder);
+    if (h.envReady)
+    {
+      if (h.client.upToDate)
+        add("client", "Client in the environment", "Installation", S::Ready, "same as this package");
+      else
+      {
+        std::string files;
+        for (const auto& f : h.client.outdated)
+          files += (files.empty() ? "" : ", ") + f;
+        add("client", "Client in the environment", "Installation", S::Failed,
+            h.client.installed ? "different from this package: " + files : "not installed", "Home: Update & Launch (or Repair).");
+      }
+      if (!h.mod.shipped)
+        add("mod", "Director Mod", "Director", S::Failed,
+            h.mod.problems.empty() ? "missing from the package" : h.mod.problems.front(), "Download the complete package again.");
+      else if (h.mod.upToDate)
+        add("mod", "Director Mod", "Director", S::Ready, "version " + h.mod.version);
+      else
+        add("mod", "Director Mod", "Director", S::Failed, h.mod.installed ? "out of date" : "not installed",
+            "Home: Update & Launch (or Repair).");
+    }
+    if (h.ffmpeg)
+      add("ffmpeg", "FFmpeg (MP4 / MOV / WebM export)", "Export", S::Ready, Narrow(h.ffmpeg->wstring()));
+    else
+      add("ffmpeg", "FFmpeg (MP4 / MOV / WebM export)", "Export", S::NotAvailable,
+          "not found: image sequences and AVI work without it", "FFmpeg page.");
+    const double gb = static_cast<double>(h.freeBytes) / (1024.0 * 1024.0 * 1024.0);
+    char space[64];
+    std::snprintf(space, sizeof(space), "%.1f GB free", gb);
+    add("disk", "Disk space for recordings", "Export", gb < 1.0 ? S::Failed : gb < 10.0 ? S::Limited : S::Ready, space,
+        gb < 10.0 ? "A minute of 1080p PNG frames takes several GB; free space or record to another drive." : "");
+    std::lock_guard _(state.logMutex);
+    const std::size_t from = state.log.size() > 60 ? state.log.size() - 60 : 0;
+    for (std::size_t i = from; i < state.log.size(); ++i)
+      r.log.push_back(state.log[i]);
+    return r;
+  }
+
+  void PageDiagnostics()
+  {
+    Header("Diagnostics");
+    const auto report = LauncherReport();
+    const auto overall = report.Overall();
+    auto color = [](iris::CapabilityState st) {
+      switch (st)
+      {
+      case iris::CapabilityState::Ready: return ImVec4(0.5f, 0.9f, 0.6f, 1.0f);
+      case iris::CapabilityState::Limited: return ImVec4(1.0f, 0.75f, 0.4f, 1.0f);
+      case iris::CapabilityState::Failed: return ImVec4(1.0f, 0.45f, 0.45f, 1.0f);
+      default: return ImVec4(0.65f, 0.65f, 0.7f, 1.0f);
+      }
+    };
+    ImGui::TextColored(color(overall), "%s", overall == iris::CapabilityState::Ready ? "Everything checked works."
+                                             : overall == iris::CapabilityState::Failed ? "Something needs fixing (see below)."
+                                                                                        : "Works, with limitations.");
+    ImGui::TextDisabled("In the game, the editor's Diagnostics panel checks the engine side (camera, render clock, "
+                        "occlusion, Director Mod) and runs a guided self-test.");
+    ImGui::Spacing();
+    if (ImGui::BeginTable("##checks", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp))
+    {
+      ImGui::TableSetupColumn("What", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+      ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+      ImGui::TableSetupColumn("Details", ImGuiTableColumnFlags_WidthStretch, 2.0f);
+      for (const auto& c : report.capabilities)
+      {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(c.name.c_str());
+        ImGui::TableNextColumn();
+        ImGui::TextColored(color(c.state), "%s", std::string(iris::ToString(c.state)).c_str());
+        ImGui::TableNextColumn();
+        ImGui::TextWrapped("%s", c.detail.c_str());
+        if (!c.fix.empty() && c.state != iris::CapabilityState::Ready)
+          ImGui::TextDisabled("-> %s", c.fix.c_str());
+      }
+      ImGui::EndTable();
+    }
+    ImGui::Spacing();
+    if (ImGui::Button("Copy the report"))
+      ImGui::SetClipboardText(iris::Redact(iris::ReportText(report), ThisPc()).c_str());
+    ImGui::SameLine();
+    if (ImGui::Button("Save a support report"))
+    {
+      const auto redaction = ThisPc();
+      auto copy = report;
+      for (auto& c : copy.capabilities)
+      {
+        c.detail = iris::Redact(c.detail, redaction);
+        c.fix = iris::Redact(c.fix, redaction);
+      }
+      for (auto& l : copy.log)
+        l = iris::Redact(l, redaction);
+      std::error_code ec;
+      const auto dir = SettingsFile().parent_path() / "support";
+      fs::create_directories(dir, ec);
+      std::string stamp = copy.createdAt;
+      for (auto& ch : stamp)
+        if (ch == ':')
+          ch = '-';
+      const auto file = dir / Utf8Path("launcher-support-" + stamp + ".json");
+      std::ofstream out(file, std::ios::binary);
+      out << iris::ReportJson(copy).dump(2);
+      if (out)
+      {
+        Log("Support report saved: " + iris::Redact(Narrow(file.wstring()), redaction));
+        OpenFolder(dir);
+      }
+      else
+        Log("Could not write the support report");
+    }
+    ImGui::SetItemTooltip("A JSON file with this table and the recent launcher log. Your home folder and account name "
+                          "are removed; no game files are included.");
   }
 
   void PageSetup()
@@ -528,8 +825,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
     ImGui::TextColored(ImVec4(0.545f, 0.486f, 0.965f, 1.0f), "IW4Iris");
     ImGui::TextDisabled("Launcher");
     ImGui::Spacing();
-    const char* pages[] = {"Home", "Setup", "FFmpeg", "Projects", "Logs", "About"};
-    for (int i = 0; i < 6; ++i)
+    const char* pages[] = {"Home", "Setup", "FFmpeg", "Projects", "Logs", "Diagnostics", "About"};
+    for (int i = 0; i < 7; ++i)
       if (ImGui::Selectable(pages[i], state.page == i, 0, ImVec2(0, 28)))
         state.page = i;
     ImGui::EndChild();
@@ -542,6 +839,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
     case 2: PageFfmpeg(); break;
     case 3: PageProjects(); break;
     case 4: PageLogs(); break;
+    case 5: PageDiagnostics(); break;
     default: PageAbout(); break;
     }
     ImGui::EndChild();

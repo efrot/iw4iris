@@ -58,6 +58,18 @@ namespace iris::launcher
   bool InstallDirectorMod(const std::filesystem::path& modFolder, const std::filesystem::path& environmentFolder,
                           const LogFn& log, std::string* error);
 
+  // The cinematic client in an environment compared with the package's.
+  struct ClientStatus
+  {
+    bool shipped = false;     // client\iw4x.dll next to the launcher
+    bool installed = false;   // iw4x.dll in the environment
+    bool upToDate = false;    // every client file identical to the package's
+    std::vector<std::string> outdated;
+  };
+  ClientStatus CheckClient(const std::filesystem::path& clientFolder, const std::filesystem::path& environmentFolder);
+
+  // Sets up or repairs the environment. On failure everything this run
+  // created is removed again and the previous manifest is kept.
   bool SetupEnvironment(const SetupOptions& options, const LogFn& log, std::string* error);
   bool EnvironmentExists(const std::filesystem::path& environmentFolder);
   std::optional<std::filesystem::path> EnvironmentGameFolder(const std::filesystem::path& environmentFolder);

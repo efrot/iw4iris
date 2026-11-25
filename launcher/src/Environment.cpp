@@ -270,6 +270,22 @@ namespace iris::launcher
     }
 
     nlohmann::json created = nlohmann::json::array();
+    // Everything this run creates, so a failure part-way (a locked file, a
+    // full disk, a closed window ...) is rolled back instead of leaving
+    // links and copies no manifest lists. Junctions are removed as links.
+    std::vector<fs::path> createdNow;
+    auto fail = [&](std::string message) {
+      for (auto it = createdNow.rbegin(); it != createdNow.rend(); ++it)
+      {
+        std::string err;
+        if (!SafeRemove(*it, &err))
+          log("rollback: could not remove " + Narrow(it->wstring()) + ": " + err);
+      }
+      if (!createdNow.empty())
+        log("rolled back " + std::to_string(createdNow.size()) + " item(s) created by the failed setup");
+      *error = std::move(message);
+      return false;
+    };
     std::string envName;
     if (envAbs.parent_path() == game)
       envName = Narrow(envAbs.filename().wstring());
@@ -292,10 +308,8 @@ namespace iris::launcher
         }
         std::string err;
         if (!CreateJunction(target, source, &err))
-        {
-          *error = "Could not link " + p.name + ": " + err;
-          return false;
-        }
+          return fail("Could not link " + p.name + ": " + err);
+        createdNow.push_back(target);
         created.push_back({{"path", p.name}, {"kind", "junction"}});
         log("linked " + p.name);
       }
@@ -306,10 +320,8 @@ namespace iris::launcher
           SafeRemove(target, nullptr);
         const bool linked = CreateHardLinkW(target.wstring().c_str(), source.wstring().c_str(), nullptr) != FALSE;
         if (!linked && !CopyFileW(source.wstring().c_str(), target.wstring().c_str(), FALSE))
-        {
-          *error = "Could not copy " + p.name + ": " + LastError("CopyFile");
-          return false;
-        }
+          return fail("Could not copy " + p.name + ": " + LastError("CopyFile"));
+        createdNow.push_back(target);
         created.push_back({{"path", p.name}, {"kind", linked ? "hardlink" : "copy"}});
       }
     }
@@ -324,10 +336,9 @@ namespace iris::launcher
       if (fs::exists(target, ec))
         SafeRemove(target, nullptr);
       if (!CopyFileW(it->path().wstring().c_str(), target.wstring().c_str(), FALSE))
-      {
-        *error = "Could not install the IW4Iris client (" + Narrow(it->path().filename().wstring()) + "): " + LastError("CopyFile");
-        return false;
-      }
+        return fail("Could not install the IW4Iris client (" + Narrow(it->path().filename().wstring()) +
+                    "): " + LastError("CopyFile"));
+      createdNow.push_back(target);
       created.push_back({{"path", Narrow(it->path().filename().wstring())}, {"kind", "copy"}});
     }
     for (const char* own : {"players", "userraw", "iw4iris", "iw4iris/projects", "iw4iris/recordings", "iw4iris/exports"})
@@ -354,9 +365,44 @@ namespace iris::launcher
                                   {"version", 1},
                                   {"game", Narrow(o.gameFolder.wstring())},
                                   {"created", created}};
-    std::ofstream(o.environmentFolder / kManifest) << manifest.dump(2);
+    // Written to a temporary file and renamed, so an interrupted write never
+    // leaves a half manifest behind.
+    const auto manifestFile = o.environmentFolder / kManifest;
+    const auto temporary = o.environmentFolder / (std::string(kManifest) + ".tmp");
+    {
+      std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+      out << manifest.dump(2);
+      if (!out)
+        return fail("Could not write " + Narrow(manifestFile.wstring()));
+    }
+    if (!MoveFileExW(temporary.wstring().c_str(), manifestFile.wstring().c_str(), MOVEFILE_REPLACE_EXISTING))
+      return fail("Could not write " + Narrow(manifestFile.wstring()) + ": " + LastError("MoveFileEx"));
     log("environment ready in " + Narrow(o.environmentFolder.wstring()));
     return true;
+  }
+
+  ClientStatus CheckClient(const fs::path& clientFolder, const fs::path& env)
+  {
+    ClientStatus st;
+    std::error_code ec;
+    st.shipped = fs::is_regular_file(clientFolder / "iw4x.dll", ec);
+    st.installed = fs::is_regular_file(env / "iw4x.dll", ec);
+    if (!st.shipped || !st.installed)
+      return st;
+    st.upToDate = true;
+    for (fs::directory_iterator it(clientFolder, ec), end; it != end; it.increment(ec))
+    {
+      if (!it->is_regular_file(ec))
+        continue;
+      const auto dst = env / it->path().filename();
+      if (!fs::is_regular_file(dst, ec) || fs::file_size(dst, ec) != fs::file_size(it->path(), ec) ||
+          ReadText(dst) != ReadText(it->path()))
+      {
+        st.upToDate = false;
+        st.outdated.push_back(Narrow(it->path().filename().wstring()));
+      }
+    }
+    return st;
   }
 
   ModStatus CheckDirectorMod(const fs::path& modFolder, const fs::path& env)
