@@ -427,7 +427,7 @@ namespace IW4Iris::Director
         state = SetState::Failed;
         lastError = "The Director Mod in the environment speaks protocol " + std::to_string(protocolSeen) +
                     ", this client protocol " + std::to_string(kProtocol) +
-                    ". Repair the installation in the IW4Iris launcher (Setup > Repair / update).";
+                    ". Close the game, open the IW4Iris launcher and click \"Update & Launch\" (or Repair).";
         Note(lastError);
         return;
       }
@@ -641,6 +641,20 @@ namespace IW4Iris::Director
     const bool inGame = s.status.cgameReady && !s.status.demoPlaying;
     if (!inGame)
     {
+      // The map never came up: a script compile error (shown by the game
+      // as "script compile error") stops the level before it starts. The
+      // most likely cause is a broken or outdated Director Mod in the
+      // environment, which the launcher replaces.
+      if (state == SetState::Loading && ++loadingFrames > 1800)
+      {
+        state = SetState::Failed;
+        lastError = "The film set's map did not load. If the game showed \"script compile error\", the Director Mod "
+                    "scripts in the cinematic environment are broken or outdated: close the game, open the IW4Iris "
+                    "launcher and click \"Update & Launch\" (or Repair). The console (~) names the file and line. "
+                    "Do not copy the mod into IW4x's own mods folder; the launcher installs it.";
+        Note(lastError);
+        return;
+      }
       // Left the set (disconnect, demo, error): give up after a while.
       if (state == SetState::Ready && ++framesWithoutGame > 600)
       {
@@ -659,8 +673,8 @@ namespace IW4Iris::Director
       if (++loadingFrames > 600)
       {
         state = SetState::Failed;
-        lastError = "The Director Mod did not start on this map. Repair the installation in the IW4Iris launcher "
-                    "(Setup > Repair / update) and check the console for a script error.";
+        lastError = "The Director Mod did not start on this map. Close the game, open the IW4Iris launcher and click "
+                    "\"Update & Launch\" (or Repair), then check the console (~) for a script error.";
         Note(lastError);
       }
       return;

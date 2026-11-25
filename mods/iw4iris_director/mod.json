@@ -2,7 +2,7 @@
   "format": "iw4iris-extension",
   "id": "iw4iris_director",
   "name": "IW4Iris Director Mod",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "IW4Iris contributors",
   "license": "GPL-3.0-or-later",
   "protocol": 2,

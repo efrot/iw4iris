@@ -1,5 +1,5 @@
 /*
-    IW4Iris Director Mod — entry point
+    IW4Iris Director Mod - entry point
     Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
 
     IW4x loads every script in scripts/mp/ when a multiplayer map starts and

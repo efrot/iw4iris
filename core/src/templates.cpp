@@ -188,6 +188,7 @@ namespace iris
             }
             return true;
         };
+        // The returned pointer is valid until the next actor is added.
         auto actor = [&](const std::vector<std::string>& cats, const Vec3& pos, double actorYaw, const std::string& weapon,
                          std::size_t skip = 0, const std::vector<std::string>& tokens = {}) -> ActorDef* {
             const CharacterEntry* ch = PickCharacter(a, cats, tokens, skip);
@@ -310,13 +311,20 @@ namespace iris
         }
         if (id == "confrontation")
         {
-            ActorDef* a1 = actor({"Task Force 141", "Rangers"}, c - f * 90.0, yaw, rifle, 0);
-            ActorDef* a2 = actor({"Spetsnaz", "OpFor", "Militia"}, c + f * 90.0, yaw + 180.0, rifle, 0);
+            // Pointers into scene.actors are only valid until the next actor
+            // is added (the vector may reallocate): keep ids, look them up.
+            const ActorDef* first = actor({"Task Force 141", "Rangers"}, c - f * 90.0, yaw, rifle, 0);
+            const std::string id1 = first ? first->id : std::string();
+            const ActorDef* second = actor({"Spetsnaz", "OpFor", "Militia"}, c + f * 90.0, yaw + 180.0, rifle, 0);
+            const std::string id2 = second ? second->id : std::string();
+            ActorDef* a1 = id1.empty() ? nullptr : p.scene.FindActor(id1);
+            ActorDef* a2 = id2.empty() ? nullptr : p.scene.FindActor(id2);
             if (a1 && a2)
             {
                 const auto c1 = shot(a1, ShotType::OverShoulder, start, 3.0, a2);
-                a2 = p.scene.FindActor(r.created[1]);
-                const auto c2 = shot(a2, ShotType::OverShoulder, start + 3.0, 3.0, p.scene.FindActor(r.created[0]));
+                a1 = p.scene.FindActor(id1);
+                a2 = p.scene.FindActor(id2);
+                const auto c2 = shot(a2, ShotType::OverShoulder, start + 3.0, 3.0, a1);
                 AddCut(p, start, c1);
                 AddCut(p, start + 3.0, c2);
                 SetActive(p, c1);

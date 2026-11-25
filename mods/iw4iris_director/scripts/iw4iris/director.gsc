@@ -1,5 +1,5 @@
 /*
-    IW4Iris Director Mod — film set runtime
+    IW4Iris Director Mod - film set runtime
     Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
 
     The native editor owns the scene; this script owns the game entities.
@@ -233,15 +233,17 @@ spawnActor( requestId, objectId, body, head )
     IW4IrisRespond( requestId, "ok", "" );
 }
 
-playAnimation( requestId, objectId, anim )
+// "anim" is a reserved word of the script language (like level, self and
+// game): it must never be used as a variable or parameter name.
+playAnimation( requestId, objectId, animation )
 {
     obj = objectOrFail( requestId, objectId );
     if ( !isDefined( obj ) )
         return;
 
-    obj.body scriptModelPlayAnim( anim );
+    obj.body scriptModelPlayAnim( animation );
     if ( isDefined( obj.head ) )
-        obj.head scriptModelPlayAnim( anim );
+        obj.head scriptModelPlayAnim( animation );
     IW4IrisRespond( requestId, "ok", "" );
 }
 

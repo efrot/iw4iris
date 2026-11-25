@@ -51,6 +51,7 @@ Run cmake @('--build', 'build\cmake-win32', '--config', $Configuration, '--paral
 if (-not $SkipTests) {
   Run ctest @('--test-dir', 'build\cmake-win32', '-C', $Configuration, '--output-on-failure')
   Run python @('-I', 'tests\python\test_blender_addon.py')
+  Run python @('-I', 'tests\python\test_gsc.py')
 }
 
 if ($Package) {

@@ -74,3 +74,14 @@ jobs:
         run: |
           ctest --test-dir build/linux --output-on-failure
           python3 -I tests/python/test_blender_addon.py
+          python3 -I tests/python/test_gsc.py
+
+      - name: Tests under AddressSanitizer and UndefinedBehaviorSanitizer
+        # Memory errors (e.g. a pointer into a vector that grew) can pass a
+        # normal run and fail at random elsewhere; the sanitizers make them
+        # fail here, every time.
+        run: |
+          cmake -S . -B build/sanitize -DCMAKE_BUILD_TYPE=Debug -DIW4IRIS_WERROR=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined"
+          cmake --build build/sanitize --parallel
+          ctest --test-dir build/sanitize --output-on-failure

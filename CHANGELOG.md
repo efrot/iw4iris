@@ -6,6 +6,15 @@ Verification states of every item: [docs/BACKLOG.md](docs/BACKLOG.md).
 
 ### Fixed
 
+* **Creating a cinematic on a map failed with "script compile error /
+  bad syntax"** (reported from the game): the Director Mod used `anim`, a
+  reserved word of the script language, as a name. Fixed (mod 0.3.1; the
+  launcher's *Update & Launch* installs it); a static check of the scripts
+  runs in CI, and the editor reports a film set whose map never loads
+  instead of waiting forever (F-35).
+* A scene template used a pointer to an actor after the actor list grew
+  (memory error seen once on Windows); tests now also run under the
+  address and undefined-behaviour sanitizers (F-36).
 * **The time could not be moved through a demo:** the timeline stayed at
   its default 10 seconds whatever the demo's length. It now covers the
   whole demo once the demo index is known (F-28).
