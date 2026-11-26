@@ -63,6 +63,13 @@ namespace iris
     std::string AddActorShot(Project& project, const ActorDef& actor, ShotType type, double start, double duration,
                              const ActorDef* secondary = nullptr);
 
+    // The environment word a character's model or label carries ("arctic",
+    // "desert", "forest", "woodland", "urban"), empty when it has none.
+    std::string_view CharacterEnvironment(const CharacterEntry& character);
+    // The loaded map's environment, voted by its soldiers (not the ghillie
+    // suits, which every map loads in all variants); "urban" when none says.
+    std::string_view MapEnvironment(const TemplateAssets& assets);
+
     // Chooses the preferred weapon (exact names first, then by base, then by
     // category) among the available ones.
     std::string PickWeapon(const std::vector<std::string>& weapons, const std::vector<std::string>& preferences,

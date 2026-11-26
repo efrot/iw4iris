@@ -3,7 +3,10 @@
 #include "iris/templates.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <cmath>
+#include <map>
 
 namespace iris
 {
@@ -15,12 +18,25 @@ namespace iris
         const CharacterEntry* PickCharacter(const TemplateAssets& a, const std::vector<std::string>& categories,
                                             const std::vector<std::string>& tokens = {}, std::size_t skip = 0)
         {
+            // Within a category, characters dressed for the map come first:
+            // every map loads the ghillie suits of all environments, so the
+            // first one by name (arctic) ended up on desert maps.
+            const std::string_view environment = MapEnvironment(a);
+            auto fit = [&](const CharacterEntry* c) {
+                const auto e = CharacterEnvironment(*c);
+                return e == environment ? 2 : e.empty() ? 1 : 0;
+            };
             std::vector<const CharacterEntry*> ranked;
             for (const auto& cat : categories)
+            {
+                const std::size_t from = ranked.size();
                 for (const auto& c : a.characters)
                     if (c.category == cat &&
                         std::all_of(tokens.begin(), tokens.end(), [&](const std::string& t) { return MatchesSearch(c, t); }))
                         ranked.push_back(&c);
+                std::stable_sort(ranked.begin() + static_cast<std::ptrdiff_t>(from), ranked.end(),
+                                 [&](const CharacterEntry* x, const CharacterEntry* y) { return fit(x) > fit(y); });
+            }
             for (const auto& c : a.characters)
                 if (std::find(ranked.begin(), ranked.end(), &c) == ranked.end())
                     ranked.push_back(&c);
@@ -47,6 +63,45 @@ namespace iris
             return r;
         }
     }  // namespace
+
+    std::string_view CharacterEnvironment(const CharacterEntry& character)
+    {
+        static constexpr std::array<std::string_view, 5> kEnvironments{"arctic", "desert", "forest", "woodland", "urban"};
+        std::string text = character.body + " " + character.label;
+        std::transform(text.begin(), text.end(), text.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        for (const auto e : kEnvironments)
+            if (text.find(e) != std::string::npos)
+                return e;
+        return {};
+    }
+
+    std::string_view MapEnvironment(const TemplateAssets& assets)
+    {
+        // The map's own soldiers tell its environment ("Desert TF141",
+        // "OpFor Arctic"); ghillie suits are loaded for every environment
+        // and do not count. City maps' soldiers carry no such word.
+        std::map<std::string_view, int> votes;
+        for (const auto& c : assets.characters)
+        {
+            std::string body = c.body;
+            std::transform(body.begin(), body.end(), body.begin(),
+                           [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+            if (body.find("ghillie") != std::string::npos)
+                continue;
+            if (const auto e = CharacterEnvironment(c); !e.empty())
+                ++votes[e];
+        }
+        std::string_view best = "urban";
+        int most = 0;
+        for (const auto& [e, n] : votes)
+            if (n > most)
+            {
+                best = e;
+                most = n;
+            }
+        return best;
+    }
 
     std::string PickWeapon(const std::vector<std::string>& weapons, const std::vector<std::string>& preferences,
                            const std::string& category)

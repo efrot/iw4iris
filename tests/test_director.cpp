@@ -565,6 +565,44 @@ TEST_CASE("templates: scene templates build editable actors, cameras and cuts")
     CHECK(nobody.scene.actors.empty());
 }
 
+TEST_CASE("templates: characters match the map's environment (desert ghillie on a desert map)")
+{
+    // Every MW2 map loads the ghillie suits of all environments; the map's
+    // own soldiers say which one fits (seen on mp_afghan: Desert TF141).
+    const std::vector<std::string> ghillies{"mp_body_ally_ghillie_arctic_sniper", "mp_body_ally_ghillie_desert_sniper",
+                                            "mp_body_ally_ghillie_forest_sniper", "mp_body_ally_ghillie_urban_sniper"};
+    auto assetsWith = [&](std::vector<std::string> soldiers) {
+        TemplateAssets a;
+        soldiers.insert(soldiers.end(), ghillies.begin(), ghillies.end());
+        a.characters = BuildCharacters(soldiers);
+        a.animations = {"pb_stand_alert"};
+        a.weapons = {"cheytac_mp"};
+        return a;
+    };
+    auto sniperBody = [](const TemplateAssets& a) {
+        Project p = MakeDefaultProject("s");
+        ApplySceneTemplate(p, "sniperShowcase", {0, 0, 0}, 0, a);
+        return p.scene.actors.empty() ? std::string() : p.scene.actors[0].bodyModel;
+    };
+
+    const auto desert = assetsWith({"mp_body_tf141_desert_assault_a", "mp_body_tf141_desert_lmg", "mp_body_opforce_arab_smg"});
+    CHECK(MapEnvironment(desert) == "desert");
+    CHECK(sniperBody(desert) == "mp_body_ally_ghillie_desert_sniper");
+
+    const auto arctic = assetsWith({"mp_body_tf141_arctic_assault_a", "mp_body_opforce_arctic_lmg"});
+    CHECK(MapEnvironment(arctic) == "arctic");
+    CHECK(sniperBody(arctic) == "mp_body_ally_ghillie_arctic_sniper");
+
+    // City maps: soldiers without an environment word.
+    const auto city = assetsWith({"mp_body_us_army_assault_a", "mp_body_airborne_lmg"});
+    CHECK(MapEnvironment(city) == "urban");
+    CHECK(sniperBody(city) == "mp_body_ally_ghillie_urban_sniper");
+
+    CharacterEntry plain;
+    plain.body = "mp_body_us_army_assault_a";
+    CHECK(CharacterEnvironment(plain).empty());
+}
+
 TEST_CASE("templates: title templates create animated graphics")
 {
     for (const auto& t : TitleTemplates())
