@@ -47,6 +47,9 @@ namespace IW4Iris
 
     // Director Mode
     bool beginnerMode = true;        // only the essential controls; raw names hidden
+    // Version of the panel layout saved in imgui.ini (Editor::kLayoutVersion);
+    // an older layout is rebuilt once so panels added since then are docked.
+    int layoutVersion = 0;
     std::set<std::string> favoriteAssets;   // raw asset names
     std::vector<std::string> recentAssets;
     std::set<std::string> favoriteMaps;

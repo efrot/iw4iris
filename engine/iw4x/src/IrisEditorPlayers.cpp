@@ -182,7 +182,7 @@ namespace IW4Iris::Editor
 
   void DrawPlayers(Session& s)
   {
-    if (!ImGui::Begin(PanelName(Panel::Players), &Shown(Panel::Players)))
+    if (!BeginPanel(Panel::Players))
     {
       ImGui::End();
       return;

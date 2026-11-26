@@ -116,6 +116,61 @@ namespace IW4Iris::Editor
 
   namespace
   {
+    // Which default column a panel belongs to.
+    ImGuiID HomeColumn(Panel p)
+    {
+      switch (p)
+      {
+      case Panel::Timeline: return ui.dockBottom;
+      case Panel::Inspector: case Panel::Look: case Panel::Lighting: case Panel::Recording:
+      case Panel::RenderQueue: case Panel::Music: case Panel::Export: case Panel::Presets:
+      case Panel::Settings: case Panel::Diagnostics: case Panel::ObjectInspector:
+        return ui.dockRight;
+      case Panel::Shortcuts: case Panel::GettingStarted:
+        return 0;
+      default:
+        return ui.dockLeft;
+      }
+    }
+
+    // A column of a layout saved by the user (or an earlier session): the
+    // dock node a panel of that column is in.
+    ImGuiID ColumnOf(Panel sibling)
+    {
+      if (const ImGuiWindow* w = ImGui::FindWindowByName(PanelName(sibling)); w && w->DockId)
+        return w->DockId;
+      if (const ImGuiWindowSettings* st = ImGui::FindWindowSettingsByID(ImHashStr(PanelName(sibling))); st && st->DockId)
+        return st->DockId;
+      return 0;
+    }
+  }
+
+  bool BeginPanel(Panel p, ImGuiWindowFlags flags)
+  {
+    const char* name = PanelName(p);
+    const ImGuiID id = ImHashStr(name);
+    if (!ImGui::FindWindowByID(id) && !ImGui::FindWindowSettingsByID(id))
+    {
+      // Never opened in this layout: dock it with its column.
+      ImGuiID column = HomeColumn(p);
+      if (column == ui.dockLeft && ui.dockLeft == 0)
+        column = ColumnOf(Panel::Outliner);
+      else if (column == ui.dockRight && ui.dockRight == 0)
+        column = ColumnOf(Panel::Inspector);
+      else if (column == ui.dockBottom && ui.dockBottom == 0)
+        column = ColumnOf(Panel::Timeline);
+      if (column)
+        ImGui::SetNextWindowDockID(column, ImGuiCond_FirstUseEver);
+      else
+        ImGui::SetNextWindowSize(ImVec2(420, 520), ImGuiCond_FirstUseEver);
+    }
+    // Floating panels stay readable (docked panels follow their column).
+    ImGui::SetNextWindowSizeConstraints(ImVec2(260, 140), ImVec2(FLT_MAX, FLT_MAX));
+    return ImGui::Begin(name, &Shown(p), flags);
+  }
+
+  namespace
+  {
     void ApplyWorkspace(const std::string& name)
     {
       for (const auto& w : Workspaces())
@@ -142,6 +197,9 @@ namespace IW4Iris::Editor
       const ImGuiID bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.30f, nullptr, &center);
       const ImGuiID left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.17f, nullptr, &center);
       const ImGuiID right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.24f, nullptr, &center);
+      ui.dockLeft = left;
+      ui.dockRight = right;
+      ui.dockBottom = bottom;
       ImGui::DockBuilderDockWindow(PanelName(Panel::Timeline), bottom);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Outliner), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Demos), left);
@@ -343,6 +401,7 @@ namespace IW4Iris::Editor
         {
           s.settings.showHome = true;
           ui.homeOpen = true;
+          ui.homeAsked = true;
         }
         ImGui::MenuItem("Getting started", nullptr, &Shown(Panel::GettingStarted));
         ImGui::MenuItem("Keyboard shortcuts", "?", &Shown(Panel::Shortcuts));
@@ -676,7 +735,7 @@ namespace IW4Iris::Editor
 
     void DrawOutliner(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Outliner), &Shown(Panel::Outliner)))
+      if (!BeginPanel(Panel::Outliner))
       {
         ImGui::End();
         return;
@@ -978,7 +1037,7 @@ namespace IW4Iris::Editor
 
     void DrawInspector(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Inspector), &Shown(Panel::Inspector)))
+      if (!BeginPanel(Panel::Inspector))
       {
         ImGui::End();
         return;
@@ -1304,7 +1363,7 @@ namespace IW4Iris::Editor
 
     void DrawLook(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Look), &Shown(Panel::Look)))
+      if (!BeginPanel(Panel::Look))
       {
         ImGui::End();
         return;
@@ -1438,7 +1497,7 @@ namespace IW4Iris::Editor
 
     void DrawDemos(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Demos), &Shown(Panel::Demos)))
+      if (!BeginPanel(Panel::Demos))
       {
         ImGui::End();
         return;
@@ -1457,6 +1516,10 @@ namespace IW4Iris::Editor
       ImGui::SameLine();
       if (IconButton(Icons::STAR, "Favourites only", ui.demoFavoritesOnly))
         ui.demoFavoritesOnly = !ui.demoFavoritesOnly;
+      // Enter plays the selected demo (not while typing in the search box),
+      // as does the Play button under the list.
+      const bool playSelected = !ui.selectedDemo.empty() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+                          !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
 
       if (ImGui::BeginTable("##demos", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV,
                             ImVec2(0, ImGui::GetContentRegionAvail().y - 120)))
@@ -1491,18 +1554,28 @@ namespace IW4Iris::Editor
           }
           ImGui::TableNextColumn();
           const bool loaded = s.loadedDemoPath && *s.loadedDemoPath == d.path;
-          if (ImGui::Selectable(d.name.c_str(), loaded, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick) &&
-              ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-          {
-            const auto path = d.path;
+          const bool selected = loaded || ui.selectedDemo == d.path;
+          auto play = [&s, path = d.path] {
             s.Post([path] {
               std::string error;
               if (!DemoControl::Play(path, &error))
                 Notify(error);
             });
+          };
+          if (ImGui::Selectable(d.name.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
+          {
+            ui.selectedDemo = d.path;
+            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+              play();
           }
+          if (ui.selectedDemo == d.path && playSelected)
+            play();
           if (ImGui::BeginPopupContextItem())
           {
+            ui.selectedDemo = d.path;
+            if (ImGui::MenuItem(loaded ? "Play again from the start" : "Play"))
+              play();
+            ImGui::Separator();
             std::string edit = label;
             if (ImGui::InputText("Label", &edit))
             {
@@ -1534,7 +1607,23 @@ namespace IW4Iris::Editor
       if (ui.demoScanRunning)
         ImGui::TextDisabled("Scanning...");
       else
-        ImGui::TextDisabled("%zu demo(s). Double-click to play; the file is copied, never modified.", s.demoList.size());
+      {
+        ImGui::BeginDisabled(ui.selectedDemo.empty());
+        if (ImGui::Button((std::string(Icons::PLAY) + "  Play").c_str()))
+        {
+          const auto path = ui.selectedDemo;
+          s.Post([path] {
+            std::string error;
+            if (!DemoControl::Play(path, &error))
+              Notify(error);
+          });
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::TextDisabled(ui.selectedDemo.empty() ? "%zu demo(s): click one, then Play (or double-click it)."
+                                                    : "%zu demo(s). The file is copied, never modified.",
+                            s.demoList.size());
+      }
 
       ImGui::SeparatorText("Demo folders");
       for (std::size_t i = 0; i < s.settings.demoFolders.size(); ++i)
@@ -1667,7 +1756,7 @@ namespace IW4Iris::Editor
 
     void DrawRecording(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Recording), &Shown(Panel::Recording)))
+      if (!BeginPanel(Panel::Recording))
       {
         ImGui::End();
         return;
@@ -1750,7 +1839,7 @@ namespace IW4Iris::Editor
 
     void DrawRenderQueue(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::RenderQueue), &Shown(Panel::RenderQueue)))
+      if (!BeginPanel(Panel::RenderQueue))
       {
         ImGui::End();
         return;
@@ -1898,7 +1987,7 @@ namespace IW4Iris::Editor
 
     void DrawExport(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Export), &Shown(Panel::Export)))
+      if (!BeginPanel(Panel::Export))
       {
         ImGui::End();
         return;
@@ -1964,7 +2053,7 @@ namespace IW4Iris::Editor
 
     void DrawPresets(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Presets), &Shown(Panel::Presets)))
+      if (!BeginPanel(Panel::Presets))
       {
         ImGui::End();
         return;
@@ -2067,7 +2156,7 @@ namespace IW4Iris::Editor
 
     void DrawLighting(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Lighting), &Shown(Panel::Lighting)))
+      if (!BeginPanel(Panel::Lighting))
       {
         ImGui::End();
         return;
@@ -2114,7 +2203,7 @@ namespace IW4Iris::Editor
 
     void DrawSettings(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Settings), &Shown(Panel::Settings)))
+      if (!BeginPanel(Panel::Settings))
       {
         ImGui::End();
         return;
@@ -2183,7 +2272,7 @@ namespace IW4Iris::Editor
 
     void DrawDiagnostics(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::Diagnostics), &Shown(Panel::Diagnostics)))
+      if (!BeginPanel(Panel::Diagnostics))
       {
         ImGui::End();
         return;
@@ -2202,6 +2291,9 @@ namespace IW4Iris::Editor
       ImGui::Text("Dear ImGui %s", IMGUI_VERSION);
       ImGui::SeparatorText("Offline guard");
       ImGui::Text("Engine packet sender blocked: %s", g.engineSendBlocked ? "yes" : "NO");
+      ImGui::Text("Local (loopback) packets: %s, %llu delivered",
+                  g.loopbackForwarding ? "delivered" : "BLOCKED - film sets cannot load",
+                  static_cast<unsigned long long>(g.forwardedLoopbackPackets));
       ImGui::Text("Winsock imports guarded: %d, HTTP imports guarded: %d", g.winsockImportsGuarded, g.httpImportsGuarded);
       ImGui::Text("Dropped packets: %llu, blocked connections: %llu, blocked HTTP: %llu",
                   static_cast<unsigned long long>(g.droppedPackets), static_cast<unsigned long long>(g.blockedConnections),
@@ -2247,7 +2339,7 @@ namespace IW4Iris::Editor
 
     void DrawHistory(Session& s)
     {
-      if (!ImGui::Begin(PanelName(Panel::History), &Shown(Panel::History)))
+      if (!BeginPanel(Panel::History))
       {
         ImGui::End();
         return;
@@ -2263,7 +2355,7 @@ namespace IW4Iris::Editor
       if (!Shown(Panel::Shortcuts))
         return;
       ImGui::SetNextWindowSize(ImVec2(420, 520), ImGuiCond_FirstUseEver);
-      if (!ImGui::Begin(PanelName(Panel::Shortcuts), &Shown(Panel::Shortcuts)))
+      if (!BeginPanel(Panel::Shortcuts))
       {
         ImGui::End();
         return;
@@ -2311,7 +2403,7 @@ namespace IW4Iris::Editor
       ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x * 0.5f, vp->WorkPos.y + vp->WorkSize.y * 0.35f),
                               ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
       ImGui::SetNextWindowSize(ImVec2(460, 0), ImGuiCond_FirstUseEver);
-      if (!ImGui::Begin(PanelName(Panel::GettingStarted), &Shown(Panel::GettingStarted)))
+      if (!BeginPanel(Panel::GettingStarted))
       {
         ImGui::End();
         return;
@@ -2357,9 +2449,13 @@ namespace IW4Iris::Editor
     void DrawHome(Session& s)
     {
       if (!ui.homeOpen || !s.settings.showHome)
+      {
+        ui.homeAsked = false;
         return;
-      // Close by itself once there is something to work on.
-      if (s.status.demoPlaying || s.status.cgameReady || !s.projectFile.empty())
+      }
+      // Shown at start, it closes by itself once there is something to work
+      // on; opened from Help > Start screen it stays until closed.
+      if (!ui.homeAsked && (s.status.demoPlaying || s.status.cgameReady || !s.projectFile.empty()))
       {
         ui.homeOpen = false;
         return;
@@ -3034,7 +3130,10 @@ namespace IW4Iris::Editor
 
     ApplyTheme(s.settings.accent, static_cast<float>(s.settings.uiScale));
     ImGui::GetStyle().FontScaleMain = static_cast<float>(s.settings.uiScale);
-    ui.layoutBuilt = std::filesystem::exists(iniPath, ec);
+    // A layout saved before the current panel set is rebuilt once: panels
+    // added since then would otherwise float in a corner, a few pixels wide
+    // (seen in the game with a 0.3 layout and 0.5 panels).
+    ui.layoutBuilt = std::filesystem::exists(iniPath, ec) && s.settings.layoutVersion >= kLayoutVersion;
     ApplyWorkspace("Cinematic");
     Shown(Panel::Demos) = true;
     Shown(Panel::GettingStarted) = s.settings.onboarding;
@@ -3093,6 +3192,11 @@ namespace IW4Iris::Editor
       BuildDefaultLayout(ui.dockspace);
       ui.layoutBuilt = true;
       ui.resetLayout = false;
+      if (s.settings.layoutVersion != kLayoutVersion)
+      {
+        s.settings.layoutVersion = kLayoutVersion;
+        SaveSettings(s);
+      }
     }
     ImGui::DockSpace(ui.dockspace, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
     ImGui::End();
@@ -3104,7 +3208,7 @@ namespace IW4Iris::Editor
       DrawInspector(s);
     if (Shown(Panel::Timeline))
     {
-      if (ImGui::Begin(PanelName(Panel::Timeline), &Shown(Panel::Timeline)))
+      if (BeginPanel(Panel::Timeline))
         DrawTimeline(s);
       ImGui::End();
     }

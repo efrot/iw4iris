@@ -475,6 +475,21 @@ namespace
         add("mod", "Director Mod", "Director", S::Failed, h.mod.installed ? "out of date" : "not installed",
             "Home: Update & Launch (or Repair).");
     }
+    // A copy of the Director Mod in IW4x's own mods folder (put there by
+    // hand) is offered in IW4x's Mods menu; when it is chosen, its scripts
+    // replace the ones the launcher installed, and an outdated copy then
+    // breaks the film set. IW4Iris never uses it and never deletes it (it is
+    // in the user's own game folder).
+    if (!state.gameFolder.empty())
+    {
+      std::error_code ec;
+      const auto stray = Utf8Path(state.gameFolder) / "mods" / "iw4iris_director";
+      if (fs::is_directory(stray, ec))
+        add("stray-mod", "Extra Director Mod copy", "Director", S::Limited,
+            Narrow(stray.wstring()) + " is not used by IW4Iris",
+            "Do not choose it in IW4x's Mods menu. You can delete that folder: the launcher installs the Director "
+            "Mod into the cinematic environment by itself.");
+    }
     if (h.ffmpeg)
       add("ffmpeg", "FFmpeg (MP4 / MOV / WebM export)", "Export", S::Ready, Narrow(h.ffmpeg->wstring()));
     else

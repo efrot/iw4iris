@@ -142,7 +142,7 @@ namespace IW4Iris::Editor
 
   void DrawMoments(Session& s)
   {
-    if (!ImGui::Begin(PanelName(Panel::Moments), &Shown(Panel::Moments)))
+    if (!BeginPanel(Panel::Moments))
     {
       ImGui::End();
       return;

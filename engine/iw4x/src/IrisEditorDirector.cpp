@@ -291,7 +291,7 @@ namespace IW4Iris::Editor
   void DrawDirector(Session& s)
   {
     auto& ui = Ui();
-    if (!ImGui::Begin(PanelName(Panel::Director), &Shown(Panel::Director)))
+    if (!BeginPanel(Panel::Director))
     {
       ImGui::End();
       return;
@@ -607,7 +607,7 @@ namespace IW4Iris::Editor
   void DrawCharacters(Session& s)
   {
     auto& ui = Ui();
-    if (!ImGui::Begin(PanelName(Panel::Actors), &Shown(Panel::Actors)))
+    if (!BeginPanel(Panel::Actors))
     {
       ImGui::End();
       return;
@@ -678,7 +678,7 @@ namespace IW4Iris::Editor
   void DrawAnimations(Session& s)
   {
     auto& ui = Ui();
-    if (!ImGui::Begin(PanelName(Panel::Animations), &Shown(Panel::Animations)))
+    if (!BeginPanel(Panel::Animations))
     {
       ImGui::End();
       return;
@@ -752,7 +752,7 @@ namespace IW4Iris::Editor
   void DrawAssets(Session& s)
   {
     auto& ui = Ui();
-    if (!ImGui::Begin(PanelName(Panel::Assets), &Shown(Panel::Assets)))
+    if (!BeginPanel(Panel::Assets))
     {
       ImGui::End();
       return;
@@ -847,7 +847,7 @@ namespace IW4Iris::Editor
   void DrawGraphics(Session& s)
   {
     auto& ui = Ui();
-    if (!ImGui::Begin(PanelName(Panel::Graphics), &Shown(Panel::Graphics)))
+    if (!BeginPanel(Panel::Graphics))
     {
       ImGui::End();
       return;
@@ -1921,7 +1921,7 @@ namespace IW4Iris::Editor
 
   void DrawObjectInspector(Session& s)
   {
-    if (!ImGui::Begin(PanelName(Panel::ObjectInspector), &Shown(Panel::ObjectInspector)))
+    if (!BeginPanel(Panel::ObjectInspector))
     {
       ImGui::End();
       return;

@@ -74,7 +74,7 @@ namespace IW4Iris::Editor
 
   void DrawMusic(Session& s)
   {
-    if (!ImGui::Begin(PanelName(Panel::Music), &Shown(Panel::Music)))
+    if (!BeginPanel(Panel::Music))
     {
       ImGui::End();
       return;

@@ -110,9 +110,14 @@ namespace IW4Iris::Editor
     bool layoutBuilt = false;
     bool resetLayout = false;
     ImGuiID dockspace = 0;
+    // The default layout's columns (0 when the saved layout has none).
+    ImGuiID dockLeft = 0;
+    ImGuiID dockRight = 0;
+    ImGuiID dockBottom = 0;
     TimelineView timeline;
 
     std::string demoSearch;
+    std::filesystem::path selectedDemo;  // the row clicked in the Demos panel
     bool demoFavoritesOnly = false;
     std::string newDemoFolder;
     bool demoScanRunning = false;
@@ -121,6 +126,7 @@ namespace IW4Iris::Editor
     std::string saveAsPath;
     bool openPopup = false;
     bool homeOpen = true;     // the start screen (closed once something is chosen or loaded)
+    bool homeAsked = false;  // opened from the menu: stays open over a demo or a map
     GameView gameView;        // where the game picture is shown this frame
     bool viewportClickConsumed = false;  // a player name took this click (no object selection then)
     bool saveAsPopup = false;
@@ -213,6 +219,12 @@ namespace IW4Iris::Editor
   void DrawOverlay(Session& s);
   bool& Shown(Panel p);
   const char* PanelName(Panel p);
+  // ImGui::Begin for an editor panel: a panel the saved layout has never seen
+  // (added in a later version) is docked beside its siblings instead of
+  // floating, and no panel gets narrower than readable.
+  bool BeginPanel(Panel p, ImGuiWindowFlags flags = 0);
+  // Version of the default layout; raise it when panels are added or moved.
+  inline constexpr int kLayoutVersion = 2;
 
   // Director Mode (IrisEditorDirector.cpp)
   void DrawDirector(Session& s);

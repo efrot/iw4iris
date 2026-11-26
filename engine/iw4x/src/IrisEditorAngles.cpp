@@ -308,7 +308,7 @@ namespace IW4Iris::Editor
 
   void DrawAngles(Session& s)
   {
-    if (!ImGui::Begin(PanelName(Panel::Angles), &Shown(Panel::Angles)))
+    if (!BeginPanel(Panel::Angles))
     {
       ImGui::End();
       return;
