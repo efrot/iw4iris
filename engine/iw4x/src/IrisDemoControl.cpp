@@ -58,13 +58,22 @@ namespace IW4Iris::DemoControl
         Game::Dvar_SetFloat(*Game::com_timescale, static_cast<float>(value));
     }
 
-    void ScanIndexAsync(const std::filesystem::path& file)
+    // Scans the demo file in the background. Each demo started gets a new
+    // generation; a scan that finishes after another demo was started is
+    // dropped (it used to overwrite the newer demo's index: wrong length,
+    // wrong seek points).
+    void ScanIndexAsync(const std::filesystem::path& file, std::uint64_t generation)
     {
-      std::thread([file] {
+      std::thread([file, generation] {
         std::string error;
         auto index = iris::ScanDemoFile(file, Utils::Huffman::Decompress, &error);
         auto& s = GetSession();
         std::lock_guard _(s.mutex);
+        if (generation != s.demoGeneration)
+        {
+          Log::Info("Demo index of {} dropped: another demo was opened meanwhile", file.filename().string());
+          return;
+        }
         if (index)
         {
           for (const auto& w : index->warnings)
@@ -118,13 +127,15 @@ namespace IW4Iris::DemoControl
     currentDemo = std::string(kTempFolder) + "/" + stem;
     currentFile = demo;
     ReleaseTime();
+    std::uint64_t generation = 0;
     {
       auto& s = GetSession();
       std::lock_guard _(s.mutex);
       s.loadedDemoPath = demo;
       s.demoIndex.reset();
+      generation = ++s.demoGeneration;
     }
-    ScanIndexAsync(demo);
+    ScanIndexAsync(demo, generation);
     Log::Info("Playing demo {}", demo.string());
     Engine::Execute("demo " + currentDemo);
     return true;

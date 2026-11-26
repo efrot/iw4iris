@@ -15,8 +15,19 @@
 namespace iris
 {
     // What the engine knows that a rig may need.
+    // Where a player's eyes are and where they look, at this frame.
+    struct PlayerView
+    {
+        Vec3 eye;                  // world position of the eyes
+        EulerAngles angles;        // view direction (roll 0)
+        bool exact = false;        // the recorded first-person view itself (the recording player)
+    };
+
     struct RigContext
     {
+        // A player's view (player eyes and chase cameras); none when the
+        // player is not available at this time.
+        std::function<std::optional<PlayerView>(const TargetRef&)> resolvePlayer;
         // World position of a target (player / entity origin plus its
         // offset), none when the target is not present right now.
         std::function<std::optional<Vec3>(const TargetRef&)> resolveTarget;

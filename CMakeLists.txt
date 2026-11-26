@@ -5,7 +5,7 @@
 # component is built inside the IW4x client tree with IW4x's own premake
 # build; see BUILD.md and engine/iw4x/.
 cmake_minimum_required(VERSION 3.20)
-project(IW4Iris VERSION 0.3.1 LANGUAGES CXX)
+project(IW4Iris VERSION 0.4.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,6 +49,7 @@ add_library(iw4iris_core STATIC
   core/src/timeline_view.cpp
   core/src/search.cpp
   core/src/diagnostics.cpp
+  core/src/players.cpp
   core/src/recording.cpp
   core/src/project.cpp
   core/src/rig.cpp
@@ -90,6 +91,7 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_timeline_view.cpp
     tests/test_search.cpp
     tests/test_diagnostics.cpp
+    tests/test_players.cpp
     tests/test_recording.cpp
     tests/test_project.cpp
     tests/test_history.cpp

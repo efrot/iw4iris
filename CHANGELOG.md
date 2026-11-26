@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.4.0 — 2026-11-26 (Demo Director: players and perspectives, not yet tested in the game)
+
+### Added
+
+* **Players panel** for demos: everyone the demo records, by team, with
+  what is known right now (in view, dead, not in view, not connected),
+  search, favourites, previous / next (**[** / **]**), names over the
+  players in the view (click to select, double-click to look through
+  their eyes).
+* **Player perspectives:** *their eyes* (the recording player's exact
+  view; for everybody else reconstructed from position, stance and view
+  angles, and labelled so), *behind them* (a chase camera that turns with
+  the player: distance, height, shoulder, angle), follow and orbit. Each
+  can be added as a camera cut at the playhead to build multi-player
+  sequences.
+* Players are followed by identity: through death and respawn, out of
+  view, leaving and coming back; a reused slot is a different player, and
+  two players of the same name are told apart. Cameras save the player's
+  name (project format: `target.name`; new camera modes `playerEyes`,
+  `chase`).
+* When the shot camera has no picture (its player is not in the demo at
+  that moment) the toolbar says so and a recording counts those frames,
+  instead of silently showing something else.
+
+### Fixed
+
+* A camera aimed at the recording player found no target (their entity is
+  not part of the snapshot); they are now resolved from the player state.
+* A late background scan of a previous demo could replace the current
+  demo's index (length, seek origin).
+
 ## 0.3.1 — 2026-11-26 (fixes from the first in-game reports, not yet tested in the game)
 
 ### Fixed

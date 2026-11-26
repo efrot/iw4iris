@@ -12,7 +12,7 @@
 
 Download GitHub's **Code → Download ZIP** (it contains the prebuilt
 launcher and client next to the source code; use the folder inside the
-ZIP) or the release package `IW4Iris-v0.3.1-Windows-x86.zip`.
+ZIP) or the release package `IW4Iris-v0.4.0-Windows-x86.zip`.
 
 1. Unzip it into a folder of your choice
    (not inside the game folder). Keep its contents together:

@@ -6,7 +6,7 @@
 set -euo pipefail
 client="${1:?usage: $0 <iw4x.dll> <launcher.exe> [version]}"
 launcher="${2:?usage: $0 <iw4x.dll> <launcher.exe> [version]}"
-version="${3:-0.3.1}"
+version="${3:-0.4.0}"
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 name="IW4Iris-v${version}-Windows-x86"
 out="$repo/dist/$name"

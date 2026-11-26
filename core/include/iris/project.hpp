@@ -35,6 +35,8 @@ namespace iris
         Orbit,        // circles a target
         Follow,       // keeps an offset to a target
         Static,       // tripod: fixed transform, optional look-at target
+        PlayerEyes,   // a demo player's eyes: exact for the recording player, reconstructed for others
+        Chase,        // behind a player, turning with them (third person of any player)
     };
     std::string_view ToString(CameraMode mode);
     std::optional<CameraMode> CameraModeFromString(std::string_view text);
@@ -52,9 +54,10 @@ namespace iris
     struct TargetRef
     {
         TargetKind kind = TargetKind::None;
-        int index = -1;           // client or entity number
+        int index = -1;           // client or entity number (for a player: the slot when it was chosen)
         Vec3 point;               // for Point
         Vec3 offset{0, 0, 60};    // added to the target's origin (eye height)
+        std::string name;         // a player's name: who is meant (slots are reused); empty: the slot alone
         bool operator==(const TargetRef&) const = default;
     };
 
@@ -92,7 +95,8 @@ namespace iris
         double orbitDistance = 160.0;
         double orbitHeight = 40.0;
         double orbitSpeed = 20.0;     // degrees per second
-        double orbitStartAngle = 0.0; // degrees
+        double orbitStartAngle = 0.0; // degrees (chase: 0 behind the player, 180 in front)
+        double chaseShoulder = 0.0;   // chase: sideways offset, units (positive: right shoulder)
 
         ShakeSettings shake;
 

@@ -11,6 +11,8 @@
 #include <iris/camera.hpp>
 #include <iris/math.hpp>
 
+#include <iris/players.hpp>
+
 #include <optional>
 #include <string>
 #include <vector>
@@ -59,6 +61,12 @@ namespace IW4Iris::Engine
     bool present = false;
   };
   std::vector<PlayerInfo> Players();
+  // Every player the current snapshot lists or shows (demo or film set):
+  // the client list gives slot, name and team; the player entities in the
+  // snapshot give position, view angles (interpolated like the cgame does),
+  // stance and life; the recording player comes from the predicted player
+  // state (exact eyes). Main thread.
+  std::vector<iris::PlayerObservation> ObservePlayers();
   std::optional<iris::Vec3> EntityOrigin(int entityNum);
   int LocalClientNum();          // the demo's / game's own client number
   iris::Vec3 LocalPlayerOrigin();

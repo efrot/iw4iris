@@ -124,6 +124,7 @@ namespace IW4Iris
       u.recentAssets = j.value("recentAssets", u.recentAssets);
       u.favoriteMaps = j.value("favoriteMaps", u.favoriteMaps);
       u.recentMaps = j.value("recentMaps", u.recentMaps);
+      u.favoritePlayers = j.value("favoritePlayers", u.favoritePlayers);
       u.fontFolders = j.value("fontFolders", u.fontFolders);
       u.guideThirds = j.value("guideThirds", u.guideThirds);
       u.guideCentre = j.value("guideCentre", u.guideCentre);
@@ -164,6 +165,7 @@ namespace IW4Iris
                            {"recentAssets", u.recentAssets},
                            {"favoriteMaps", u.favoriteMaps},
                            {"recentMaps", u.recentMaps},
+                           {"favoritePlayers", u.favoritePlayers},
                            {"fontFolders", u.fontFolders},
                            {"guideThirds", u.guideThirds},
                            {"guideCentre", u.guideCentre},

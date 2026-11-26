@@ -116,6 +116,42 @@ namespace iris
                 out = FromTransform(pos, LookAt(pos, *tp, camera.angles.roll), FovOf(camera), camera);
                 break;
             }
+            case CameraMode::PlayerEyes:
+            {
+                // The recording player's eyes are the game's own view (exact,
+                // with its recorded field of view); any other player's are
+                // reconstructed from their entity: origin, stance, view angles.
+                const auto pv = context.resolvePlayer ? context.resolvePlayer(camera.target) : std::nullopt;
+                if (!pv)
+                    break;
+                if (pv->exact && context.gameView)
+                    out = context.gameView;
+                else
+                {
+                    // A few units in front of the eyes, out of the player's
+                    // own head model (the engine still draws it).
+                    const EulerAngles view{pv->angles.pitch, pv->angles.yaw, 0.0};
+                    out = FromTransform(pv->eye + AnglesToForward(view) * 6.0, view, FovOf(camera), camera);
+                }
+                break;
+            }
+            case CameraMode::Chase:
+            {
+                // Behind the player (orbitStartAngle turns around them),
+                // turning with their yaw; looks just ahead of their eyes.
+                const auto pv = context.resolvePlayer ? context.resolvePlayer(camera.target) : std::nullopt;
+                if (!pv)
+                    break;
+                const double yaw = (pv->angles.yaw + camera.orbitStartAngle) * kDegToRad;
+                const Vec3 forward{std::cos(yaw), std::sin(yaw), 0.0};
+                const Vec3 right{std::sin(yaw), -std::cos(yaw), 0.0};
+                const Vec3 pos = pv->eye - forward * camera.orbitDistance + right * camera.chaseShoulder +
+                                 Vec3{0.0, 0.0, camera.orbitHeight};
+                const double facing = pv->angles.yaw * kDegToRad;
+                const Vec3 look = pv->eye + Vec3{std::cos(facing), std::sin(facing), 0.0} * 48.0;
+                out = FromTransform(pos, LookAt(pos, look, camera.angles.roll), FovOf(camera), camera);
+                break;
+            }
             case CameraMode::Follow:
             {
                 const auto tp = target();

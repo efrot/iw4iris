@@ -34,6 +34,8 @@ namespace iris
             case CameraMode::Orbit: return "orbit";
             case CameraMode::Follow: return "follow";
             case CameraMode::Static: return "static";
+            case CameraMode::PlayerEyes: return "playerEyes";
+            case CameraMode::Chase: return "chase";
         }
         return "dolly";
     }
@@ -41,7 +43,8 @@ namespace iris
     std::optional<CameraMode> CameraModeFromString(std::string_view text)
     {
         for (auto m : {CameraMode::FirstPerson, CameraMode::ThirdPerson, CameraMode::Free, CameraMode::Dolly,
-                       CameraMode::Orbit, CameraMode::Follow, CameraMode::Static})
+                       CameraMode::Orbit, CameraMode::Follow, CameraMode::Static, CameraMode::PlayerEyes,
+                       CameraMode::Chase})
             if (ToString(m) == text)
                 return m;
         return std::nullopt;
@@ -74,7 +77,7 @@ namespace iris
                position == o.position && angles == o.angles && lens == o.lens && useLensFov == o.useLensFov &&
                horizontalFov == o.horizontalFov && target == o.target && orbitDistance == o.orbitDistance &&
                orbitHeight == o.orbitHeight && orbitSpeed == o.orbitSpeed && orbitStartAngle == o.orbitStartAngle &&
-               shake == o.shake;
+               chaseShoulder == o.chaseShoulder && shake == o.shake;
     }
 
     // ------------------------------------------------------------ project queries
@@ -292,7 +295,10 @@ namespace iris
 
         json TargetJson(const TargetRef& t)
         {
-            return {{"kind", ToString(t.kind)}, {"index", t.index}, {"point", ToJson(t.point)}, {"offset", ToJson(t.offset)}};
+            json j{{"kind", ToString(t.kind)}, {"index", t.index}, {"point", ToJson(t.point)}, {"offset", ToJson(t.offset)}};
+            if (!t.name.empty())
+                j["name"] = t.name;
+            return j;
         }
 
         TargetRef TargetFrom(const json& j)
@@ -302,6 +308,7 @@ namespace iris
                 return t;
             t.kind = TargetKindFromString(Get<std::string>(j, "kind", "none")).value_or(TargetKind::None);
             t.index = Get<int>(j, "index", -1);
+            t.name = Get<std::string>(j, "name", "");
             t.point = Vec3From(j.value("point", json()));
             t.offset = Vec3From(j.value("offset", json()), t.offset);
             return t;
@@ -330,7 +337,8 @@ namespace iris
                      {{"distance", c.orbitDistance},
                       {"height", c.orbitHeight},
                       {"speed", c.orbitSpeed},
-                      {"startAngle", c.orbitStartAngle}}},
+                      {"startAngle", c.orbitStartAngle},
+                      {"shoulder", c.chaseShoulder}}},
                     {"shake",
                      {{"enabled", c.shake.enabled},
                       {"position", c.shake.amplitudePosition},
@@ -374,6 +382,7 @@ namespace iris
                 c.orbitHeight = GetNumber(*it, "height", c.orbitHeight);
                 c.orbitSpeed = GetNumber(*it, "speed", c.orbitSpeed);
                 c.orbitStartAngle = GetNumber(*it, "startAngle", c.orbitStartAngle);
+                c.chaseShoulder = GetNumber(*it, "shoulder", c.chaseShoulder);
             }
             if (const auto it = j.find("shake"); it != j.end() && it->is_object())
             {

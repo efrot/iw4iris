@@ -7,7 +7,7 @@ TEST_CASE("rig: orbit circles its target and looks at it")
 {
     CameraDef cam;
     cam.mode = CameraMode::Orbit;
-    cam.target = {TargetKind::Point, -1, {100, 200, 0}, {0, 0, 0}};
+    cam.target = {TargetKind::Point, -1, {100, 200, 0}, {0, 0, 0}, {}};
     cam.orbitDistance = 50;
     cam.orbitHeight = 10;
     cam.orbitSpeed = 90;
@@ -24,7 +24,7 @@ TEST_CASE("rig: player targets resolve through the context")
 {
     CameraDef cam;
     cam.mode = CameraMode::Follow;
-    cam.target = {TargetKind::Player, 4, {}, {0, 0, 60}};
+    cam.target = {TargetKind::Player, 4, {}, {0, 0, 60}, {}};
     RigContext ctx;
     CHECK(!EvaluateCamera(cam, 0, ctx).has_value());
     ctx.resolveTarget = [](const TargetRef& t) -> std::optional<Vec3> {
@@ -119,4 +119,79 @@ TEST_CASE("rig: free camera accelerates along the view and clamps pitch")
     zoom.fovDelta = -1000.0;
     fc.Update(zoom, 0.016);
     CHECK_NEAR(fc.State().horizontalFov, fc.Settings().minFov, 0);
+}
+
+TEST_CASE("rig: player eyes and chase cameras follow the player's view")
+{
+    PlayerView pv;
+    pv.eye = {100, 0, 60};
+    pv.angles = {10, 90, 0};
+    RigContext ctx;
+    ctx.resolvePlayer = [&](const TargetRef& t) -> std::optional<PlayerView> {
+        if (t.kind == TargetKind::Player && t.name == "Bob")
+            return pv;
+        return std::nullopt;
+    };
+
+    CameraDef eyes;
+    eyes.mode = CameraMode::PlayerEyes;
+    eyes.target.kind = TargetKind::Player;
+    eyes.target.name = "Bob";
+    eyes.horizontalFov = 80;
+    auto st = EvaluateCamera(eyes, 0.0, ctx);
+    CHECK(st.has_value());
+    CHECK_NEAR(st->angles.pitch, 10.0, 1e-9);
+    CHECK_NEAR(st->angles.yaw, 90.0, 1e-9);
+    CHECK_NEAR(st->angles.roll, 0.0, 1e-9);
+    // Just in front of the eyes, looking where the player looks.
+    CHECK(Distance(st->position, pv.eye) < 8.0);
+    CHECK(Dot(st->position - pv.eye, AnglesToForward(pv.angles)) > 0.0);
+    CHECK_NEAR(st->horizontalFov, 80.0, 1e-9);
+
+    // Somebody else (or nobody): nothing, never another player's view.
+    eyes.target.name = "Carol";
+    CHECK(!EvaluateCamera(eyes, 0.0, ctx));
+
+    // The recording player's eyes are the game's own view.
+    pv.exact = true;
+    CameraState game;
+    game.position = {1, 2, 3};
+    game.horizontalFov = 65;
+    ctx.gameView = game;
+    eyes.target.name = "Bob";
+    st = EvaluateCamera(eyes, 0.0, ctx);
+    CHECK(st.has_value());
+    CHECK_NEAR(st->position.x, 1.0, 1e-9);
+    CHECK_NEAR(st->horizontalFov, 65.0, 1e-9);
+    pv.exact = false;
+
+    // Chase: behind the player (yaw 90 means facing +y, so behind is -y),
+    // above by the height, shifted to the right shoulder (+x when facing +y).
+    CameraDef chase;
+    chase.mode = CameraMode::Chase;
+    chase.target.kind = TargetKind::Player;
+    chase.target.name = "Bob";
+    chase.orbitDistance = 100;
+    chase.orbitHeight = 10;
+    chase.chaseShoulder = 20;
+    st = EvaluateCamera(chase, 0.0, ctx);
+    CHECK(st.has_value());
+    CHECK_NEAR(st->position.x, 120.0, 1e-6);
+    CHECK_NEAR(st->position.y, -100.0, 1e-6);
+    CHECK_NEAR(st->position.z, 70.0, 1e-6);
+    // Looking forward with the player (towards +y).
+    CHECK(AnglesToForward(st->angles).y > 0.9);
+    // In front of the player instead (start angle 180).
+    chase.orbitStartAngle = 180;
+    chase.chaseShoulder = 0;
+    st = EvaluateCamera(chase, 0.0, ctx);
+    CHECK(st.has_value());
+    CHECK_NEAR(st->position.y, 100.0, 1e-6);
+}
+
+TEST_CASE("rig: player modes and the player name survive saving")
+{
+    CHECK(CameraModeFromString("playerEyes") == CameraMode::PlayerEyes);
+    CHECK(CameraModeFromString("chase") == CameraMode::Chase);
+    CHECK(ToString(CameraMode::Chase) == "chase");
 }

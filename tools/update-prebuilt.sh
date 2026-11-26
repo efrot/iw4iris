@@ -9,7 +9,7 @@
 # client\ must hold only the client's files: the launcher installs every
 # file in it into the cinematic environment.
 set -euo pipefail
-version="${1:-0.3.1}"
+version="${1:-0.4.0}"
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 pkg="$repo/dist/IW4Iris-v${version}-Windows-x86"
 [ -f "$pkg/IW4Iris Launcher.exe" ] && [ -f "$pkg/client/iw4x.dll" ] ||

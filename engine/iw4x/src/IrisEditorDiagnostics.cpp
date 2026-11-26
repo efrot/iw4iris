@@ -123,6 +123,28 @@ namespace IW4Iris::Editor
             st.demoName + ", " + iris::FormatTime(s.demoIndex->DurationSeconds(), s.project.timeline.frameRate,
                                                   iris::TimeDisplay::Seconds));
 
+      // Demo players
+      if (st.demoPlaying)
+      {
+        int connected = 0, visible = 0;
+        bool recorder = false;
+        for (const auto& p : s.players.Players())
+        {
+          if (p.availability == iris::PlayerAvailability::Left)
+            continue;
+          ++connected;
+          visible += p.availability == iris::PlayerAvailability::Visible || p.availability == iris::PlayerAvailability::Dead;
+          recorder = recorder || p.recording;
+        }
+        if (connected == 0)
+          add("players", "Demo players", "Demo", State::Checking, "no snapshot read yet");
+        else
+          add("players", "Demo players", "Demo", recorder ? State::Ready : State::Limited,
+              std::to_string(connected) + " connected, " + std::to_string(visible) +
+                  " in the current snapshot (others: no position at this moment)" +
+                  (recorder ? "" : "; the recording player was not identified"));
+      }
+
       // Director
       const auto ds = Director::GetStatus();
       switch (ds.state)

@@ -28,7 +28,7 @@ namespace
         dolly.path.SetConstantSpeed(true);
         dolly.lens.focalLengthMm = 85;
         dolly.shake.enabled = true;
-        dolly.target = {TargetKind::Player, 3, {}, {0, 0, 60}};
+        dolly.target = {TargetKind::Player, 3, {}, {0, 0, 60}, "Ghost"};
         p.cuts.AddCut({0.0, "cam-1"});
         p.cuts.AddCut({2.0, "cam-2"});
         p.useCameraCuts = true;

@@ -2339,7 +2339,7 @@ namespace IW4Iris::Editor
         ApplyGizmo(s, s.selectedObject, t);
       }
     }
-    else if (overViewport && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    else if (overViewport && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ui.viewportClickConsumed)
     {
       if (hoverAxis >= 0 && current)
       {

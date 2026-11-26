@@ -61,6 +61,10 @@ no IW4x installation is available to the development and CI environments.
 | Camera override through the view hook | Experimental | see COMPATIBILITY.md |
 | Dolly cameras with keys, eases, tangents | Implemented | |
 | Orbit, follow, static (look-at), game first / third person | Implemented | |
+| Demo players: roster from the snapshot's client list and player entities, identities through death, respawn, leaving, slot reuse and equal names; availability (in view / dead / not in view / not connected) | Cross-compiled | identity rules unit-tested (`iris/players`); engine side reads IW4x's `snapshot_s` / `centity_s` (size-checked structures) |
+| Players panel: teams, search, favourites, previous / next ([ / ]), names over players in the view (click to select), watch: eyes / chase / follow / orbit, or as a cut at the playhead | Cross-compiled | |
+| Player's eyes camera: exact for the recording player (the demo's view), reconstructed for others (position, stance eye height, view angles interpolated like the cgame) | Cross-compiled | rig unit-tested; other players' weapon motion, recoil and view bob are not in the demo; their own model may be in view |
+| Chase camera (third person of any player, turns with them; distance, height, shoulder, angle) | Cross-compiled | rig unit-tested |
 | Bone camera, weapon-mounted, projectile follow | Blocked | needs DObj bone bindings |
 | Path / key / frustum overlay (never recorded) | Implemented | |
 | Viewport gizmo for scene objects (move along X / Y / Z, rotate, size; Ctrl snaps) | Implemented | camera keys are still moved with "update from view" and the inspector |

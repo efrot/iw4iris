@@ -41,6 +41,7 @@ namespace IW4Iris::Editor
     Assets,          // props and effects
     Graphics,        // motion graphics: add / list / renderer status
     ObjectInspector, // the selected actor / prop / effect / graphic
+    Players,         // the demo's players: select, watch, cut to
     Count,
   };
 
@@ -109,6 +110,7 @@ namespace IW4Iris::Editor
     bool openPopup = false;
     bool homeOpen = true;     // the start screen (closed once something is chosen or loaded)
     GameView gameView;        // where the game picture is shown this frame
+    bool viewportClickConsumed = false;  // a player name took this click (no object selection then)
     bool saveAsPopup = false;
     std::string message;          // transient status line
     double messageTime = 0.0;
@@ -246,6 +248,13 @@ namespace IW4Iris::Editor
   void OpenCommandPalette();
   // Diagnostics (IrisEditorDiagnostics.cpp): capability states, self-test, support bundle
   void DrawDiagnosticsOverview(Session& s);
+  // Demo players (IrisEditorPlayers.cpp)
+  void DrawPlayers(Session& s);
+  void DrawPlayerTags(Session& s);          // viewport: names over players, click to select
+  void StepPlayer(Session& s, int direction);  // next / previous connected player
+  // Makes (or reuses) a camera of `mode` on the selected player and shows it;
+  // with `cut`, also adds a camera cut to it at the playhead. Returns its id.
+  std::string WatchSelectedPlayer(Session& s, iris::CameraMode mode, bool cut);
   void DrawCommandPalette(Session& s);
 
   // Widgets

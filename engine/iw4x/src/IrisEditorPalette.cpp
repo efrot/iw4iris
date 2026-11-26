@@ -129,6 +129,30 @@ namespace IW4Iris::Editor
         });
       }
 
+      // Demo players
+      if (!s.players.Players().empty())
+      {
+        add("Next player", "]", "demo select", [](Session& x) { StepPlayer(x, 1); });
+        add("Previous player", "[", "demo select", [](Session& x) { StepPlayer(x, -1); });
+        const bool sel = s.players.Find(s.selectedPlayer) != nullptr;
+        add("Watch the selected player: their eyes", "", "pov first person demo", [](Session& x) {
+          WatchSelectedPlayer(x, iris::CameraMode::PlayerEyes, false);
+        })->enabled = sel;
+        add("Watch the selected player: behind them (chase)", "", "third person demo", [](Session& x) {
+          WatchSelectedPlayer(x, iris::CameraMode::Chase, false);
+        })->enabled = sel;
+        add("Cut to the selected player's eyes at the playhead", "", "pov switch perspective", [](Session& x) {
+          WatchSelectedPlayer(x, iris::CameraMode::PlayerEyes, true);
+        })->enabled = sel;
+        for (const auto& pl : s.players.Players())
+        {
+          if (pl.availability == iris::PlayerAvailability::Left)
+            continue;
+          const std::string id = pl.id;
+          add("Select player: " + pl.name, "", "demo", [id](Session& x) { x.selectedPlayer = id; });
+        }
+      }
+
       // Markers
       for (const auto& m : p.markers)
       {

@@ -9,6 +9,7 @@
 
 #include <iris/demo.hpp>
 #include <iris/history.hpp>
+#include <iris/players.hpp>
 #include <iris/project.hpp>
 #include <iris/rig.hpp>
 
@@ -48,6 +49,7 @@ namespace IW4Iris
     std::vector<std::string> recentAssets;
     std::set<std::string> favoriteMaps;
     std::vector<std::string> recentMaps;
+    std::vector<std::string> favoritePlayers;  // player names starred in the Players panel
     std::vector<std::string> fontFolders;   // extra folders with .ttf / .otf
 
     // Composition guides (editor overlay only, never recorded)
@@ -77,6 +79,10 @@ namespace IW4Iris
     std::vector<std::pair<int, std::string>> players;
     std::optional<iris::CameraState> gameView;  // the view the game computed last frame
     bool seeking = false;
+    // The shot camera had no picture this frame (e.g. its player is not in
+    // the demo now) and the game's own view was shown: its name, else empty.
+    std::string cameraWithoutPicture;
+    std::uint64_t captureFramesWithoutPicture = 0;  // during the current / last recording
     std::string seekMessage;
     bool paused = false;
     std::vector<std::string> checkedDvars;   // the dvars the editor uses
@@ -132,6 +138,12 @@ namespace IW4Iris
     // Demo
     std::optional<std::filesystem::path> loadedDemoPath;  // the original file the demo was copied from
     std::optional<iris::DemoIndex> demoIndex;
+    std::uint64_t demoGeneration = 0;  // bumped for every demo started: late index scans of an older one are dropped
+
+    // Players of the demo or film set (updated every frame on the main thread)
+    iris::PlayerRoster players;
+    std::string playersKey;       // the demo / map the roster belongs to
+    std::string selectedPlayer;   // roster id
     std::vector<iris::DemoEntry> demoList;
     SeekState seekState = SeekState::Idle;
     double seekTargetScene = 0.0;

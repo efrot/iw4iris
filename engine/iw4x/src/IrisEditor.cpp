@@ -57,7 +57,7 @@ namespace IW4Iris::Editor
     const std::vector<WorkspaceDef>& Workspaces()
     {
       static const std::vector<WorkspaceDef> w{
-        {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Inspector, Panel::Timeline, Panel::Look}},
+        {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Players, Panel::Inspector, Panel::Timeline, Panel::Look}},
         {"Timeline", Icons::CHART, {Panel::Outliner, Panel::Inspector, Panel::Timeline}},
         {"Cameras", Icons::CAMERA, {Panel::Outliner, Panel::Inspector, Panel::Timeline, Panel::Presets}},
         {"Director", Icons::USER, {Panel::Outliner, Panel::Director, Panel::Actors, Panel::ObjectInspector, Panel::Timeline}},
@@ -100,6 +100,7 @@ namespace IW4Iris::Editor
     case Panel::Assets: return "Props & Effects###Assets";
     case Panel::Graphics: return "Motion Graphics###Graphics";
     case Panel::ObjectInspector: return "Object###ObjectInspector";
+    case Panel::Players: return "Players###Players";
     default: return "###unknown";
     }
   }
@@ -140,6 +141,7 @@ namespace IW4Iris::Editor
       ImGui::DockBuilderDockWindow(PanelName(Panel::Timeline), bottom);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Outliner), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Demos), left);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::Players), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Actors), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Inspector), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Look), right);
@@ -632,6 +634,16 @@ namespace IW4Iris::Editor
         ImGui::ProgressBar(f, ImVec2(160, 0), label);
       }
 
+      if (!s.status.cameraWithoutPicture.empty() && !s.freeView)
+      {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.4f, 1.0f), "%s %s: no picture now", Icons::WARNING,
+                           s.status.cameraWithoutPicture.c_str());
+        ImGui::SetItemTooltip("This camera cannot be shown at this moment (its player is not in the demo here, or it "
+                              "has nothing to show yet), so the game's own view is shown. Recordings count these "
+                              "frames.");
+      }
+
       // Right side: demo and map
       std::string right = s.status.demoPlaying ? (std::string(Icons::FILM) + "  " + s.status.demoName)
                                                : (s.status.cgameReady ? std::string(Icons::MAP) + "  " + s.status.mapName
@@ -909,20 +921,32 @@ namespace IW4Iris::Editor
       }
       else if (cam.target.kind == iris::TargetKind::Player)
       {
-        std::string current = "client " + std::to_string(cam.target.index);
-        for (const auto& [num, name] : s.status.players)
-          if (num == cam.target.index)
-            current = name;
+        // Players are chosen by identity (their name; the slot is a hint),
+        // so the camera keeps filming them when slots change hands.
+        const auto* now = s.players.Resolve(cam.target.name, cam.target.index);
+        std::string current = !cam.target.name.empty() ? cam.target.name : "slot " + std::to_string(cam.target.index);
+        if (!now)
+          current += "  (not in the demo now)";
+        else if (now->availability != iris::PlayerAvailability::Visible)
+          current += "  (" + std::string(iris::ToString(now->availability)) + ")";
         if (ImGui::BeginCombo("Player", current.c_str()))
         {
-          for (const auto& [num, name] : s.status.players)
-            if (ImGui::Selectable(name.c_str(), num == cam.target.index))
+          for (const auto& pl : s.players.Players())
+          {
+            if (pl.availability == iris::PlayerAvailability::Left)
+              continue;
+            const std::string label = pl.name + (pl.recording ? "  [recording player]" : "") + "##" + pl.id;
+            if (ImGui::Selectable(label.c_str(), now == &pl))
             {
-              cam.target.index = num;
+              cam.target.index = pl.clientNum;
+              cam.target.name = pl.name;
               changed = true;
             }
+          }
           ImGui::EndCombo();
         }
+        if (s.players.Players().empty())
+          ImGui::TextDisabled("Players appear when a demo plays.");
       }
       else if (cam.target.kind == iris::TargetKind::Entity)
       {
@@ -959,8 +983,9 @@ namespace IW4Iris::Editor
       ImGui::PopFont();
 
       int mode = static_cast<int>(cam.mode);
-      const char* modes[] = {"First person (game)", "Third person (game)", "Free", "Dolly (keyframed)", "Orbit", "Follow", "Static (tripod)"};
-      if (ImGui::Combo("Mode", &mode, modes, 7))
+      const char* modes[] = {"First person (game)", "Third person (game)", "Free", "Dolly (keyframed)", "Orbit",
+                             "Follow",   "Static (tripod)",     "Player's eyes", "Chase (behind a player)"};
+      if (ImGui::Combo("Mode", &mode, modes, 9))
       {
         cam.mode = static_cast<iris::CameraMode>(mode);
         s.Commit("Change camera mode");
@@ -1143,6 +1168,39 @@ namespace IW4Iris::Editor
             if (c)
               s.Commit("Edit transform", true);
             TargetEditor(s, cam);
+          }
+        }
+      }
+      else if (cam.mode == iris::CameraMode::PlayerEyes || cam.mode == iris::CameraMode::Chase)
+      {
+        if (ImGui::CollapsingHeader("Player", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+          if (cam.target.kind != iris::TargetKind::Player)
+          {
+            cam.target.kind = iris::TargetKind::Player;
+            cam.target.offset = {0, 0, 0};
+          }
+          TargetEditor(s, cam);
+          bool c = false;
+          if (cam.mode == iris::CameraMode::Chase)
+          {
+            c |= DragDouble("Distance", &cam.orbitDistance, 1.0f, 0.0, 2000.0, "%.0f u");
+            c |= DragDouble("Height", &cam.orbitHeight, 0.5f, -500.0, 500.0, "%.0f u");
+            c |= DragDouble("Shoulder", &cam.chaseShoulder, 0.5f, -500.0, 500.0, "%.0f u");
+            ImGui::SetItemTooltip("Sideways: positive over the right shoulder, negative over the left");
+            c |= DragDouble("Around the player", &cam.orbitStartAngle, 0.5f, -360.0, 360.0, "%.0f deg");
+            ImGui::SetItemTooltip("0: behind, 90: from the left, 180: in front");
+          }
+          c |= SliderDouble("Field of view", &cam.horizontalFov, 5.0, 150.0, "%.1f deg");
+          if (c)
+            s.Commit("Edit player camera", true);
+          if (cam.mode == iris::CameraMode::PlayerEyes)
+          {
+            const auto* pl = s.players.Resolve(cam.target.name, cam.target.index);
+            ImGui::TextWrapped("%s", pl && pl->recording
+                                         ? "The recording player: their exact recorded view (field of view as recorded)."
+                                         : "Reconstructed: position, stance and view angles from the demo. Weapon movement, "
+                                           "recoil and view bob of other players are not recorded.");
           }
         }
       }
@@ -1609,6 +1667,13 @@ namespace IW4Iris::Editor
         ImGui::TextColored(i.severity == iris::Issue::Severity::Error ? ImVec4(1.0f, 0.45f, 0.45f, 1.0f) : ImVec4(1.0f, 0.8f, 0.4f, 1.0f),
                            "%s %s", i.severity == iris::Issue::Severity::Error ? Icons::TIMES : Icons::WARNING, i.message.c_str());
 
+      if (s.status.captureFramesWithoutPicture > 0)
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f),
+                           "%s %llu frame(s) of the %s recording show the game's own view: the shot camera had no "
+                           "picture there (e.g. its player was not in the demo).",
+                           Icons::WARNING, static_cast<unsigned long long>(s.status.captureFramesWithoutPicture),
+                           Capture::IsActive() ? "current" : "last");
+
       ImGui::Spacing();
       const auto progress = Capture::GetProgress();
       if (Capture::IsActive())
@@ -1871,11 +1936,15 @@ namespace IW4Iris::Editor
         const auto view = Runtime::LastAppliedCamera();
         if (ui.presetSubject == 1 && !s.status.players.empty())
         {
-          const auto num = s.status.players[static_cast<std::size_t>(ui.presetPlayer)].first;
-          const iris::TargetRef ref{iris::TargetKind::Player, num, {}, {0, 0, 60}};
+          const auto& [num, name] = s.status.players[static_cast<std::size_t>(ui.presetPlayer)];
+          const iris::TargetRef ref{iris::TargetKind::Player, num, {}, {0, 0, 60}, name};
           if (const auto pos = Runtime::MakeRigContextFor(s).resolveTarget(ref))
             subject.position = *pos;
-          subject.facingYaw = view ? view->angles.yaw : 0.0;
+          // Frame the player from where they face (their recorded view), else the camera's.
+          const auto* pl = s.players.Resolve(name, num);
+          subject.facingYaw = pl && pl->latest && pl->latest->visible ? pl->latest->angles.yaw
+                              : view                                  ? view->angles.yaw
+                                                                      : 0.0;
         }
         else if (view)
         {
@@ -2141,6 +2210,7 @@ namespace IW4Iris::Editor
         {"Ctrl+K", "Command palette: type what you want to do"}, {"Ctrl+Z / Ctrl+Y", "Undo / redo"}, {"Ctrl+S", "Save"}, {"Ctrl+O", "Open"}, {"Ctrl+N", "New project"},
         {"M", "Add a marker"}, {"C", "Next camera"}, {"1 - 9", "Make camera 1 - 9 active"},
         {"V", "Free view / shot camera (flying never changes the shot)"},
+        {"[ / ]", "Previous / next player (demos)"},
         {"F", "Toggle flying the free camera (Esc also stops)"}, {"Right mouse", "Hold to fly the free camera"},
         {"W A S D", "Move (Space up, Ctrl down)"}, {"Q / E", "Roll"}, {"Shift / Alt", "Faster / slower"},
         {"Wheel (flying)", "Zoom (field of view)"}, {"G", "Toggle the graph editor"}, {"?", "This list"},
@@ -2458,6 +2528,10 @@ namespace IW4Iris::Editor
           DeleteSelectedKeys(s);
         if (pressed(ImGuiKey_M))
           AddMarker(s);
+        if (pressed(ImGuiKey_LeftBracket))
+          StepPlayer(s, -1);
+        if (pressed(ImGuiKey_RightBracket))
+          StepPlayer(s, 1);
         if (pressed(ImGuiKey_V) && !Capture::IsActive())
         {
           if (s.freeView)
@@ -2965,6 +3039,8 @@ namespace IW4Iris::Editor
       DrawLook(s);
     if (Shown(Panel::Demos))
       DrawDemos(s);
+    if (Shown(Panel::Players))
+      DrawPlayers(s);
     if (Shown(Panel::Recording))
       DrawRecording(s);
     if (Shown(Panel::RenderQueue))
@@ -3001,6 +3077,7 @@ namespace IW4Iris::Editor
     DrawFilePopups(s);
     DrawNotification(s);
     DrawCommandPalette(s);
+    DrawPlayerTags(s);  // before the scene overlay: a click on a player's name selects the player
     DrawSceneOverlay(s);
     DrawOverlay(s);
     if (s.freeView && !Capture::IsActive())

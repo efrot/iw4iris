@@ -3,6 +3,8 @@
 #include "Engine.hpp"
 #include "Log.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <map>
@@ -195,6 +197,119 @@ namespace IW4Iris::Engine
         p.name = name;
       if (p.present || !p.name.empty())
         out.push_back(std::move(p));
+    }
+    return out;
+  }
+
+  std::vector<iris::PlayerObservation> ObservePlayers()
+  {
+    std::vector<iris::PlayerObservation> out;
+    if (!IsCgameReady())
+      return out;
+    const auto& cg = Game::cgArray[0];
+    const Game::snapshot_s* snap = cg.snap;
+    if (!snap)
+      return out;
+    constexpr int kMaxClients = 18;  // IW4: snapshot_s::clients[18]
+    std::array<iris::PlayerObservation, kMaxClients> obs{};
+    std::array<bool, kMaxClients> used{};
+    auto stanceOf = [](int eFlags) {
+      return (eFlags & Game::EF_PRONE) ? iris::Stance::Prone
+             : (eFlags & Game::EF_CROUCHING) ? iris::Stance::Crouch
+                                               : iris::Stance::Stand;
+    };
+
+    // The client list: who is connected, their name and team.
+    const int numClients = std::clamp(snap->numClients, 0, kMaxClients);
+    for (int i = 0; i < numClients; ++i)
+    {
+      const auto& c = snap->clients[i];
+      if (c.clientIndex < 0 || c.clientIndex >= kMaxClients)
+        continue;
+      auto& o = obs[static_cast<std::size_t>(c.clientIndex)];
+      used[static_cast<std::size_t>(c.clientIndex)] = true;
+      o.clientNum = c.clientIndex;
+      o.name.assign(c.name, strnlen(c.name, sizeof(c.name)));
+      o.team = static_cast<int>(c.team);
+      o.inRoster = true;
+    }
+
+    // The player entities in this snapshot: where they are now.
+    const int numEntities = std::clamp(snap->numEntities, 0, static_cast<int>(std::size(snap->entities)));
+    const float f = std::clamp(cg.frameInterpolation, 0.0f, 1.0f);
+    for (int i = 0; i < numEntities; ++i)
+    {
+      const auto& e = snap->entities[i];
+      if (e.eType != Game::ET_PLAYER || e.clientNum < 0 || e.clientNum >= kMaxClients || e.number < 0 ||
+          e.number >= static_cast<int>(Game::MAX_GENTITIES))
+        continue;
+      auto& o = obs[static_cast<std::size_t>(e.clientNum)];
+      used[static_cast<std::size_t>(e.clientNum)] = true;
+      o.clientNum = e.clientNum;
+      o.visible = true;
+      o.dead = (e.lerp.eFlags & Game::EF_DEAD) != 0;
+      o.stance = stanceOf(e.lerp.eFlags);
+      o.weapon = e.weapon;
+      const auto& cent = Game::cg_entitiesArray[e.number].entity;
+      if (cent.nextValid)
+      {
+        // Interpolated between the previous and the next snapshot with the
+        // cgame's factor for this frame (computed here rather than read
+        // from the entity's pose, which may still hold the previous frame
+        // when the view is built), so cameras on players match the frame.
+        const auto& pp = cent.prevState.pos.trBase;
+        const auto& np = cent.nextState.lerp.pos.trBase;
+        const float jump = std::abs(np[0] - pp[0]) + std::abs(np[1] - pp[1]) + std::abs(np[2] - pp[2]);
+        const float k = jump > 512.0f ? 1.0f : f;  // a respawn / teleport: no sweep across the map
+        o.origin = {pp[0] + (np[0] - pp[0]) * k, pp[1] + (np[1] - pp[1]) * k, pp[2] + (np[2] - pp[2]) * k};
+        const auto lerpAngle = [f](float a, float b) {
+          float d = std::fmod(b - a, 360.0f);
+          if (d > 180.0f)
+            d -= 360.0f;
+          if (d < -180.0f)
+            d += 360.0f;
+          return a + d * f;
+        };
+        const auto& pa = cent.prevState.apos.trBase;
+        const auto& na = cent.nextState.lerp.apos.trBase;
+        o.angles = {lerpAngle(pa[0], na[0]), lerpAngle(pa[1], na[1]), 0.0};
+      }
+      else
+      {
+        o.origin = {e.lerp.pos.trBase[0], e.lerp.pos.trBase[1], e.lerp.pos.trBase[2]};
+        o.angles = {e.lerp.apos.trBase[0], e.lerp.apos.trBase[1], 0.0};
+      }
+    }
+
+    // The recording player: the predicted player state is their exact view.
+    const int local = cg.clientNum;
+    if (local >= 0 && local < kMaxClients)
+    {
+      auto& o = obs[static_cast<std::size_t>(local)];
+      used[static_cast<std::size_t>(local)] = true;
+      const auto& ps = cg.predictedPlayerState;
+      o.clientNum = local;
+      o.recording = true;
+      o.visible = true;
+      o.dead = (ps.eFlags & Game::EF_DEAD) != 0;
+      o.stance = stanceOf(ps.eFlags);
+      o.origin = {ps.origin[0], ps.origin[1], ps.origin[2]};
+      o.angles = {ps.viewangles[0], ps.viewangles[1], 0.0};
+      o.eyeHeight = ps.viewHeightCurrent;
+    }
+
+    for (int i = 0; i < kMaxClients; ++i)
+    {
+      if (!used[static_cast<std::size_t>(i)])
+        continue;
+      auto& o = obs[static_cast<std::size_t>(i)];
+      if (o.name.empty())
+      {
+        char name[64]{};
+        if (Game::CL_GetClientName(0, i, name, sizeof(name)))
+          o.name = name;
+      }
+      out.push_back(std::move(o));
     }
     return out;
   }

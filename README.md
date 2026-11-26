@@ -13,14 +13,14 @@ cinematics.
 > normal IW4x installation stays as it is, and you keep playing online with
 > that one.
 
-> **Status: v0.3.0 "Creator Preview", not yet tested in the game.** The
+> **Status: v0.4.0 preview, not yet tested in the game.** The
 > editor, the camera system, demo control, the recorder, Director Mode
 > (actors, props, effects on film sets) and native motion graphics (3D text
 > and logos) are implemented; the cinematic client builds with MinGW and
 > with Visual Studio (Windows CI). None of the engine integration has been
 > run in IW4x by the authors yet. The game-independent code (scene,
 > Director synchronisation, timeline, geometry, fonts, logos, diagnostics,
-> ...) is covered by 137 automated test cases.
+> ...) is covered by 145 automated test cases.
 > [docs/BACKLOG.md](docs/BACKLOG.md) lists every audit finding with how far
 > it is verified.
 > [FEATURE_MATRIX.md](FEATURE_MATRIX.md) lists exactly what is verified,
@@ -116,7 +116,7 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
   then **Download ZIP**. The ZIP holds one folder (named after the
   repository and branch) with `IW4Iris Launcher.exe` at its top, next to
   `client\` and `resources\`, plus the source code.
-* **The release package** `IW4Iris-v0.3.1-Windows-x86.zip`: only the
+* **The release package** `IW4Iris-v0.4.0-Windows-x86.zip`: only the
   program, documentation, samples and presets.
 
 1. Download one of them.
@@ -491,8 +491,39 @@ shakes the same way, also in recordings.
 * **Seek:** click the ruler. Forward seeks skip ahead quickly. Backward
   seeks restart the demo and play it forward to the target, which is exact
   but takes as long as the game needs to read the demo up to there.
-* Pause and seek are **experimental** in v0.1 (they work through the
-  client's demo clock).
+* Pause and seek are **experimental** (they work through the client's demo
+  clock).
+
+### Players
+
+The **Players** panel (left, next to Demos) lists everyone the demo
+records, grouped by team, with what is known about them at the current
+moment: *in view*, *dead*, *not in view* (connected, but the demo has no
+position for them right now) or *not connected*. Star favourites, search
+by name, step through players with **[** and **]**. With the panel open,
+names float over the players in the view: click one to select it,
+double-click to look through their eyes.
+
+For the selected player:
+
+* **Their eyes:** for the player who recorded the demo this is their exact
+  recorded view. For everybody else it is reconstructed from the demo
+  (position, crouch / prone eye height, view direction); their weapon
+  movement, recoil and view bob are not in the demo, and their own model
+  may be in view.
+* **Behind them (chase):** a third-person camera that turns with them;
+  distance, height, shoulder and angle in the Inspector.
+* **Follow** and **Orbit.**
+* Tick **Add as a cut at the playhead** to build a sequence: move the
+  playhead, pick a player and a view, repeat. The cuts appear on the
+  timeline's *Camera cuts* row.
+
+Cameras remember the player by name, not by slot: when a player leaves and
+somebody else takes the slot, the camera does not film the newcomer. While
+a camera's player is not in the demo (not in view, or not connected), that
+camera has no picture and the view falls back to the recorded first-person
+view for those moments; the Players panel and the Inspector say when that
+is the case.
 
 ---
 
@@ -751,7 +782,7 @@ git clone --recursive https://github.com/efrot/iw4iris.git
 
 The script checks out the pinned IW4x revision, installs the IW4Iris
 component into it, builds it with IW4x's own build, builds the launcher and
-tests with CMake, and packages `dist\IW4Iris-v0.3.1-Windows-x86.zip`.
+tests with CMake, and packages `dist\IW4Iris-v0.4.0-Windows-x86.zip`.
 Requirements and details: [BUILD.md](BUILD.md).
 
 ---
@@ -765,7 +796,7 @@ Optional FFmpeg für Videoformate.
 **Installation**
 
 1. Auf der GitHub-Seite **Code → Download ZIP** klicken (oder das
-   Release-Paket `IW4Iris-v0.3.1-Windows-x86.zip` nehmen) und **außerhalb**
+   Release-Paket `IW4Iris-v0.4.0-Windows-x86.zip` nehmen) und **außerhalb**
    des Spielordners entpacken (z. B. `C:\Tools\IW4Iris`). Im entpackten
    Ordner (beim GitHub-ZIP im Ordner darin) liegt **IW4Iris Launcher.exe**
    direkt oben, daneben `client\` und `resources\`. Die Dateien zusammen

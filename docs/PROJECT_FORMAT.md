@@ -85,14 +85,23 @@ free / aligned keys. Property names: `film.brightness`, `film.contrast`,
             "fstop": 2.8, "focus": 256, "anamorphic": 1.0, "breathing": 0.0 },
   "useLensFov": false, "fov": 90,
   "target": { "kind": "player", "index": 3, "point": [0,0,0], "offset": [0,0,60] },
-  "orbit": { "distance": 160, "height": 40, "speed": 20, "startAngle": 0 },
+  "orbit": { "distance": 160, "height": 40, "speed": 20, "startAngle": 0, "shoulder": 0 },
   "shake": { "enabled": false, "position": 0.6, "rotation": 0.35, "frequency": 1.4, "seed": 1 } }
 ```
 
 `mode`: `firstPerson`, `thirdPerson`, `free`, `dolly`, `orbit`, `follow`,
-`static`. `rotation`: `quaternion` or `euler`. `fov` values are the true
-horizontal field of view of the output. `target.kind`: `none`, `point`,
-`player` (client number), `entity` (entity number).
+`static`, `playerEyes` (a demo player's eyes; 0.4), `chase` (behind a
+player, turning with them; uses `orbit.distance`, `orbit.height`,
+`orbit.startAngle` and `orbit.shoulder`; 0.4). Older versions read the two
+new modes as `dolly` with a warning. `rotation`: `quaternion` or `euler`.
+`fov` values are the true horizontal field of view of the output.
+`target.kind`: `none`, `point`, `player`, `entity` (entity number). A player
+target has `index` (the client slot when it was chosen) and, since 0.4,
+`name`: the player is found by name, the slot only decides between two
+players of the same name; without a name (older projects) the slot is
+used. A camera on a player who is not in the demo at a moment has no
+picture there (the recorded first-person view is shown instead), never
+another player.
 
 ## Recording settings
 

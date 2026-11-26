@@ -388,11 +388,34 @@ namespace IW4Iris::Runtime
     {
       iris::RigContext ctx;
       ctx.gameView = s.status.gameView;
-      ctx.resolveTarget = [](const iris::TargetRef& t) -> std::optional<iris::Vec3> {
-        if (t.kind == iris::TargetKind::Player || t.kind == iris::TargetKind::Entity)
+      // Players are resolved by identity (name, then slot): a camera on a
+      // player who is not in view, or gone, has no picture (the game's own
+      // view is shown for those frames) rather than
+      // somebody else in that slot.
+      const iris::PlayerRoster* roster = &s.players;
+      ctx.resolveTarget = [roster](const iris::TargetRef& t) -> std::optional<iris::Vec3> {
+        if (t.kind == iris::TargetKind::Player)
+        {
+          const auto* p = roster->Resolve(t.name, t.index);
+          if (!p || !p->latest || !p->latest->visible)
+            return std::nullopt;
+          return p->latest->origin + t.offset;
+        }
+        if (t.kind == iris::TargetKind::Entity)
           if (const auto o = Engine::EntityOrigin(t.index))
             return *o + t.offset;
         return std::nullopt;
+      };
+      ctx.resolvePlayer = [roster](const iris::TargetRef& t) -> std::optional<iris::PlayerView> {
+        if (t.kind != iris::TargetKind::Player)
+          return std::nullopt;
+        const auto* p = roster->Resolve(t.name, t.index);
+        if (!p)
+          return std::nullopt;
+        const auto eyes = roster->EyesOf(*p);
+        if (!eyes)
+          return std::nullopt;
+        return iris::PlayerView{eyes->position, eyes->angles, eyes->exact};
       };
       return ctx;
     }
@@ -850,6 +873,20 @@ namespace IW4Iris::Hooks
     const auto gameView = Engine::ToCameraState(*view);
     s.status.gameView = gameView;
 
+    // The players of this demo / film set, followed by identity, read at
+    // the same point of the frame the cameras are evaluated at.
+    {
+      const auto& st = s.status;
+      const std::string key = st.demoPlaying ? "demo:" + st.demoName : "map:" + st.mapName;
+      if (key != s.playersKey)
+      {
+        s.players.Reset();
+        s.playersKey = key;
+        s.selectedPlayer.clear();
+      }
+      s.players.Update(Engine::SnapshotServerTime(), Engine::ObservePlayers());
+    }
+
     // While a capture runs, the frame's time comes from the scene time it
     // shows; otherwise from the playhead. A hidden editor keeps previewing
     // the project's cameras, so the shot can be watched clean.
@@ -875,6 +912,20 @@ namespace IW4Iris::Hooks
       camera = s.freeCamera.State();
     else if (def && def->mode != iris::CameraMode::FirstPerson && def->mode != iris::CameraMode::ThirdPerson)
       camera = iris::EvaluateCamera(*def, t, MakeRigContextFor(s));
+
+    // Say so when the shot camera has no picture (a player who is not in
+    // the demo at this moment, a dolly without keys ...): the game's own
+    // view is shown instead, and a recording counts those frames.
+    static bool wasCapturing = false;
+    if (captureTime && !wasCapturing)
+      s.status.captureFramesWithoutPicture = 0;  // a new recording
+    wasCapturing = captureTime.has_value();
+    const bool noPicture = !flying && def && !camera && def->mode != iris::CameraMode::FirstPerson &&
+                           def->mode != iris::CameraMode::ThirdPerson && def->mode != iris::CameraMode::Free;
+    s.status.cameraWithoutPicture = noPicture ? def->name : std::string();
+    if (captureTime && noPicture && s.status.captureFramesWithoutPicture++ == 0)
+      Log::Warn("Recording: camera \"{}\" has no picture at {:.3f} s (its target is not available); the game's own "
+                "view is recorded for those frames", def->name, t);
 
     if (camera)
     {
