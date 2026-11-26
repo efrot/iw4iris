@@ -27,6 +27,10 @@
   spawns, joins and leaves, filled in while the demo plays or by one
   analysis pass over the whole demo; click to jump, double-click a kill
   to clip it.
+* **Render preflight** in the Recording panel: camera cuts to deleted
+  cameras and dollies without keys block recording; cameras on players
+  this demo does not have, single-key dollies and unusually fast camera
+  moves are warnings with the time.
 * **Trickshot candidates:** airborne kills with a turn or a long jump, with
   their evidence and a confidence (a local analysis of the recorded
   movement). *Clip* or *Make cinematic*: slow motion around the kill and

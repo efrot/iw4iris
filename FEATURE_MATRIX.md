@@ -67,6 +67,7 @@ no IW4x installation is available to the development and CI environments.
 | Chase camera (third person of any player, turns with them; distance, height, shoulder, angle) | Windows-built | rig unit-tested |
 | Moments: kills (game obituary events), deaths, spawns, joins / leaves (inferred, approximate across skipped frames), analysis pass of the whole demo | Cross-compiled | detection unit-tested (`iris/moments`): de-duplication, replay after seeking, out-of-order frames |
 | Trickshot candidates (airborne kill, turn in the air, air time, scope) with confidence; clip; one-click editable trickshot cinematic (slow motion, chase / eyes cuts) | Cross-compiled | detection and slow-motion placement unit-tested |
+| Render preflight: cuts to deleted cameras, dollies without keys (errors); unknown players, single-key dollies, unusually fast camera moves (warnings, with the time) | Cross-compiled | unit-tested (`iris/preflight`); shown in the Recording panel, errors block recording |
 | Bone camera, weapon-mounted, projectile follow | Blocked | needs DObj bone bindings |
 | Path / key / frustum overlay (never recorded) | Implemented | |
 | Viewport gizmo for scene objects (move along X / Y / Z, rotate, size; Ctrl snaps) | Implemented | camera keys are still moved with "update from view" and the inspector |

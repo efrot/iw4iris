@@ -9,9 +9,11 @@
 #include "Log.hpp"
 #include "Session.hpp"
 
+#include <iris/preflight.hpp>
 #include <iris/version.hpp>
 
 #include <algorithm>
+#include <set>
 #include <atomic>
 #include <cmath>
 #include <condition_variable>
@@ -488,7 +490,22 @@ namespace IW4Iris::Capture
     if (!Clock::Installed())
       issues.push_back({iris::Issue::Severity::Error, "The render clock is unavailable in this game build."});
     if (project)
+    {
       AddSceneIssues(*project, issues);
+      // Render preflight: broken cuts, cameras without keys, cameras on
+      // players this demo does not have, unusually fast camera moves.
+      std::set<std::string> players;
+      if (Engine::IsDemoPlaying())
+      {
+        auto& editorSession = GetSession();
+        std::lock_guard sessionLock(editorSession.mutex);  // recursive: callers may hold it
+        for (const auto& pl : editorSession.players.Players())
+          players.insert(pl.name);
+      }
+      const auto range = iris::ResolveRange(s, project->timeline);
+      for (auto& i : iris::PreflightProject(*project, range.start, range.end, players))
+        issues.push_back(std::move(i));
+    }
     return issues;
   }
 

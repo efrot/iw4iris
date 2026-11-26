@@ -51,6 +51,7 @@ add_library(iw4iris_core STATIC
   core/src/diagnostics.cpp
   core/src/players.cpp
   core/src/moments.cpp
+  core/src/preflight.cpp
   core/src/recording.cpp
   core/src/project.cpp
   core/src/rig.cpp
@@ -94,6 +95,7 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_diagnostics.cpp
     tests/test_players.cpp
     tests/test_moments.cpp
+    tests/test_preflight.cpp
     tests/test_recording.cpp
     tests/test_project.cpp
     tests/test_history.cpp

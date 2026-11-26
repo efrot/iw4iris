@@ -20,7 +20,7 @@ cinematics.
 > with Visual Studio (Windows CI). None of the engine integration has been
 > run in IW4x by the authors yet. The game-independent code (scene,
 > Director synchronisation, timeline, geometry, fonts, logos, diagnostics,
-> ...) is covered by 151 automated test cases.
+> ...) is covered by 153 automated test cases.
 > [docs/BACKLOG.md](docs/BACKLOG.md) lists every audit finding with how far
 > it is verified.
 > [FEATURE_MATRIX.md](FEATURE_MATRIX.md) lists exactly what is verified,
@@ -584,6 +584,14 @@ A control whose engine setting does not exist in your game says so;
 | **Quality** | CRF and preset for H.264 / H.265, 4:4:4 chroma, JPEG quality |
 | **Output** | folder (default `iw4iris\recordings\`) and name pattern: `{project}`, `{camera}`, `{pass}`, `{date}`, `{fps}`, `{w}`, `{h}` |
 | **Advanced** | frame queue (memory vs speed), warm-up frames, FFmpeg path |
+
+**Before recording** the panel checks the shot itself (render preflight):
+camera cuts pointing at deleted cameras and dolly cameras without keys in
+the range block recording; cameras on players this demo does not have,
+single-key dollies and unusually fast camera moves (with the time, e.g. a
+key set too close to the next one) are warnings. It also checks the film
+set, failed objects, assets awaiting a reload and graphics that need
+occlusion.
 
 How it works: the recorder seeks to the start of the range, switches the
 game to a virtual clock that advances by exactly one output frame per game
