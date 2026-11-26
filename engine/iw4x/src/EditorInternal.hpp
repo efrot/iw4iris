@@ -82,6 +82,14 @@ namespace IW4Iris::Editor
     bool timeEdit = false, inEdit = false, outEdit = false;
   };
 
+  struct GameView
+  {
+    bool active = false;  // the game is shown scaled (else: full screen, identity mapping)
+    ImVec2 min{};         // top-left of the image on screen
+    ImVec2 size{};        // its size on screen
+    float scale = 1.0f;   // screen pixels per game pixel
+  };
+
   struct UiState
   {
     bool show[static_cast<int>(Panel::Count)]{};
@@ -100,6 +108,7 @@ namespace IW4Iris::Editor
     std::string saveAsPath;
     bool openPopup = false;
     bool homeOpen = true;     // the start screen (closed once something is chosen or loaded)
+    GameView gameView;        // where the game picture is shown this frame
     bool saveAsPopup = false;
     std::string message;          // transient status line
     double messageTime = 0.0;
@@ -165,6 +174,24 @@ namespace IW4Iris::Editor
 
   UiState& Ui();
   void Notify(std::string message);
+
+  // The game view. With the editor shown, the game frame is drawn scaled
+  // into the free space between the panels (the dock's central node).
+  // Overlays are drawn in game coordinates (0..display size, what the
+  // projection maths gives) between BeginGameSpace / EndGameSpace, which
+  // maps them onto the shown image; mouse positions go the other way.
+  const GameView& CurrentGameView();
+  ImVec2 GameToScreen(ImVec2 p);
+  ImVec2 ScreenToGame(ImVec2 p);
+  ImVec2 GameMouse();       // the mouse in game coordinates
+  bool MouseOverGame();     // the mouse is over the game image
+  struct GameSpace
+  {
+    int vtx = 0;
+    int cmd = 0;
+  };
+  GameSpace BeginGameSpace(ImDrawList* dl);
+  void EndGameSpace(ImDrawList* dl, const GameSpace& space);
 
   // Panels (each locks nothing: Draw() holds the session lock)
   void DrawTimeline(Session& s);

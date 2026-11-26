@@ -51,6 +51,7 @@ namespace IW4Iris::Editor
     pr.tanX = std::tan(iris::Clamp(view->horizontalFov, 1.0, 179.0) * 0.5 * iris::kDegToRad);
     pr.tanY = pr.tanX * (pr.size.y / std::max(1.0f, pr.size.x));
     auto* dl = ImGui::GetBackgroundDrawList();
+    const auto space = BeginGameSpace(dl);  // drawn in game coordinates, mapped onto the shown game picture
 
     for (const auto& cam : s.project.cameras)
     {
@@ -121,5 +122,6 @@ namespace IW4Iris::Editor
           dl->AddLine(ImVec2(p->x - 9, p->y), ImVec2(p->x + 9, p->y), ParseColor(cam.color, 0.8f));
           dl->AddLine(ImVec2(p->x, p->y - 9), ImVec2(p->x, p->y + 9), ParseColor(cam.color, 0.8f));
         }
+    EndGameSpace(dl, space);
   }
 }

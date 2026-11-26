@@ -11,6 +11,10 @@
 namespace IW4Iris::Editor
 {
   void Initialize();  // fonts, theme, ini location (render thread, context current)
+  // The finished game frame (copied before the editor draws), so the
+  // editor can show it scaled into the free space between its panels
+  // instead of under them. Render thread; null when there is no copy.
+  void SetGameImage(void* texture, int width, int height, void* device);
   void Draw();
 
   // Thread-safe queries for the main thread.

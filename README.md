@@ -116,7 +116,7 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
   then **Download ZIP**. The ZIP holds one folder (named after the
   repository and branch) with `IW4Iris Launcher.exe` at its top, next to
   `client\` and `resources\`, plus the source code.
-* **The release package** `IW4Iris-v0.3.0-Windows-x86.zip`: only the
+* **The release package** `IW4Iris-v0.3.1-Windows-x86.zip`: only the
   program, documentation, samples and presets.
 
 1. Download one of them.
@@ -364,6 +364,14 @@ do not apply to them.
 Press **F1** to show or hide it. The game keeps running in the middle; the
 panels are docked around it and can be moved, resized, tabbed or floated by
 dragging their title bars. **View → Reset layout** puts them back.
+
+The game picture is scaled into the free space between the panels, with
+its aspect ratio, so nothing is hidden under them (camera paths, the
+gizmo, composition guides and click selection follow it). Recordings are
+not affected: they are taken at full resolution, without the editor.
+**View → Fit the game between the panels** turns this off (the game then
+fills the screen behind the panels, as in 0.3.0 and earlier). F1 hides
+the editor for a clean full-screen preview.
 
 | Panel | What it is for |
 | --- | --- |
@@ -743,7 +751,7 @@ git clone --recursive https://github.com/efrot/iw4iris.git
 
 The script checks out the pinned IW4x revision, installs the IW4Iris
 component into it, builds it with IW4x's own build, builds the launcher and
-tests with CMake, and packages `dist\IW4Iris-v0.3.0-Windows-x86.zip`.
+tests with CMake, and packages `dist\IW4Iris-v0.3.1-Windows-x86.zip`.
 Requirements and details: [BUILD.md](BUILD.md).
 
 ---
@@ -757,7 +765,7 @@ Optional FFmpeg für Videoformate.
 **Installation**
 
 1. Auf der GitHub-Seite **Code → Download ZIP** klicken (oder das
-   Release-Paket `IW4Iris-v0.3.0-Windows-x86.zip` nehmen) und **außerhalb**
+   Release-Paket `IW4Iris-v0.3.1-Windows-x86.zip` nehmen) und **außerhalb**
    des Spielordners entpacken (z. B. `C:\Tools\IW4Iris`). Im entpackten
    Ordner (beim GitHub-ZIP im Ordner darin) liegt **IW4Iris Launcher.exe**
    direkt oben, daneben `client\` und `resources\`. Die Dateien zusammen

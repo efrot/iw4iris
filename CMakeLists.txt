@@ -5,7 +5,7 @@
 # component is built inside the IW4x client tree with IW4x's own premake
 # build; see BUILD.md and engine/iw4x/.
 cmake_minimum_required(VERSION 3.20)
-project(IW4Iris VERSION 0.3.0 LANGUAGES CXX)
+project(IW4Iris VERSION 0.3.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -115,6 +115,7 @@ namespace IW4Iris
       u.demoLabels = j.value("demoLabels", u.demoLabels);
       u.ffmpegPath = j.value("ffmpegPath", u.ffmpegPath);
       u.showPathOverlay = j.value("showPathOverlay", u.showPathOverlay);
+      u.fitGameView = j.value("fitGameView", u.fitGameView);
       u.showFrustums = j.value("showFrustums", u.showFrustums);
       u.autosave = j.value("autosave", u.autosave);
       u.autosaveSeconds = std::clamp(j.value("autosaveSeconds", u.autosaveSeconds), 10, 3600);
@@ -154,6 +155,7 @@ namespace IW4Iris
                            {"demoLabels", u.demoLabels},
                            {"ffmpegPath", u.ffmpegPath},
                            {"showPathOverlay", u.showPathOverlay},
+                           {"fitGameView", u.fitGameView},
                            {"showFrustums", u.showFrustums},
                            {"autosave", u.autosave},
                            {"autosaveSeconds", u.autosaveSeconds},

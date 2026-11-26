@@ -2161,7 +2161,11 @@ namespace IW4Iris::Editor
     }
   }  // namespace
 
-  void DrawSceneOverlay(Session& s)
+  namespace
+  {
+    // Everything here is in game coordinates (0..display size); the
+    // caller maps it onto the shown game picture.
+    void DrawSceneOverlayInGameSpace(Session& s, ImDrawList* dl)
   {
     auto& ui = Ui();
     const auto cam = Runtime::LastAppliedCamera();
@@ -2169,7 +2173,7 @@ namespace IW4Iris::Editor
       return;
     const auto& io = ImGui::GetIO();
     const ImVec2 size = io.DisplaySize;
-    auto* dl = ImGui::GetBackgroundDrawList();
+    const ImVec2 mouse = GameMouse();
     DrawGuides(s, dl, size, *cam);
     auto& sc = s.project.scene;
     if (sc.Empty() || Runtime::IsFlying())
@@ -2235,7 +2239,7 @@ namespace IW4Iris::Editor
     }
 
     // Gizmo on the selected object.
-    const bool overViewport = !io.WantCaptureMouse || ui.gizmoDragging;
+    const bool overViewport = (!io.WantCaptureMouse && MouseOverGame()) || ui.gizmoDragging;
     const auto current = CurrentTransform(s, s.selectedObject);
     std::optional<ImVec2> origin;
     iris::Vec3 originWorld;
@@ -2256,7 +2260,7 @@ namespace IW4Iris::Editor
     {
       for (auto& e : axisEnd)
         e = *origin;
-      const ImVec2 m = io.MousePos;
+      const ImVec2 m = mouse;
       if (s.gizmoMode == 0)
       {
         for (int i = 0; i < 3; ++i)
@@ -2304,7 +2308,7 @@ namespace IW4Iris::Editor
       }
       else if (current && origin)
       {
-        const ImVec2 d(io.MousePos.x - ui.gizmoMouseStart.x, io.MousePos.y - ui.gizmoMouseStart.y);
+        const ImVec2 d(mouse.x - ui.gizmoMouseStart.x, mouse.y - ui.gizmoMouseStart.y);
         iris::Transform t = ui.gizmoStart;
         if (ui.gizmoAxis >= 0 && ui.gizmoAxis < 3)
         {
@@ -2341,13 +2345,13 @@ namespace IW4Iris::Editor
       {
         ui.gizmoDragging = true;
         ui.gizmoAxis = hoverAxis;
-        ui.gizmoMouseStart = io.MousePos;
+        ui.gizmoMouseStart = mouse;
         ui.gizmoStart = *current;
       }
       else
       {
         // Click selection: the nearest object box under the mouse.
-        const iris::Ray ray = iris::ScreenRay(view, io.MousePos.x, io.MousePos.y, size.x, size.y);
+        const iris::Ray ray = iris::ScreenRay(view, mouse.x, mouse.y, size.x, size.y);
         double best = 1e300;
         std::string hit;
         all([&](const std::string& id, const std::string&) {
@@ -2374,6 +2378,15 @@ namespace IW4Iris::Editor
           SelectObject(s, hit);
       }
     }
+  }
+  }  // namespace
+
+  void DrawSceneOverlay(Session& s)
+  {
+    auto* dl = ImGui::GetBackgroundDrawList();
+    const auto space = BeginGameSpace(dl);
+    DrawSceneOverlayInGameSpace(s, dl);
+    EndGameSpace(dl, space);
   }
 
   bool HandleObjectShortcuts(Session& s)

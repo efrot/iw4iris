@@ -37,6 +37,54 @@ namespace IW4Iris::Runtime
 
     // render thread
     IDirect3DDevice9* uiDevice = nullptr;
+
+    // The finished game frame, copied before the editor draws, for the
+    // editor's game view (the game scaled between the panels).
+    IDirect3DTexture9* gameTexture = nullptr;
+    D3DSURFACE_DESC gameTextureDesc{};
+
+    void ReleaseGameImage()
+    {
+      if (gameTexture)
+        gameTexture->Release();
+      gameTexture = nullptr;
+      gameTextureDesc = {};
+    }
+
+    bool CopyGameImage(IDirect3DDevice9* device)
+    {
+      IDirect3DSurface9* back = nullptr;
+      if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back)) || !back)
+        return false;
+      D3DSURFACE_DESC desc{};
+      back->GetDesc(&desc);
+      if (!gameTexture || desc.Width != gameTextureDesc.Width || desc.Height != gameTextureDesc.Height ||
+          desc.Format != gameTextureDesc.Format)
+      {
+        ReleaseGameImage();
+        // The back buffer's own format first (a plain copy), else a common one.
+        for (const D3DFORMAT format : {desc.Format, D3DFMT_X8R8G8B8, D3DFMT_A8R8G8B8})
+          if (SUCCEEDED(device->CreateTexture(desc.Width, desc.Height, 1, D3DUSAGE_RENDERTARGET, format, D3DPOOL_DEFAULT,
+                                              &gameTexture, nullptr)))
+            break;
+        if (!gameTexture)
+        {
+          back->Release();
+          return false;
+        }
+        gameTextureDesc = desc;
+      }
+      IDirect3DSurface9* target = nullptr;
+      bool copied = false;
+      if (SUCCEEDED(gameTexture->GetSurfaceLevel(0, &target)) && target)
+      {
+        // Also resolves a multisampled back buffer (same size).
+        copied = SUCCEEDED(device->StretchRect(back, nullptr, target, nullptr, D3DTEXF_NONE));
+        target->Release();
+      }
+      back->Release();
+      return copied;
+    }
     HWND uiWindow = nullptr;
     bool imguiContext = false;
 
@@ -597,6 +645,18 @@ namespace IW4Iris::Runtime
       uiDevice = device;
     }
 
+    // The game picture for the editor's game view (only when it is used).
+    const bool fit = GetSession().settings.fitGameView;  // a bool, read without the lock
+    if (fit && CopyGameImage(device))
+      Editor::SetGameImage(gameTexture, static_cast<int>(gameTextureDesc.Width), static_cast<int>(gameTextureDesc.Height),
+                           device);
+    else
+    {
+      Editor::SetGameImage(nullptr, 0, 0, nullptr);
+      if (!fit)
+        ReleaseGameImage();
+    }
+
     ImGui_ImplDX9_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
@@ -626,6 +686,8 @@ namespace IW4Iris::Runtime
     std::lock_guard _(uiMutex);
     if (uiDevice)
       ImGui_ImplDX9_InvalidateDeviceObjects();
+    ReleaseGameImage();  // D3DPOOL_DEFAULT: must go before the device resets
+    Editor::SetGameImage(nullptr, 0, 0, nullptr);
     Capture::OnDeviceLost();
     Graphics::DeviceLost();
   }

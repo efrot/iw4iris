@@ -37,6 +37,7 @@ namespace IW4Iris
     std::map<std::string, std::string> demoLabels;
     std::string ffmpegPath;
     bool showPathOverlay = true;
+    bool fitGameView = true;         // with the editor shown, scale the game into the space between the panels
     bool showFrustums = true;
     bool autosave = true;
     int autosaveSeconds = 60;

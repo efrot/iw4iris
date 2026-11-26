@@ -32,6 +32,21 @@ namespace IW4Iris::Editor
     std::string iniPath;
     bool initialized = false;
 
+    // The game frame copied before the editor draws (see SetGameImage).
+    struct GameImage
+    {
+      void* texture = nullptr;
+      int width = 0, height = 0;
+      void* device = nullptr;
+    } gameImage;
+
+    // Draw callback: the copied frame is opaque, whatever its alpha says.
+    void DisableBlending(const ImDrawList*, const ImDrawCmd* cmd)
+    {
+      if (auto* device = static_cast<IDirect3DDevice9*>(cmd->UserCallbackData))
+        device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+    }
+
     struct WorkspaceDef
     {
       const char* name;
@@ -277,6 +292,10 @@ namespace IW4Iris::Editor
           ImGui::MenuItem(name.c_str(), nullptr, &ui.show[i]);
         }
         ImGui::Separator();
+        if (ImGui::MenuItem("Fit the game between the panels", nullptr, &s.settings.fitGameView))
+          SaveSettings(s);
+        ImGui::SetItemTooltip("On: the game picture is scaled into the free space, nothing is hidden under the panels.\n"
+                              "Off: the game fills the screen behind the panels.");
         ImGui::MenuItem("Camera path overlay", nullptr, &s.settings.showPathOverlay);
         ImGui::MenuItem("Camera frustums", nullptr, &s.settings.showFrustums);
         if (ImGui::BeginMenu("Composition guides"))
@@ -2296,6 +2315,38 @@ namespace IW4Iris::Editor
         ui.homeOpen = false;
     }
 
+    // The game picture in the free space between the panels: the dock's
+    // central node, keeping the game's aspect ratio (letterboxed). The
+    // panels then cover a dark background instead of the game.
+    void DrawGameView(Session& s)
+    {
+      auto& v = ui.gameView;
+      v = {};
+      const auto& io = ImGui::GetIO();
+      if (!s.settings.fitGameView || !gameImage.texture || io.DisplaySize.x < 1.0f || io.DisplaySize.y < 1.0f)
+        return;
+      const ImGuiDockNode* node = ImGui::DockBuilderGetCentralNode(ui.dockspace);
+      if (!node || node->Size.x < 32.0f || node->Size.y < 32.0f)
+        return;
+      const float scale = std::min(node->Size.x / io.DisplaySize.x, node->Size.y / io.DisplaySize.y);
+      if (scale >= 0.999f)
+        return;  // the free space is the whole screen
+      const ImVec2 size(io.DisplaySize.x * scale, io.DisplaySize.y * scale);
+      const ImVec2 min(std::floor(node->Pos.x + (node->Size.x - size.x) * 0.5f),
+                       std::floor(node->Pos.y + (node->Size.y - size.y) * 0.5f));
+      const ImVec2 max(min.x + size.x, min.y + size.y);
+      auto* dl = ImGui::GetBackgroundDrawList();
+      dl->AddRectFilled(ImVec2(0, 0), io.DisplaySize, IM_COL32(12, 13, 16, 255));
+      dl->AddCallback(&DisableBlending, gameImage.device);
+      dl->AddImage(ImTextureRef(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(gameImage.texture))), min, max);
+      dl->AddCallback(ImGui::GetPlatformIO().DrawCallback_ResetRenderState, nullptr);
+      dl->AddRect(ImVec2(min.x - 1, min.y - 1), ImVec2(max.x + 1, max.y + 1), IM_COL32(60, 62, 72, 255));
+      v.active = true;
+      v.min = min;
+      v.size = size;
+      v.scale = scale;
+    }
+
     void DrawNotification(Session& s)
     {
       if (!s.notice.empty())
@@ -2445,6 +2496,75 @@ namespace IW4Iris::Editor
   UiState& Ui()
   {
     return ui;
+  }
+
+  void SetGameImage(void* texture, int width, int height, void* device)
+  {
+    gameImage = {texture, width, height, device};
+  }
+
+  const GameView& CurrentGameView()
+  {
+    return ui.gameView;
+  }
+
+  ImVec2 GameToScreen(ImVec2 p)
+  {
+    const auto& v = ui.gameView;
+    if (!v.active)
+      return p;
+    return ImVec2(v.min.x + p.x * v.scale, v.min.y + p.y * v.scale);
+  }
+
+  ImVec2 ScreenToGame(ImVec2 p)
+  {
+    const auto& v = ui.gameView;
+    if (!v.active || v.scale <= 0.0f)
+      return p;
+    return ImVec2((p.x - v.min.x) / v.scale, (p.y - v.min.y) / v.scale);
+  }
+
+  ImVec2 GameMouse()
+  {
+    return ScreenToGame(ImGui::GetIO().MousePos);
+  }
+
+  bool MouseOverGame()
+  {
+    const auto& v = ui.gameView;
+    if (!v.active)
+      return true;
+    const ImVec2 m = ImGui::GetIO().MousePos;
+    return m.x >= v.min.x && m.y >= v.min.y && m.x < v.min.x + v.size.x && m.y < v.min.y + v.size.y;
+  }
+
+  GameSpace BeginGameSpace(ImDrawList* dl)
+  {
+    // Drawn in game coordinates (CPU clipping such as text culling then
+    // works in the same space); EndGameSpace moves it onto the image.
+    dl->PushClipRect(ImVec2(0, 0), ImGui::GetIO().DisplaySize, false);
+    return {dl->VtxBuffer.Size, dl->CmdBuffer.Size - 1};
+  }
+
+  void EndGameSpace(ImDrawList* dl, const GameSpace& space)
+  {
+    const auto& v = ui.gameView;
+    if (v.active)
+    {
+      for (int i = space.vtx; i < dl->VtxBuffer.Size; ++i)
+      {
+        auto& p = dl->VtxBuffer[i].pos;
+        p = ImVec2(v.min.x + p.x * v.scale, v.min.y + p.y * v.scale);
+      }
+      const ImVec2 max(v.min.x + v.size.x, v.min.y + v.size.y);
+      for (int i = std::max(space.cmd, 0); i < dl->CmdBuffer.Size; ++i)
+      {
+        auto& r = dl->CmdBuffer[i].ClipRect;
+        r = ImVec4(std::max(v.min.x + r.x * v.scale, v.min.x), std::max(v.min.y + r.y * v.scale, v.min.y),
+                   std::min(v.min.x + r.z * v.scale, max.x), std::min(v.min.y + r.w * v.scale, max.y));
+      }
+    }
+    dl->PopClipRect();
   }
 
   void Notify(std::string message)
@@ -2829,6 +2949,7 @@ namespace IW4Iris::Editor
     }
     ImGui::DockSpace(ui.dockspace, ImVec2(0, 0), ImGuiDockNodeFlags_PassthruCentralNode);
     ImGui::End();
+    DrawGameView(s);
 
     if (Shown(Panel::Outliner))
       DrawOutliner(s);
@@ -2888,8 +3009,10 @@ namespace IW4Iris::Editor
       const auto* mainViewport = ImGui::GetMainViewport();
       const char* text = "FREE VIEW  -  not the shot. V: back to the shot camera";
       const ImVec2 size = ImGui::CalcTextSize(text);
-      const ImVec2 pos(mainViewport->WorkPos.x + (mainViewport->WorkSize.x - size.x) * 0.5f,
-                       mainViewport->WorkPos.y + mainViewport->WorkSize.y * 0.12f);
+      const auto& gv = ui.gameView;
+      const ImVec2 pos = gv.active ? ImVec2(gv.min.x + (gv.size.x - size.x) * 0.5f, gv.min.y + 10.0f)
+                                   : ImVec2(mainViewport->WorkPos.x + (mainViewport->WorkSize.x - size.x) * 0.5f,
+                                            mainViewport->WorkPos.y + mainViewport->WorkSize.y * 0.12f);
       auto* dl = ImGui::GetBackgroundDrawList();
       dl->AddRectFilled(ImVec2(pos.x - 10, pos.y - 5), ImVec2(pos.x + size.x + 10, pos.y + size.y + 5), IM_COL32(0, 0, 0, 140), 4.0f);
       dl->AddText(pos, IM_COL32(255, 220, 140, 230), text);

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.1 — 2026-11-26 (fixes from the first in-game reports, not yet tested in the game)
+
+### Fixed
+
+* **A film set stayed on the loading screen.** Pausing (or slowing) a demo
+  set the engine's timescale near 0 and it was never given back, so a map
+  started afterwards ran about 1000 times too slow. The timescale now
+  belongs to demo control only while a demo plays, a film set always
+  starts at normal speed, and the loading watchdog repairs it. Each step
+  of a film set's start is written to `iw4iris.log`.
+* "script compile error / bad syntax" when creating a scene (Director Mod
+  0.3.1; see 0.3.0 F-35 in docs/BACKLOG.md).
+
+### Added
+
+* **The game fits between the panels.** With the editor shown (F1), the
+  game picture is scaled, with its aspect ratio, into the free space
+  between the panels instead of being hidden under them. Camera paths,
+  the gizmo, guides and click selection follow the scaled picture;
+  recordings are unaffected (full resolution, no editor). View → *Fit the
+  game between the panels* switches back to the full-screen picture.
+
 ## 0.3.0 — 2026-11-25 ("Creator Preview": audit fixes and usability, not yet tested in the game)
 
 Verification states of every item: [docs/BACKLOG.md](docs/BACKLOG.md).

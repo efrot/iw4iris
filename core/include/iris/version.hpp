@@ -8,7 +8,7 @@ namespace iris
 {
     inline constexpr int kVersionMajor = 0;
     inline constexpr int kVersionMinor = 3;
-    inline constexpr int kVersionPatch = 0;
-    inline constexpr std::string_view kVersionString = "IW4Iris 0.3.0";
+    inline constexpr int kVersionPatch = 1;
+    inline constexpr std::string_view kVersionString = "IW4Iris 0.3.1";
     inline constexpr std::string_view kProductName = "IW4Iris - Cinematic Studio";
 }  // namespace iris
