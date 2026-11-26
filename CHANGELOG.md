@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.5.1 — 2026-11-26 (film sets load again; first fixes found in the game)
+
+### Fixed
+
+* **Film sets stayed on the loading screen on every map** (reported by two
+  users, reproduced in the game with 0.5.0). The offline guard dropped every
+  packet passed to the engine's packet sender, including packets to the
+  game's own local server: IW4x sends some of those (the client's stats
+  while it connects) through that sender directly, so the client never
+  joined its own film set. Local (loopback) packets now reach the engine;
+  packets to network addresses are still dropped, and sockets still refuse
+  any non-loopback destination. Help > Diagnostics shows "Local (loopback)
+  packets: delivered".
+* **Reload set** (after adding a weapon or model the map has not loaded)
+  lost the film set with "Server connection timed out": the engine's map
+  restart made the game reconnect to itself through a network address,
+  which the offline guard blocks. Reload now leaves the level and loads the
+  map again, the same way a new film set starts.
+* **Creating a film set while a demo played** (a demo recorded on a modded
+  server, as most community demos are) left a black screen: leaving the
+  demo makes IW4x switch the mod folder back, and the map command queued
+  behind it was lost. The film set now waits until the game has left the
+  demo, then loads the map.
+* The editor gave a film set up 10 s after its server was ready while the
+  game was still loading the map; a joining game is now waited for (about
+  a minute), then the film set fails with the stage it stopped at.
+* Opening a demo that had been opened before failed with "File exists".
+
+### Easier to use
+
+* **Panels no longer pile up in a corner after an update.** A layout saved
+  by an earlier version did not know the panels added since (Director,
+  Object, Players, Moments, Angles, Music); they opened as floating windows
+  a few pixels wide over the Scene and Demos panels (one letter per line).
+  An outdated layout is now rebuilt once, a panel the layout has never seen
+  docks beside its siblings, and floating panels keep a readable size.
+* **Demos panel:** click a demo to select it, then **Play** (button under
+  the list, Enter, or *Play* at the top of the right-click menu);
+  double-click still works.
+* **Help > Start screen** opens the start screen at any time; it used to
+  close again at once while a demo or map was loaded.
+
+### Build
+
+* `tools\build.ps1` works on a stock Windows with only the free Visual
+  Studio 2022 **Build Tools** (vswhere now searches every product, not just
+  full Visual Studio) and in Windows PowerShell 5.1 (the IW4x patch check
+  no longer stops the script there); the Python tests use the `py`
+  launcher when it exists.
+
+### Diagnostics
+
+* iw4iris.log keeps the last five sessions (`.previous` to `.previous5`)
+  instead of one, uses local time, and now includes the lines logged before
+  the game's folder was known (offline guard, render clock, window).
+* While a film set loads, every connection stage of the game, every packet
+  the offline guard drops and a status line every 300 frames are logged;
+  an active IW4x mod folder (`fs_game`) is logged.
+* The launcher's Diagnostics list a copy of the Director Mod in the game's
+  own `mods` folder (IW4Iris does not use it; choosing it in IW4x's Mods
+  menu replaces the installed scripts).
+
 ## 0.5.0 — 2026-11-26 (Angles and BeatSync, not yet tested in the game)
 
 ### Added

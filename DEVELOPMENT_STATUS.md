@@ -3,22 +3,40 @@
 Persistent notes so development can continue across sessions. Update this
 file with every significant change.
 
-_Last updated: 2026-11-26 — v0.5.0 (Angles: several recordings of one match;
-BeatSync: music row, local beat detection, beat actions, music in
-recordings; before that 0.4.0: players, perspectives, moments, trickshot
-candidates, render preflight, fitted game view). Audit findings and their
-verification state: [docs/BACKLOG.md](docs/BACKLOG.md); comparison with
-other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
+_Last updated: 2026-11-26 — v0.5.1 (film sets load again: the offline
+guard no longer drops the game's packets to its own local server; first
+session with a real IW4x installation and in-game testing on the
+developer machine). Audit findings and their verification state:
+[docs/BACKLOG.md](docs/BACKLOG.md); comparison with other tools:
+[docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 
 ### Handoff (read first)
 
-* **First in-game results (user reports):** 0.3.0's Director Mod did not
-  compile ("bad syntax": `anim` is a reserved word; fixed in mod 0.3.1, a
-  static GSC check now runs in CI). After that fix the film set stayed on
-  the loading screen; the cause found in the code (a paused demo left the
-  engine timescale near 0) is fixed in 0.3.1, **whether that was the user's
-  case is unconfirmed**. iw4iris.log now logs every film-set start step
-  ("Director: ..."); ask for it if loading still hangs.
+* **In-game testing is possible on the development machine** (Windows 11,
+  Steam MW2 with IW4x, Visual Studio 2022 Build Tools, CMake, Python 3.12):
+  `tools/build.ps1` builds everything with MSVC; the launcher at the
+  repository root installs `client/` into the cinematic environment
+  (`%LOCALAPPDATA%\IW4Iris\game`), and the game can be driven and observed
+  there. Runtime results go into docs/BACKLOG.md with their evidence.
+* **Film set loading screen (F-48, fixed in 0.5.1):** every film set stayed
+  on the loading screen because layer 1 of the offline guard dropped
+  loopback packets that IW4x sends through `Sys_SendPacket`. Reproduced in
+  the game with 0.5.0; the loopback trampoline is in
+  `IrisOfflineGuard.cpp`. Before 0.5.1 no film set ever reached the game
+  view, so **every Director-mode feature (actors, props, effects, motion
+  graphics in a set) is still unverified in the game**.
+* **Verified in the game with 0.5.1:** film set from the main menu
+  (Highrise) and while a modded server's demo played (Afghan); template
+  actor spawned; *Reload set* precached the rifle and rebuilt the actor
+  holding it; demo opened with the new Play button; panels docked after an
+  update. **Open question:** a film set started after such a demo keeps the
+  demo's mod folder (`fs_game`), so the mod's own scripts may run in the
+  set; decide whether to clear it (IW4x's own mod switch restarts the
+  renderer).
+* **Earlier user results:** the Director Mod compiles and answers in the
+  game (0.3.1 scripts: "Director Mod ready: protocol 2", 48 models
+  precached on mp_highrise); a 1248 s demo plays, indexes, fits the
+  timeline and seeks backwards (user logs of commit c499116).
 * **Engine bindings used for players / moments:** only IW4x's size-checked
   structures (`cg_s::snap`, `snapshot_s::clients / entities`, `centity_s`
   prev / next states, `cg_s::frameInterpolation`, `playerState_s`, entity
@@ -51,16 +69,23 @@ other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 | Area | State |
 | --- | --- |
 | Core library (`core/`) | scene, Director reconciler, timeline navigation, fuzzy search, diagnostics, players, moments, preflight, angle sync, audio analysis and BeatSync; 187 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) and under ASan / UBSan |
-| Director Mod (`mods/iw4iris_director`) | written; **never compiled by the game** (GSC is compiled at map load; no game here) |
+| Director Mod (`mods/iw4iris_director`) | **runtime-tested (start only):** compiles at map load and answers "ready: protocol 2" with its precache (user logs, 0.3.1 scripts; and in the game here with 0.5.0). Requests (actors, props, effects) not yet exercised: until 0.5.1 the game never joined a film set (F-48) |
 | Director bridge, graphics renderer, Director / motion graphics editor | implemented; cross-compile warning-free; **never run in the game** |
-| IW4x component (`engine/iw4x/`) | implemented; **cross-compiles and links** into IW4x `912099b7c405` with IW4x's `-Werror` flags; **builds with MSVC in the Windows CI job** (client DLL since run 3); **never run in the game** |
-| Launcher (`launcher/`) | implemented; cross-compiles; install rules unit-tested; never run on Windows |
+| IW4x component (`engine/iw4x/`) | implemented; **cross-compiles and links** into IW4x `912099b7c405` with IW4x's `-Werror` flags; **builds with MSVC in the Windows CI job** (client DLL since run 3); **runs in the game** (0.5.0 here: editor, start screen, scene wizard, film set start, diagnostics; users: demos, camera, seeking) |
+| Launcher (`launcher/`) | **runtime-tested on Windows:** environment setup, Director Mod install, *Update & Launch* (user logs; and here with 0.5.0) |
 | Blender add-on | helpers tested against the C++ exporter; not run inside Blender |
 | After Effects script | generated and structure-tested; not run in AE |
 | Windows (MSVC) build | GitHub Actions `windows-2022` job runs `tools/build.ps1`: green since run 5 (455594a) except runs 20 to 23 (C4459, fixed in a9fa81b); runs 24 to 29 green (angles, coverage, BeatSync): client DLL, launcher and tests built with Visual Studio 2022, the test suite runs and passes on Windows, the package is uploaded as an artifact |
 | Win32 test binary | cross-compiles; runs and passes on Windows in the CI job (MSVC build); Wine does not run in the container |
 
-## How the current binaries were produced (Linux container)
+## How the current binaries were produced
+
+**Since 0.5.1 (Windows, MSVC):** `toolsuild.ps1 -Configuration Release`
+(tests included), `tools\package.ps1`, then `bash tools/update-prebuilt.sh`
+on the development machine, after the in-game checks in docs/BACKLOG.md
+(F-45, F-48 to F-51). The version comes from `CMakeLists.txt`.
+
+**Up to 0.5.0 (Linux container, MinGW cross-build):**
 
 ```
 apt-get install g++-mingw-w64-i686-posix gcc-mingw-w64-i686-posix   # GCC 13
