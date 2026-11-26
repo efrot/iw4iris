@@ -3,14 +3,25 @@
 Persistent notes so development can continue across sessions. Update this
 file with every significant change.
 
-_Last updated: 2026-11-26 — v0.5.1 (film sets load again: the offline
-guard no longer drops the game's packets to its own local server; first
-session with a real IW4x installation and in-game testing on the
-developer machine). Audit findings and their verification state:
+_Last updated: 2026-11-27 — v0.6.0 (automatic updates from GitHub
+Releases; before that 0.5.1: film sets load again, editor UX found while
+testing in the game). Audit findings and their verification state:
 [docs/BACKLOG.md](docs/BACKLOG.md); comparison with other tools:
 [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 
 ### Handoff (read first)
+
+* **Releasing (since 0.6.0):** users get new versions automatically from
+  GitHub Releases (launcher/src/Updater.hpp). To release: bump the version
+  in `CMakeLists.txt` and `core/include/iris/version.hpp`, write its
+  `## X.Y.Z — date` section in CHANGELOG.md (it becomes the release notes),
+  build and check in the game, refresh the root binaries
+  (`tools/build.ps1`, `tools/package.ps1`, `bash tools/update-prebuilt.sh`),
+  commit, push, then `git tag vX.Y.Z` and `git push origin vX.Y.Z`. The
+  *release* job publishes the CI-built package and SHA256SUMS.txt only when
+  both build jobs pass and the tag matches CMakeLists.txt. Never re-use or
+  move a tag: launchers compare versions, a changed package under an old
+  tag would not reach anyone.
 
 * **In-game testing is possible on the development machine** (Windows 11,
   Steam MW2 with IW4x, Visual Studio 2022 Build Tools, CMake, Python 3.12):
