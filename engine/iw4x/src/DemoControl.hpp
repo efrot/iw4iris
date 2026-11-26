@@ -15,7 +15,10 @@
 //     restarted (its first snapshot is the checkpoint) and played forward to
 //     the target. Exact, but takes as long as parsing up to the target.
 //
-// Scene time is the demo's time in seconds since its first snapshot.
+// Scene time is the demo's time in seconds since its first snapshot. When
+// the demo is an angle of a project (another recording of the main demo's
+// match), SetClock makes scene time the main demo's instead: the angle's
+// own time plus its shift, so the timeline, cuts and moments line up.
 #pragma once
 
 #include <filesystem>
@@ -33,6 +36,14 @@ namespace IW4Iris::DemoControl
   void Update();  // once per frame
 
   double SceneTime();
+  // The demo playing is an angle: scene time follows the main demo's clock
+  // (whose first snapshot has `mainFirstServerTime`), with the angle's server
+  // time `offsetMs` ahead of the main demo's. Cleared by Play and ClearClock.
+  void SetClock(int mainFirstServerTime, int offsetMs);
+  void ClearClock();
+  // Seconds added to the demo's own time (0 without a clock, or before the
+  // demo's first snapshot is known).
+  double SceneShift();
   // Server time of the demo's first snapshot (its time origin), once known.
   std::optional<int> FirstServerTime();
   bool HasScene();          // a demo is playing and its first snapshot is known

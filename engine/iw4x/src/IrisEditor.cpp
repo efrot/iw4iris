@@ -57,7 +57,7 @@ namespace IW4Iris::Editor
     const std::vector<WorkspaceDef>& Workspaces()
     {
       static const std::vector<WorkspaceDef> w{
-        {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Players, Panel::Moments, Panel::Inspector, Panel::Timeline, Panel::Look}},
+        {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Players, Panel::Moments, Panel::Angles, Panel::Inspector, Panel::Timeline, Panel::Look}},
         {"Timeline", Icons::CHART, {Panel::Outliner, Panel::Inspector, Panel::Timeline}},
         {"Cameras", Icons::CAMERA, {Panel::Outliner, Panel::Inspector, Panel::Timeline, Panel::Presets}},
         {"Director", Icons::USER, {Panel::Outliner, Panel::Director, Panel::Actors, Panel::ObjectInspector, Panel::Timeline}},
@@ -102,6 +102,7 @@ namespace IW4Iris::Editor
     case Panel::ObjectInspector: return "Object###ObjectInspector";
     case Panel::Players: return "Players###Players";
     case Panel::Moments: return "Moments###Moments";
+    case Panel::Angles: return "Angles###Angles";
     default: return "###unknown";
     }
   }
@@ -144,6 +145,7 @@ namespace IW4Iris::Editor
       ImGui::DockBuilderDockWindow(PanelName(Panel::Demos), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Players), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Moments), left);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::Angles), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Actors), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Inspector), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Look), right);
@@ -636,6 +638,17 @@ namespace IW4Iris::Editor
         ImGui::ProgressBar(f, ImVec2(160, 0), label);
       }
 
+      if (!s.status.angleNeededName.empty() && !recording)
+      {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.4f, 1.0f), "%s This cut is in %s", Icons::WARNING,
+                           s.status.angleNeededName.c_str());
+        ImGui::SetItemTooltip("The camera cut at the playhead belongs to another recording of the match than the one "
+                              "playing, so its picture cannot be shown here.");
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Open it"))
+          Runtime::OpenAngle(s, s.status.angleNeeded);
+      }
       if (!s.status.cameraWithoutPicture.empty() && !s.freeView)
       {
         ImGui::SameLine();
@@ -745,7 +758,7 @@ namespace IW4Iris::Editor
           }
           if (ImGui::MenuItem("Add cut here (at the playhead)"))
           {
-            p.cuts.AddCut({s.playhead, c.id});
+            p.cuts.AddCut({s.playhead, c.id, CutAngle(s)});
             p.useCameraCuts = true;
             s.Commit("Add camera cut");
           }
@@ -1493,6 +1506,11 @@ namespace IW4Iris::Editor
               s.settings.demoLabels[key] = edit;
               SaveSettings(s);
             }
+            if (s.project.demo && !loaded && ImGui::MenuItem("Add as an angle of this match"))
+              AddDemoAsAngle(s, d);
+            if (s.project.demo && !loaded)
+              ImGui::SetItemTooltip("Another player's recording of the main demo's match: its recorder's exact view "
+                                    "to cut to (Angles panel).");
             ImGui::TextDisabled("%s", key.c_str());
             ImGui::EndPopup();
           }
@@ -1739,6 +1757,21 @@ namespace IW4Iris::Editor
         q.push_back(job);
         s.Commit("Queue render");
       }
+      if (!s.project.angles.empty())
+      {
+        ImGui::SameLine();
+        if (ImGui::Button((std::string(Icons::VIDEO) + "  Queue per angle").c_str()))
+        {
+          const auto jobs = iris::PlanAngleRenders(s.project, s.project.recording, iris::CurrentUtcTimestamp().substr(0, 10));
+          q.insert(q.end(), jobs.begin(), jobs.end());
+          s.Commit("Queue per angle");
+          Notify(std::to_string(jobs.size()) + " job(s): each opens its recording, then renders its part" +
+                 (iris::IsImageSequence(s.project.recording.format) ? " into one image sequence."
+                                                                     : " as its own file (an image sequence gives one)."));
+        }
+        ImGui::SetItemTooltip("The recording range cuts between recordings of the match: a recording shows only the "
+                              "demo that plays, so each part renders on its own, with its demo opened first.");
+      }
       ImGui::SameLine();
       if (ui.queueRunning)
       {
@@ -1792,10 +1825,39 @@ namespace IW4Iris::Editor
             job.status = progress.state == Capture::State::Done ? "done" : (progress.state == Capture::State::Cancelled ? "cancelled" : "failed");
             job.message = progress.message;
           }
-        auto next = std::find_if(q.begin(), q.end(), [](const iris::RenderJob& j) { return j.status == "queued"; });
+        auto next = std::find_if(q.begin(), q.end(),
+                                 [](const iris::RenderJob& j) { return j.status == "queued" || j.status == "opening"; });
+        // A job of a project with angles needs its recording loaded first.
+        bool ready = true;
+        if (next != q.end() && (!next->angle.empty() || !s.project.angles.empty()))
+        {
+          ready = s.status.demoPlaying && s.loadedAngle && *s.loadedAngle == next->angle && !s.status.seeking &&
+                  s.status.demoFirstServerTime.has_value() && !s.pendingSeek;
+          if (!ready)
+          {
+            const auto* a = s.project.FindAngle(next->angle);
+            if (!next->angle.empty() && !a)
+            {
+              next->status = "failed";
+              next->message = "Its angle was removed from the project.";
+            }
+            else if (next->status != "opening")
+            {
+              next->status = "opening";
+              next->message = "Opening " + (a ? a->name : std::string("the main demo"));
+              ui.queueLoadFrames = 0;
+              Runtime::OpenAngle(s, next->angle);
+            }
+            else if (++ui.queueLoadFrames > 60 * 120)
+            {
+              next->status = "failed";
+              next->message = "Its recording did not open within two minutes (see the notice / iw4iris.log).";
+            }
+          }
+        }
         if (next == q.end())
           ui.queueRunning = false;
-        else
+        else if (ready)
         {
           next->status = "rendering";
           auto project = s.project;
@@ -3045,6 +3107,8 @@ namespace IW4Iris::Editor
       DrawPlayers(s);
     if (Shown(Panel::Moments))
       DrawMoments(s);
+    if (Shown(Panel::Angles))
+      DrawAngles(s);
     if (Shown(Panel::Recording))
       DrawRecording(s);
     if (Shown(Panel::RenderQueue))

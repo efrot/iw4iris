@@ -28,8 +28,14 @@ Demo browser, playback, speed, pause, frame step, seeking, timeline sync.
    records the file offset of every snapshot; restoring needs the client
    state reset IWXMVM performs in IW3 (`CL_FirstSnapshot`, snapshot
    validity, server-command sequences) translated to IW4's structures.
-3. Event markers: decode obituary entity events (delta-coded) from
-   snapshots, or collect them live during playback.
+3. Event markers: done in 0.4 (obituary events collected live, Moments
+   panel); in-game verification pending.
+4. Multi-demo angles: done in 0.5 (kill-feed sync suggestion, switching at
+   the same moment, per-angle render jobs); in-game verification with two
+   demos of one match pending (docs/TESTING.md §5a). Next: show an
+   angle's coverage on the timeline (where its demo starts and ends), a
+   picture-in-picture preview of a second recording is not possible (one
+   client plays one demo).
 
 ## Phase 4 — recording · implemented
 

@@ -106,7 +106,7 @@ namespace IW4Iris::Editor
         Notify("The demo's start time is not known yet: play the demo for a moment");
         return;
       }
-      const double scene = (m.serverTime - *s.status.demoFirstServerTime) / 1000.0;
+      const double scene = (m.serverTime - *s.status.demoFirstServerTime) / 1000.0 + s.status.sceneShift;
       const double kill = iris::AddSlowMotion(s.project.timeRemap, scene, 0.3, 2.0,
                                               std::max(s.project.timeline.end, scene) * 4.0 + 60.0);
       if (!MakeClip(s, m, false))
@@ -117,9 +117,9 @@ namespace IW4Iris::Editor
       const std::string chase = MakePlayerCamera(s, m.player, slot, recording, iris::CameraMode::Chase);
       const std::string eyes = MakePlayerCamera(s, m.player, slot, recording, iris::CameraMode::PlayerEyes);
       auto& p = s.project;
-      p.cuts.AddCut({p.timeline.inPoint, chase});
-      p.cuts.AddCut({std::max(p.timeline.inPoint, kill - 0.4), eyes});
-      p.cuts.AddCut({std::min(p.timeline.outPoint, kill + 1.0), chase});
+      p.cuts.AddCut({p.timeline.inPoint, chase, CutAngle(s)});
+      p.cuts.AddCut({std::max(p.timeline.inPoint, kill - 0.4), eyes, CutAngle(s)});
+      p.cuts.AddCut({std::min(p.timeline.outPoint, kill + 1.0), chase, CutAngle(s)});
       p.useCameraCuts = true;
       ShowShot(s);
       s.Commit("Trickshot cinematic");
@@ -134,7 +134,8 @@ namespace IW4Iris::Editor
   {
     if (!s.status.demoFirstServerTime)
       return std::nullopt;
-    const double scene = (serverTime - *s.status.demoFirstServerTime) / 1000.0;
+    // An angle's server time, moved onto the main demo's clock.
+    const double scene = (serverTime - *s.status.demoFirstServerTime) / 1000.0 + s.status.sceneShift;
     const double end = std::max(s.project.timeline.end, scene) * 4.0 + 60.0;
     return s.project.timeRemap.CinematicTime(std::max(0.0, scene), end);
   }
@@ -159,7 +160,7 @@ namespace IW4Iris::Editor
     if (s.analysis.active)
     {
       const float f = s.status.demoDuration > 0.0
-                          ? static_cast<float>(std::clamp(s.status.sceneTime / s.status.demoDuration, 0.0, 1.0))
+                          ? static_cast<float>(std::clamp((s.status.sceneTime - s.status.sceneShift) / s.status.demoDuration, 0.0, 1.0))
                           : 0.0f;
       ImGui::ProgressBar(f, ImVec2(-90, 0), "Finding moments ...");
       ImGui::SameLine();

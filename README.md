@@ -13,7 +13,7 @@ cinematics.
 > normal IW4x installation stays as it is, and you keep playing online with
 > that one.
 
-> **Status: v0.4.0 preview, not yet tested in the game.** The
+> **Status: v0.5.0 preview, not yet tested in the game.** The
 > editor, the camera system, demo control, the recorder, Director Mode
 > (actors, props, effects on film sets) and native motion graphics (3D text
 > and logos) are implemented; the cinematic client builds with MinGW and
@@ -65,7 +65,7 @@ cinematics.
 | **Cameras** | Free camera (WASD, vertical movement, roll, speed, acceleration, smoothing, mouse-wheel zoom, gamepad). Dolly cameras with keys: smooth, linear, Catmull-Rom, Bézier or hold per key, ease in / out, constant speed, quaternion or multi-turn Euler rotation. Orbit, follow and tripod (look-at) rigs with player targets. Deterministic handheld shake. Camera cuts. |
 | **Lenses** | Focal lengths from 10 to 300 mm on real sensor sizes (Full Frame, Super 35, APS-C, MFT, Super 16, 65 mm), anamorphic squeeze, aperture and focus distance, thin-lens depth-of-field readout, depth of field driven by the lens. |
 | **Timeline** | Keys on tracks, box selection, dragging with frame snapping, markers, camera cuts, a playback-speed track for slow motion and speed ramps, keyframeable look properties, a graph editor with Bézier handles, undo / redo, in / out points, loop region. |
-| **Demos** | A browser for IW4x demos with metadata (map, mode, length, author), search, favourites and labels. Playback speed, pause, frame stepping and seeking. |
+| **Demos** | A browser for IW4x demos with metadata (map, mode, length, author), search, favourites and labels. Playback speed, pause, frame stepping and seeking. Players (identities, perspectives), moments and trickshot candidates. **Angles:** several players' recordings of one match in one project, synchronised from their shared kills, cut between on the timeline and rendered per angle. |
 | **Look** | Film tweaks (brightness, contrast, desaturation, light and dark tint), depth of field, sun (experimental), fog on / off, hide HUD / gun / crosshair, lighting presets, and a reset that restores every setting IW4Iris changed. |
 | **Recording** | PNG / JPEG sequences with no extra software. H.264, H.265, ProRes 422 / HQ / 4444 / 4444 XQ and lossless FFV1 through FFmpeg. 23.976 to 240 FPS or any custom rate. A virtual clock times every output frame exactly, however long it takes to render. Recordings are always clean (no editor, no overlays). Render queue. |
 | **Compositing** | Camera export to Blender (importer add-on included) and After Effects (a script that builds the camera), plus CSV. |
@@ -75,13 +75,13 @@ cinematics.
 | **Motion graphics** | Extruded 3D text (any TrueType / OpenType font, kerning, multiple lines, vertical or circular), logos from SVG or transparent PNG (extruded or flat), image planes, primitives, OBJ models from Blender. Materials, bevels, tracking (fixed, on an actor's bone, facing the camera, locked to the lens), 18 animation presets, title templates and a one-click camera orbit. Drawn into the game frame and recorded with the shot. |
 | **Launcher** | Finds your IW4x installation, builds an isolated cinematic copy (links to the game data, nothing in your install is changed), installs the Director Mod into it, launches it offline, repairs and uninstalls. No administrator rights. |
 
-Not in v0.2 (see [ROADMAP.md](ROADMAP.md)): bot actors and performance
+Not yet (see [ROADMAP.md](ROADMAP.md)): bot actors and performance
 recording, pose editing, vehicles and killstreak sequences, dynamic lights
 beyond the sun, shadows and depth of field on graphics, render passes
 other than the normal image (green screen, depth, masks), bone cameras,
-recording above the game resolution, true rewinding, kill markers read from
-demos, audio sync, ReShade. The editor marks these as unavailable instead
-of showing controls that do nothing.
+recording above the game resolution, checkpoint rewinding (seeking back
+replays the demo from its start), audio and beat sync, ReShade. The editor
+marks these as unavailable instead of showing controls that do nothing.
 
 ---
 
@@ -116,7 +116,7 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
   then **Download ZIP**. The ZIP holds one folder (named after the
   repository and branch) with `IW4Iris Launcher.exe` at its top, next to
   `client\` and `resources\`, plus the source code.
-* **The release package** `IW4Iris-v0.4.0-Windows-x86.zip`: only the
+* **The release package** `IW4Iris-v0.5.0-Windows-x86.zip`: only the
   program, documentation, samples and presets.
 
 1. Download one of them.
@@ -552,6 +552,45 @@ camera has no picture and the view falls back to the recorded first-person
 view for those moments; the Players panel and the Inspector say when that
 is the case.
 
+### Angles: several recordings of one match
+
+One client demo holds its recorder's exact first-person view; everybody
+else's view can only be reconstructed. When several players recorded the
+same match, add their demos as **angles** and cut between them: each cut
+to an angle shows that player's own recorded view.
+
+1. Open the **main demo** and let it play for a moment (its start time is
+   needed). Then add the others: right-click a demo in the Demos panel,
+   **Add as an angle of this match**, or use the **Angles** panel. A demo of
+   another map or mode is refused.
+2. **Synchronise** each angle: the offset between its server clock and the
+   main demo's (0 is usual for recordings of one server session).
+   *Suggest from kills* compares the kills (killer and victim) both
+   recordings were seen to contain and proposes the offset at which they
+   agree, with the evidence and a confidence; play each demo first (or
+   *Find all moments*) so its kills are known. Use it, then check it at a
+   kill and press **Confirm**, or set the offset by hand (−1 s, −50 ms,
+   +50 ms, +1 s: while the angle plays the picture stays and the playhead
+   moves, so a kill can be lined up with its marker). Nothing is
+   synchronised without you.
+3. **Open here** plays an angle at the playhead's moment of the match.
+   **Cut to it here** adds a camera cut to it (with the Game view camera:
+   its recorder's own view). New cuts always belong to the recording that
+   is playing; right-click a cut on the timeline to change its recording.
+   When the cut at the playhead is in a recording that is not playing, the
+   toolbar says so and offers to open it.
+4. **Recording:** a recording shows only the demo that plays, so a range
+   that cuts between recordings is refused with a pointer to **Queue per
+   angle** in the render queue. That makes one job per part; each opens its
+   recording, then renders its part. Image sequences from all parts form
+   one sequence (frames are numbered by timeline frame); a video format
+   gives one file per part.
+
+The render check blocks angles that are not synchronised, were removed or
+come from another map or mode, and warns about a suggested sync that was
+not checked. Opening a demo is slow (it is played from its start up to the
+moment), so switching recordings takes as long as that.
+
 ---
 
 ## 9. Look: colour, depth of field, sun, HUD
@@ -817,7 +856,7 @@ git clone --recursive https://github.com/efrot/iw4iris.git
 
 The script checks out the pinned IW4x revision, installs the IW4Iris
 component into it, builds it with IW4x's own build, builds the launcher and
-tests with CMake, and packages `dist\IW4Iris-v0.4.0-Windows-x86.zip`.
+tests with CMake, and packages `dist\IW4Iris-v0.5.0-Windows-x86.zip`.
 Requirements and details: [BUILD.md](BUILD.md).
 
 ---
@@ -831,7 +870,7 @@ Optional FFmpeg für Videoformate.
 **Installation**
 
 1. Auf der GitHub-Seite **Code → Download ZIP** klicken (oder das
-   Release-Paket `IW4Iris-v0.4.0-Windows-x86.zip` nehmen) und **außerhalb**
+   Release-Paket `IW4Iris-v0.5.0-Windows-x86.zip` nehmen) und **außerhalb**
    des Spielordners entpacken (z. B. `C:\Tools\IW4Iris`). Im entpackten
    Ordner (beim GitHub-ZIP im Ordner darin) liegt **IW4Iris Launcher.exe**
    direkt oben, daneben `client\` und `resources\`. Die Dateien zusammen
@@ -882,9 +921,24 @@ PNG) oder **Cinematic title** mit Vorlage und „Generate a camera orbit“.
 Material, Fase, Animation und Tracking (z. B. Name über dem Kopf eines
 Actors) im Panel **Object**.
 
+**Mehrere Demos eines Matches (Angles)**
+
+1. Hauptdemo öffnen und kurz abspielen. Weitere Demos desselben Matches
+   per Rechtsklick im Panel **Demos** → **Add as an angle of this match**
+   hinzufügen (andere Map oder anderer Modus wird abgelehnt).
+2. Panel **Angles**: **Suggest from kills** schlägt den Zeitversatz anhand
+   der gemeinsamen Kills vor (beide Demos vorher abspielen oder *Find all
+   moments*). **Use** übernehmen, an einem Kill prüfen, **Confirm**. Oder
+   den Versatz von Hand einstellen (−1 s / −50 ms / +50 ms / +1 s).
+3. **Cut to it here** setzt einen Schnitt auf die echte Ego-Perspektive
+   dieses Spielers; **Open here** öffnet die Demo an derselben Stelle des
+   Matches.
+4. Aufnahme über mehrere Angles: Render Queue → **Queue per angle** (jeder
+   Teil öffnet seine Demo und rendert seinen Abschnitt).
+
 **Wichtig:** Die Cinematic-Version ist **nur offline** nutzbar und blockiert
-jeden Netzwerkverkehr. Version 0.3.0 ("Creator Preview") ist eine Vorschau
-und wurde im Spiel noch nicht getestet; Probleme bitte mit der Logdatei
+jeden Netzwerkverkehr. Version 0.5.0 ist eine Vorschau und wurde im Spiel
+noch nicht vollständig getestet; Probleme bitte mit der Logdatei
 `iw4iris\logs\iw4iris.log` melden.
 
 **Deinstallieren:** Launcher → **Setup** → **Uninstall**. Entfernt nur, was

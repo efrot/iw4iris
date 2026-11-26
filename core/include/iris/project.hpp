@@ -18,6 +18,7 @@
 #include "iris/curve.hpp"
 #include "iris/recording.hpp"
 #include "iris/scene.hpp"
+#include "iris/sync.hpp"
 #include "iris/timeline.hpp"
 
 namespace iris
@@ -192,8 +193,40 @@ namespace iris
         std::string author;
         std::uint64_t fileSize = 0;
         double sceneStart = 0.0; // demo time (s) at timeline 0
+        std::optional<int> firstServerTime;  // server time of its first snapshot, once it was played
+        std::optional<KillFeed> killFeed;    // kills it was seen to contain (for synchronising angles)
         bool operator==(const DemoRef&) const = default;
     };
+
+    // How an angle's clock offset was set.
+    enum class SyncState
+    {
+        Unsynced,   // not set: the angle cannot be used
+        Suggested,  // a suggestion from the kill feeds was applied, not checked by eye yet
+        Manual,     // set or corrected by hand
+        Confirmed,  // checked by eye and confirmed
+    };
+    std::string_view ToString(SyncState state);
+    std::optional<SyncState> SyncStateFromString(std::string_view text);
+
+    // Another recording of the main demo's match (a different player's
+    // client demo): its recorder's exact first-person view and its own
+    // snapshot data. Cuts can switch to it.
+    struct DemoAngle
+    {
+        std::string id;
+        std::string name;           // shown, e.g. "Bob's view"
+        DemoRef demo;
+        std::string recorder;       // the player who recorded it, when known
+        int offsetMs = 0;           // its server time minus the main demo's, at one instant
+        SyncState sync = SyncState::Unsynced;
+        double confidence = 0.0;    // of the suggestion it was set from
+        bool operator==(const DemoAngle&) const = default;
+    };
+
+    // Why an angle cannot be another recording of the main demo's match
+    // (different map or mode), or nothing.
+    std::optional<std::string> AngleIncompatibility(const DemoRef& main, const DemoRef& angle);
 
     struct ExportSettings
     {
@@ -213,6 +246,7 @@ namespace iris
 
         std::string mapName;               // the film set's map (Director Mode, no demo)
         std::optional<DemoRef> demo;
+        std::vector<DemoAngle> angles;     // other recordings of the same match
 
         TimelineSettings timeline;
         TimeRemap timeRemap;
@@ -243,6 +277,8 @@ namespace iris
         const CameraDef* ActiveCamera() const;
         // The camera the shot uses at cinematic time t (camera cuts when on).
         const CameraDef* CameraAt(double t) const;
+        DemoAngle* FindAngle(std::string_view id);
+        const DemoAngle* FindAngle(std::string_view id) const;
         PropertyTrack* FindTrack(std::string_view property);
         const PropertyTrack* FindTrack(std::string_view property) const;
         // Value of a keyframed property at t, or `fallback` without a track.
@@ -251,6 +287,26 @@ namespace iris
         // Latest key / cut / marker time, for fitting the timeline.
         double ContentEnd() const;
     };
+
+    // The parts of [start, end] (cinematic time) and the recording each needs:
+    // consecutive cuts in one angle are merged. Without camera cuts the whole
+    // range is the main demo (angle "").
+    struct AngleSegment
+    {
+        std::string angle;
+        double start = 0.0;
+        double end = 0.0;
+        bool operator==(const AngleSegment&) const = default;
+    };
+    std::vector<AngleSegment> AngleSegments(const Project& project, double start, double end);
+
+    // The render jobs for the recording range of `settings` when it cuts
+    // between recordings: one job per segment, each with its own range and
+    // the recording it needs loaded. Image sequences share one name (with
+    // `stamp` for {date}), so the segments' frames, numbered by timeline
+    // frame, form one sequence; a video format gives one file per segment.
+    std::vector<RenderJob> PlanAngleRenders(const Project& project, const RecordingSettings& settings,
+                                            std::string_view stamp);
 
     // A new, unique id ("cam-3", "marker-12", ...) for the project.
     std::string MakeUniqueId(const Project& project, std::string_view prefix);
@@ -278,6 +334,8 @@ namespace iris
     // Resolves the demo path of a project loaded from `file` (relative paths
     // are relative to the project's folder).
     std::optional<std::filesystem::path> ResolveDemoPath(const Project& project, const std::filesystem::path& file);
+    // The same for any demo reference of the project (the main demo, an angle).
+    std::optional<std::filesystem::path> ResolveDemoRefPath(const DemoRef& demo, const std::filesystem::path& file);
 
     // Autosave / crash recovery: the autosave lives next to the project as
     // "<name>.iw4iris.autosave"; an autosave newer than its project after a

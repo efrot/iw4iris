@@ -43,6 +43,7 @@ namespace IW4Iris::Editor
     ObjectInspector, // the selected actor / prop / effect / graphic
     Players,         // the demo's players: select, watch, cut to
     Moments,         // the demo's kills, deaths, trickshot candidates
+    Angles,          // other recordings of the match: sync, switch, cut to
     Count,
   };
 
@@ -136,6 +137,7 @@ namespace IW4Iris::Editor
     bool ffmpegFound = false;
     std::string ffmpegPathFound;
     bool queueRunning = false;
+    int queueLoadFrames = 0;    // frames the next job has waited for its recording to open
 
     // Director Mode
     bool wizardOpen = false;
@@ -259,6 +261,12 @@ namespace IW4Iris::Editor
   // The same for any player by name (slot as the hint); no commit.
   std::string MakePlayerCamera(Session& s, const std::string& name, int slotHint, bool recording, iris::CameraMode mode);
   void DrawMoments(Session& s);
+  void DrawAngles(Session& s);
+  // The recording a new cut belongs to: the one loaded ("" the main demo).
+  std::string CutAngle(const Session& s);
+  // Adds a demo of the list as an angle of the main demo's match (checks
+  // that it can be one); returns the new angle's id, or empty.
+  std::string AddDemoAsAngle(Session& s, const iris::DemoEntry& demo);
   // A demo moment's server time on the timeline (through the speed curve).
   std::optional<double> MomentTimelineTime(const Session& s, int serverTime);
   void DrawCommandPalette(Session& s);

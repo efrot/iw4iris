@@ -5,6 +5,7 @@
 #pragma once
 
 #include <iris/camera.hpp>
+#include <iris/project.hpp>
 #include <iris/rig.hpp>
 
 #include <atomic>
@@ -59,5 +60,15 @@ namespace IW4Iris
   namespace Runtime
   {
     iris::RigContext MakeRigContextFor(const Session& session);
+
+    // Angles: other recordings of the main demo's match (session locked).
+    // Opens a recording ("" the main demo, else an angle's id) at the
+    // playhead's moment of the match.
+    void OpenAngle(Session& s, const std::string& angleId);
+    // Keeps the kills seen in the loaded recording with its reference in
+    // the project (merged with what was seen before), for synchronising.
+    void StoreKillFeed(Session& s);
+    // The project's reference of a recording ("" the main demo), if any.
+    iris::DemoRef* SourceRef(Session& s, const std::string& angleId);
   }
 }

@@ -87,6 +87,20 @@ namespace iris
         return times_.rbegin()->first;
     }
 
+    std::vector<std::pair<int, int>> MomentLog::SeenSpans(int maxGapMs) const
+    {
+        std::vector<std::pair<int, int>> spans;
+        for (const auto& [t, seen] : times_)
+        {
+            (void)seen;
+            if (!spans.empty() && t - spans.back().second <= maxGapMs)
+                spans.back().second = t;
+            else
+                spans.emplace_back(t, t);
+        }
+        return spans;
+    }
+
     void MomentLog::AddMoment(Moment m)
     {
         moments_.push_back(std::move(m));

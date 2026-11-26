@@ -3,6 +3,8 @@
 #include "iris/project.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <cmath>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -47,6 +49,42 @@ namespace iris
                        CameraMode::Chase})
             if (ToString(m) == text)
                 return m;
+        return std::nullopt;
+    }
+
+    std::string_view ToString(SyncState state)
+    {
+        switch (state)
+        {
+            case SyncState::Unsynced: return "unsynced";
+            case SyncState::Suggested: return "suggested";
+            case SyncState::Manual: return "manual";
+            case SyncState::Confirmed: return "confirmed";
+        }
+        return "unsynced";
+    }
+
+    std::optional<SyncState> SyncStateFromString(std::string_view text)
+    {
+        for (auto st : {SyncState::Unsynced, SyncState::Suggested, SyncState::Manual, SyncState::Confirmed})
+            if (ToString(st) == text)
+                return st;
+        return std::nullopt;
+    }
+
+    std::optional<std::string> AngleIncompatibility(const DemoRef& main, const DemoRef& angle)
+    {
+        auto lower = [](std::string t) {
+            for (auto& ch : t)
+                ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            return t;
+        };
+        if (!main.mapName.empty() && !angle.mapName.empty() && lower(main.mapName) != lower(angle.mapName))
+            return "It was recorded on another map (" + angle.mapName + ", the main demo on " + main.mapName + ").";
+        if (!main.gametype.empty() && !angle.gametype.empty() && lower(main.gametype) != lower(angle.gametype))
+            return "It was recorded in another mode (" + angle.gametype + ", the main demo in " + main.gametype + ").";
+        if (!main.path.empty() && main.path == angle.path)
+            return "It is the main demo itself.";
         return std::nullopt;
     }
 
@@ -117,6 +155,22 @@ namespace iris
         return ActiveCamera();
     }
 
+    DemoAngle* Project::FindAngle(std::string_view id)
+    {
+        for (auto& a : angles)
+            if (a.id == id)
+                return &a;
+        return nullptr;
+    }
+
+    const DemoAngle* Project::FindAngle(std::string_view id) const
+    {
+        for (const auto& a : angles)
+            if (a.id == id)
+                return &a;
+        return nullptr;
+    }
+
     PropertyTrack* Project::FindTrack(std::string_view property)
     {
         for (auto& t : tracks)
@@ -156,6 +210,74 @@ namespace iris
         return std::max(end, scene.ContentEnd());
     }
 
+    std::vector<AngleSegment> AngleSegments(const Project& project, double start, double end)
+    {
+        std::vector<AngleSegment> out;
+        if (!(end > start))
+            return out;
+        auto add = [&](const std::string& angle, double a, double b) {
+            a = std::max(a, start);
+            b = std::min(b, end);
+            if (!(b > a))
+                return;
+            if (!out.empty() && out.back().angle == angle && std::abs(out.back().end - a) < 1e-9)
+                out.back().end = b;
+            else
+                out.push_back({angle, a, b});
+        };
+        const auto& cuts = project.cuts.Cuts();
+        if (!project.useCameraCuts || cuts.empty())
+        {
+            add("", start, end);
+            return out;
+        }
+        // Before the first cut its camera (and angle) is used, as CameraAt does.
+        for (std::size_t i = 0; i < cuts.size(); ++i)
+        {
+            const double a = i == 0 ? start : cuts[i].time;
+            const double b = i + 1 < cuts.size() ? cuts[i + 1].time : end;
+            add(cuts[i].angle, a, b);
+        }
+        return out;
+    }
+
+    std::vector<RenderJob> PlanAngleRenders(const Project& project, const RecordingSettings& settings,
+                                            std::string_view stamp)
+    {
+        std::vector<RenderJob> jobs;
+        const auto range = ResolveRange(settings, project.timeline);
+        const auto segments = AngleSegments(project, range.start, range.end);
+        std::string pattern = settings.namePattern.empty() ? std::string("{project}_{pass}") : settings.namePattern;
+        for (std::size_t pos = 0; (pos = pattern.find("{date}", pos)) != std::string::npos;)
+        {
+            pattern.replace(pos, 6, stamp);
+            pos += stamp.size();
+        }
+        Project ids = project;  // ids unique among the queue and the new jobs
+        for (std::size_t i = 0; i < segments.size(); ++i)
+        {
+            const auto& seg = segments[i];
+            const auto* a = project.FindAngle(seg.angle);
+            const std::string recording = seg.angle.empty() ? std::string("main demo") : (a ? a->name : seg.angle);
+            RenderJob job;
+            job.id = MakeUniqueId(ids, "job");
+            char span[64];
+            std::snprintf(span, sizeof(span), "%.2f-%.2f s", seg.start, seg.end);
+            job.name = project.name + " " + std::to_string(i + 1) + "/" + std::to_string(segments.size()) + ": " +
+                       recording + " " + span;
+            job.angle = seg.angle;
+            job.settings = settings;
+            job.settings.range = RangeMode::Custom;
+            job.settings.customStart = seg.start;
+            job.settings.customEnd = seg.end;
+            job.settings.namePattern =
+                IsImageSequence(settings.format) ? pattern : pattern + "_part" + std::to_string(i + 1);
+            ids.renderQueue.push_back(job);
+            jobs.push_back(std::move(job));
+        }
+        return jobs;
+    }
+
     std::string MakeUniqueId(const Project& project, std::string_view prefix)
     {
         std::set<std::string> used;
@@ -167,6 +289,7 @@ namespace iris
         for (const auto& e : project.scene.effects) used.insert(e.id);
         for (const auto& g : project.scene.graphics) used.insert(g.id);
         for (const auto& j : project.renderQueue) used.insert(j.id);
+        for (const auto& a : project.angles) used.insert(a.id);
         for (int i = 1;; ++i)
         {
             std::string id = std::string(prefix) + "-" + std::to_string(i);
@@ -393,6 +516,58 @@ namespace iris
                 c.shake.seed = Get<std::uint32_t>(*it, "seed", 1u);
             }
             return c;
+        }
+
+        json DemoRefJson(const DemoRef& d)
+        {
+            json j{{"path", d.path},   {"name", d.name},     {"map", d.mapName},          {"gametype", d.gametype},
+                   {"author", d.author}, {"size", d.fileSize}, {"sceneStart", d.sceneStart}};
+            if (d.firstServerTime)
+                j["firstServerTime"] = *d.firstServerTime;
+            if (d.killFeed)
+            {
+                json seen = json::array(), kills = json::array();
+                for (const auto& span : d.killFeed->seen)
+                    seen.push_back(json::array({span.first, span.last}));
+                for (const auto& k : d.killFeed->kills)
+                    kills.push_back(json::array({k.serverTime, k.killer, k.victim}));
+                j["killFeed"] = {{"seen", seen}, {"kills", kills}};
+            }
+            return j;
+        }
+
+        DemoRef DemoRefFrom(const json& j)
+        {
+            DemoRef d;
+            d.path = Get<std::string>(j, "path", "");
+            d.name = Get<std::string>(j, "name", "");
+            d.mapName = Get<std::string>(j, "map", "");
+            d.gametype = Get<std::string>(j, "gametype", "");
+            d.author = Get<std::string>(j, "author", "");
+            d.fileSize = Get<std::uint64_t>(j, "size", 0);
+            d.sceneStart = GetNumber(j, "sceneStart", 0.0);
+            if (const auto it = j.find("firstServerTime"); it != j.end() && it->is_number_integer())
+                d.firstServerTime = it->get<int>();
+            if (const auto it = j.find("killFeed"); it != j.end() && it->is_object())
+            {
+                KillFeed feed;
+                if (const auto seen = it->find("seen"); seen != it->end() && seen->is_array())
+                    for (const auto& span : *seen)
+                        if (span.is_array() && span.size() == 2 && span[0].is_number_integer() &&
+                            span[1].is_number_integer())
+                            feed.seen.push_back({span[0].get<int>(), span[1].get<int>()});
+                if (const auto kills = it->find("kills"); kills != it->end() && kills->is_array())
+                    for (const auto& k : *kills)
+                        if (k.is_array() && k.size() == 3 && k[0].is_number_integer() && k[1].is_string() &&
+                            k[2].is_string())
+                            feed.kills.push_back({k[0].get<int>(), k[1].get<std::string>(), k[2].get<std::string>()});
+                std::sort(feed.seen.begin(), feed.seen.end(),
+                          [](const ServerSpan& a, const ServerSpan& b) { return a.first < b.first; });
+                std::stable_sort(feed.kills.begin(), feed.kills.end(),
+                                 [](const FeedKill& a, const FeedKill& b) { return a.serverTime < b.serverTime; });
+                d.killFeed = std::move(feed);
+            }
+            return d;
         }
 
         json RecordingJson(const RecordingSettings& s)
@@ -625,7 +800,22 @@ namespace iris
 
         json cuts = json::array();
         for (const auto& c : p.cuts.Cuts())
-            cuts.push_back({{"t", c.time}, {"camera", c.cameraId}});
+        {
+            json cut{{"t", c.time}, {"camera", c.cameraId}};
+            if (!c.angle.empty())
+                cut["angle"] = c.angle;
+            cuts.push_back(cut);
+        }
+
+        json angles = json::array();
+        for (const auto& a : p.angles)
+            angles.push_back({{"id", a.id},
+                              {"name", a.name},
+                              {"demo", DemoRefJson(a.demo)},
+                              {"recorder", a.recorder},
+                              {"offsetMs", a.offsetMs},
+                              {"sync", ToString(a.sync)},
+                              {"confidence", a.confidence}});
 
         json markers = json::array();
         for (const auto& m : p.markers)
@@ -658,6 +848,7 @@ namespace iris
             queue.push_back({{"id", job.id},
                              {"name", job.name},
                              {"camera", job.cameraId},
+                             {"angle", job.angle},
                              {"status", job.status},
                              {"message", job.message},
                              {"settings", RecordingJson(job.settings)}});
@@ -702,13 +893,9 @@ namespace iris
                    {"aeUnitsPerPixel", p.exports.aeUnitsPerPixel}}},
                  {"editor", {{"layout", p.editorLayout}, {"workspace", p.workspace}}}};
         if (p.demo)
-            doc["demo"] = {{"path", p.demo->path},
-                           {"name", p.demo->name},
-                           {"map", p.demo->mapName},
-                           {"gametype", p.demo->gametype},
-                           {"author", p.demo->author},
-                           {"size", p.demo->fileSize},
-                           {"sceneStart", p.demo->sceneStart}};
+            doc["demo"] = DemoRefJson(*p.demo);
+        if (!p.angles.empty())
+            doc["angles"] = angles;
         return pretty ? doc.dump(2) : doc.dump();
     }
 
@@ -784,17 +971,32 @@ namespace iris
         p.mapName = Get<std::string>(doc, "map", "");
 
         if (const auto it = doc.find("demo"); it != doc.end() && it->is_object())
-        {
-            DemoRef d;
-            d.path = Get<std::string>(*it, "path", "");
-            d.name = Get<std::string>(*it, "name", "");
-            d.mapName = Get<std::string>(*it, "map", "");
-            d.gametype = Get<std::string>(*it, "gametype", "");
-            d.author = Get<std::string>(*it, "author", "");
-            d.fileSize = Get<std::uint64_t>(*it, "size", 0);
-            d.sceneStart = GetNumber(*it, "sceneStart", 0.0);
-            p.demo = d;
-        }
+            p.demo = DemoRefFrom(*it);
+        if (const auto it = doc.find("angles"); it != doc.end() && it->is_array())
+            for (const auto& j : *it)
+            {
+                if (!j.is_object())
+                    continue;
+                DemoAngle a;
+                a.id = Get<std::string>(j, "id", "");
+                a.name = Get<std::string>(j, "name", "");
+                if (const auto d = j.find("demo"); d != j.end() && d->is_object())
+                    a.demo = DemoRefFrom(*d);
+                a.recorder = Get<std::string>(j, "recorder", "");
+                a.offsetMs = Get<int>(j, "offsetMs", 0);
+                const auto sync = Get<std::string>(j, "sync", "unsynced");
+                if (const auto st = SyncStateFromString(sync))
+                    a.sync = *st;
+                else
+                    w.push_back("Angle '" + a.name + "' has an unknown sync state '" + sync +
+                                "'; it is marked not synchronised.");
+                a.confidence = std::clamp(GetNumber(j, "confidence", 0.0), 0.0, 1.0);
+                if (a.id.empty() || p.FindAngle(a.id))
+                    a.id = MakeUniqueId(p, "angle");
+                if (a.name.empty())
+                    a.name = a.demo.name.empty() ? a.id : a.demo.name;
+                p.angles.push_back(std::move(a));
+            }
 
         if (const auto it = doc.find("timeline"); it != doc.end() && it->is_object())
         {
@@ -854,7 +1056,7 @@ namespace iris
             std::vector<CameraCut> cuts;
             for (const auto& c : *it)
             {
-                CameraCut cut{GetNumber(c, "t", 0.0), Get<std::string>(c, "camera", "")};
+                CameraCut cut{GetNumber(c, "t", 0.0), Get<std::string>(c, "camera", ""), Get<std::string>(c, "angle", "")};
                 if (!p.FindCamera(cut.cameraId))
                 {
                     w.push_back("A camera cut refers to a camera '" + cut.cameraId + "' that does not exist; it was dropped.");
@@ -945,6 +1147,7 @@ namespace iris
                     job.id = Get<std::string>(j, "id", "");
                     job.name = Get<std::string>(j, "name", job.id);
                     job.cameraId = Get<std::string>(j, "camera", "");
+                    job.angle = Get<std::string>(j, "angle", "");
                     job.status = Get<std::string>(j, "status", "queued");
                     job.message = Get<std::string>(j, "message", "");
                     job.settings = RecordingFrom(j.value("settings", json()), w);
@@ -981,17 +1184,22 @@ namespace iris
 
         // Store the demo relative to the project's folder when it is inside it
         // or close by, so projects can be moved with their demos.
-        if (project.demo && !project.demo->path.empty())
-        {
+        auto relativise = [&](DemoRef& ref) {
+            if (ref.path.empty())
+                return;
             std::error_code ec;
-            const fs::path demo(project.demo->path);
+            const fs::path demo(ref.path);
             if (demo.is_absolute())
             {
                 const auto rel = fs::relative(demo, fs::absolute(file, ec).parent_path(), ec);
                 if (!ec && !rel.empty() && rel.native().find(fs::path("..").native() + fs::path("..").native()) == fs::path::string_type::npos)
-                    project.demo->path = rel.generic_string();
+                    ref.path = rel.generic_string();
             }
-        }
+        };
+        if (project.demo)
+            relativise(*project.demo);
+        for (auto& a : project.angles)
+            relativise(a.demo);
 
         const std::string text = SerializeProject(project, true);
         std::error_code ec;
@@ -1051,9 +1259,16 @@ namespace iris
 
     std::optional<std::filesystem::path> ResolveDemoPath(const Project& project, const std::filesystem::path& file)
     {
-        if (!project.demo || project.demo->path.empty())
+        if (!project.demo)
             return std::nullopt;
-        std::filesystem::path p(project.demo->path);
+        return ResolveDemoRefPath(*project.demo, file);
+    }
+
+    std::optional<std::filesystem::path> ResolveDemoRefPath(const DemoRef& demo, const std::filesystem::path& file)
+    {
+        if (demo.path.empty())
+            return std::nullopt;
+        std::filesystem::path p(demo.path);
         if (p.is_relative())
         {
             std::error_code ec;
@@ -1169,9 +1384,22 @@ namespace iris
                 missing.push_back("Demo file differs from the one the project was made with (size changed): " +
                                   demo->string());
         }
+        for (const auto& a : project.angles)
+            if (const auto demo = ResolveDemoRefPath(a.demo, projectFile))
+            {
+                if (!std::filesystem::exists(*demo, ec))
+                    missing.push_back("Demo of angle '" + a.name + "' not found: " + demo->string());
+                else if (a.demo.fileSize != 0 && std::filesystem::file_size(*demo, ec) != a.demo.fileSize)
+                    missing.push_back("Demo of angle '" + a.name +
+                                      "' differs from the one it was synchronised with (size changed): " + demo->string());
+            }
         for (const auto& c : project.cuts.Cuts())
+        {
             if (!project.FindCamera(c.cameraId))
                 missing.push_back("Camera cut to unknown camera '" + c.cameraId + "'.");
+            if (!c.angle.empty() && !project.FindAngle(c.angle))
+                missing.push_back("Camera cut to an angle that no longer exists ('" + c.angle + "').");
+        }
         return missing;
     }
 }  // namespace iris

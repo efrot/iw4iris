@@ -17,6 +17,8 @@
 #include <atomic>
 #include <cmath>
 #include <condition_variable>
+#include <cstdio>
+#include <optional>
 #include <deque>
 #include <thread>
 
@@ -495,14 +497,35 @@ namespace IW4Iris::Capture
       // Render preflight: broken cuts, cameras without keys, cameras on
       // players this demo does not have, unusually fast camera moves.
       std::set<std::string> players;
+      std::optional<std::string> loadedAngle;
       if (Engine::IsDemoPlaying())
       {
         auto& editorSession = GetSession();
         std::lock_guard sessionLock(editorSession.mutex);  // recursive: callers may hold it
         for (const auto& pl : editorSession.players.Players())
           players.insert(pl.name);
+        loadedAngle = editorSession.loadedAngle;
       }
       const auto checkRange = iris::ResolveRange(s, project->timeline);
+      // A recording shows the demo that plays: every cut in the range must
+      // belong to it (another angle would record the wrong player's view).
+      if (Engine::IsDemoPlaying() && !project->angles.empty())
+      {
+        std::set<std::string> reported;
+        for (const auto& seg : iris::AngleSegments(*project, checkRange.start, checkRange.end))
+          if ((!loadedAngle || seg.angle != *loadedAngle) && reported.insert(seg.angle).second)
+          {
+            const auto* a = project->FindAngle(seg.angle);
+            const std::string name = seg.angle.empty() ? std::string("the main demo") : (a ? a->name : seg.angle);
+            char at[32];
+            std::snprintf(at, sizeof(at), "%.2f s", seg.start);
+            issues.push_back({iris::Issue::Severity::Error,
+                              "The range uses " + name + " (from " + at + "), but " +
+                                  (loadedAngle ? std::string("another recording") : std::string("a demo that is not part of the project")) +
+                                  " is loaded. A recording shows only the demo that plays: render a range with several "
+                                  "angles with \"Queue per angle\" in the render queue (it opens each one in turn)."});
+          }
+      }
       for (auto& i : iris::PreflightProject(*project, checkRange.start, checkRange.end, players))
         issues.push_back(std::move(i));
     }

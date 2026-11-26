@@ -135,13 +135,20 @@ namespace iris
 
     std::optional<std::string> CameraCutTrack::CameraAt(double t) const
     {
+        if (const auto* cut = CutAt(t))
+            return cut->cameraId;
+        return std::nullopt;
+    }
+
+    const CameraCut* CameraCutTrack::CutAt(double t) const
+    {
         if (cuts_.empty())
-            return std::nullopt;
+            return nullptr;
         auto it = std::upper_bound(cuts_.begin(), cuts_.end(), t,
                                    [](double time, const CameraCut& c) { return time < c.time; });
         if (it == cuts_.begin())
-            return cuts_.front().cameraId;
-        return (it - 1)->cameraId;
+            return &cuts_.front();
+        return &*(it - 1);
     }
 
     double TimeRemap::SpeedAt(double cinematicTime) const

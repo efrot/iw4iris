@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.5.0 — 2026-11-26 (Angles: several recordings of one match, not yet tested in the game)
+
+### Added
+
+* **Angles:** other players' demos of the main demo's match in one
+  project. Each gives its recorder's exact first-person view to cut to,
+  where a single demo only allows a reconstruction. Add them from the
+  Demos panel (right-click) or the new **Angles** panel; a demo of another
+  map or mode is refused.
+* **Synchronisation:** an angle's offset against the main demo's server
+  clock. *Suggest from kills* compares the kill feeds both recordings were
+  seen to contain (the game's obituaries) and proposes the offset at which
+  they agree, with the evidence (kills matched, kills only one shows in the
+  time both cover) and a confidence. It is applied only on request, as a
+  *suggestion* until confirmed; offsets can be set and nudged by hand.
+  Kill feeds are kept in the project and merged across plays.
+* **Switching:** *Open here* plays an angle at the playhead's moment of
+  the match (the angle's clock is moved onto the main demo's, so the
+  timeline, cuts and moments line up). Camera cuts carry their recording;
+  new cuts belong to the recording playing; the timeline shows and edits a
+  cut's recording; the toolbar says when the cut at the playhead is in a
+  recording that is not playing and offers to open it.
+* **Rendering across angles:** a recording refuses a range that needs a
+  recording other than the one playing (it would show the wrong player's
+  view). *Queue per angle* makes one render job per part, each opening its
+  recording first; image sequences from all parts form one sequence.
+* **Render preflight:** cuts to angles that were removed, are not
+  synchronised or come from another map or mode block recording; an
+  unchecked suggested sync is a warning.
+* Project format: `angles`, `demo.firstServerTime`, `demo.killFeed`,
+  `cuts[].angle`, `renderQueue[].angle` (all optional; older files load
+  unchanged).
+
+### Fixed
+
+* Saving a project while an angle played would have replaced the main
+  demo with the angle (the project's demo was always set to the loaded
+  file). The main demo is kept; only a project without angles takes the
+  demo played as its main demo, as before.
+* `tools/cross/msvc-lint.sh` only checked the component: the core library
+  is its own premake project and was skipped. It checks both now (53
+  files instead of 22).
+* MSVC C4459 (a local hid a global) broke the Windows build since 0.4.0's
+  render preflight; the lint now uses GCC's full `-Wshadow` like MSVC.
+
+### Not verified
+
+* Nothing of this has run in the game. Assumptions to check with real
+  demos of one match: obituary events reach every client (so kill feeds
+  match), recordings of one server session share the server clock.
+
 ## 0.4.0 — 2026-11-26 (Demo Director: players and perspectives, not yet tested in the game)
 
 ### Added

@@ -98,6 +98,7 @@ namespace iris
         std::string id;
         std::string name;
         std::string cameraId;          // empty: the shot's cameras / cuts
+        std::string angle;             // the recording it needs loaded (empty: the main demo)
         RecordingSettings settings;
         std::string status = "queued"; // queued, rendering, done, failed, cancelled
         std::string message;

@@ -164,7 +164,7 @@ namespace IW4Iris::Editor
     const auto* cam = proj.FindCamera(id);
     if (cut)
     {
-      proj.cuts.AddCut({s.playhead, id});
+      proj.cuts.AddCut({s.playhead, id, CutAngle(s)});
       proj.useCameraCuts = true;
     }
     else

@@ -48,6 +48,34 @@ namespace iris
                     error("A camera cut at " + Time(cut.time) + " points at a camera that was deleted (\"" + cut.cameraId +
                           "\"). Change or delete the cut (right-click it on the timeline).");
 
+        // Angles (other recordings of the match) the range cuts to.
+        for (const auto& seg : AngleSegments(p, rangeStart, rangeEnd))
+        {
+            if (seg.angle.empty())
+                continue;
+            const auto* a = p.FindAngle(seg.angle);
+            if (!a)
+            {
+                error("A camera cut at " + Time(seg.start) + " uses an angle that was removed (\"" + seg.angle +
+                      "\"). Change the cut's angle or delete the cut.");
+                continue;
+            }
+            if (p.demo)
+                if (const auto why = AngleIncompatibility(*p.demo, a->demo))
+                    error("Angle '" + a->name + "' (used from " + Time(seg.start) + ") cannot be part of this match: " +
+                          *why);
+            if (a->sync == SyncState::Unsynced)
+                error("Angle '" + a->name + "' (used from " + Time(seg.start) +
+                      ") is not synchronised with the main demo: set its offset in the Angles panel.");
+            else if (a->sync == SyncState::Suggested)
+            {
+                char pct[16];
+                std::snprintf(pct, sizeof(pct), "%.0f%%", a->confidence * 100.0);
+                warn("Angle '" + a->name + "' uses a suggested sync (" + pct +
+                     " of the shared kills agree) that was not checked by eye: open it at a kill and confirm.");
+            }
+        }
+
         // Cameras shown in the range: sample which one is active.
         const double step = std::max(limits.sampleStep, 1e-3);
         std::map<std::string, std::pair<double, double>> shown;  // camera id -> first / last time shown

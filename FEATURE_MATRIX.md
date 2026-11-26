@@ -67,7 +67,11 @@ no IW4x installation is available to the development and CI environments.
 | Chase camera (third person of any player, turns with them; distance, height, shoulder, angle) | Windows-built | rig unit-tested |
 | Moments: kills (game obituary events), deaths, spawns, joins / leaves (inferred, approximate across skipped frames), analysis pass of the whole demo; kills as ticks on the timeline, Up / Down jump between them | Windows-built | detection unit-tested (`iris/moments`): de-duplication, replay after seeking, out-of-order frames |
 | Trickshot candidates (airborne kill, turn in the air, air time, scope) with confidence; clip; one-click editable trickshot cinematic (slow motion, chase / eyes cuts) | Windows-built | detection and slow-motion placement unit-tested |
-| Render preflight: cuts to deleted cameras, dollies without keys (errors); unknown players, single-key dollies, unusually fast camera moves (warnings, with the time) | Cross-compiled | unit-tested (`iris/preflight`); shown in the Recording panel, errors block recording |
+| Render preflight: cuts to deleted cameras, dollies without keys (errors); unknown players, single-key dollies, unusually fast camera moves (warnings, with the time) | Windows-built | unit-tested (`iris/preflight`); shown in the Recording panel, errors block recording |
+| Angles: other players' demos of the main demo's match in one project (refused for another map / mode); recorder learnt from the demo | Cross-compiled | model, format and compatibility unit-tested (`iris/sync`, `iris/project`) |
+| Angle sync suggestion from the kill feeds both recordings show (offset, matches, misses in the shared time, confidence); manual offset and nudges; suggested / set by hand / confirmed states | Cross-compiled | algorithm unit-tested: same clock, shifted clock, repeated pairs, other matches, coincidences, partial coverage; never applied without the user |
+| Switching recordings at the same moment of the match (angle clock moved onto the main demo's); cuts carry their recording; toolbar warning when the cut at the playhead needs another recording | Cross-compiled | scene-time shift unit-tested; switching replays the demo up to the moment (slow) |
+| Rendering across angles: recordings refuse a range that needs another recording than the one playing; "Queue per angle" (one job per part, each opens its recording; one image sequence) | Cross-compiled | job planning unit-tested (frames of the parts do not overlap and cover the range) |
 | Bone camera, weapon-mounted, projectile follow | Blocked | needs DObj bone bindings |
 | Path / key / frustum overlay (never recorded) | Implemented | |
 | Viewport gizmo for scene objects (move along X / Y / Z, rotate, size; Ctrl snaps) | Implemented | camera keys are still moved with "update from view" and the inspector |
@@ -92,7 +96,7 @@ no IW4x installation is available to the development and CI environments.
 | Forward seek | Experimental | advances `realtime` in steps |
 | Backward seek | Experimental | restarts the demo and replays (checkpoint = first snapshot) |
 | Snapshot-checkpoint rewinding | Planned | the record scanner already indexes snapshot offsets |
-| Kill / event markers from demo data | Planned | |
+| Kill / event markers from demo data | Windows-built | the Moments panel and the timeline's kill ticks (above) |
 | Recording: PNG / JPEG sequences (built-in) | Implemented | |
 | Recording: H.264, H.265, ProRes 422 / HQ / 4444 / 4444 XQ, FFV1 (FFmpeg) | Implemented | needs FFmpeg |
 | Deterministic offline clock | Experimental | self-verified before every capture |

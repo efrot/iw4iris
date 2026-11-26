@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "iris/curve.hpp"
@@ -68,11 +69,18 @@ namespace iris
     };
 
     // One camera cut: from `time` on (until the next cut) the shot uses the
-    // camera with the given id.
+    // camera with the given id, in the given angle (another recording of the
+    // match, see Project::angles; empty: the main demo).
     struct CameraCut
     {
         double time = 0.0;
         std::string cameraId;
+        std::string angle;
+        CameraCut() = default;
+        CameraCut(double t, std::string camera, std::string angleId = {})
+            : time(t), cameraId(std::move(camera)), angle(std::move(angleId))
+        {
+        }
         bool operator==(const CameraCut&) const = default;
     };
 
@@ -86,6 +94,8 @@ namespace iris
         // The camera active at t: the last cut at or before t, or the first
         // cut's camera before it; none without cuts.
         std::optional<std::string> CameraAt(double t) const;
+        // The cut active at t (same rule), or none without cuts.
+        const CameraCut* CutAt(double t) const;
         void Clear() { cuts_.clear(); }
 
        private:

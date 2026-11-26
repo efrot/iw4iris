@@ -450,7 +450,7 @@ namespace IW4Iris::Editor
     ImGui::SameLine();
     if (IconButton(Icons::SCISSORS, "Add a cut to the active camera at the playhead"))
     {
-      p.cuts.AddCut({s.playhead, p.activeCameraId});
+      p.cuts.AddCut({s.playhead, p.activeCameraId, CutAngle(s)});
       p.useCameraCuts = true;
       s.Commit("Add camera cut");
     }
@@ -881,7 +881,20 @@ namespace IW4Iris::Editor
           const ImU32 col = cam ? ParseColor(cam->color, 0.55f) : IM_COL32(120, 120, 120, 140);
           dl->AddRectFilled(ImVec2(c.X(t0) + 1, y + 3), ImVec2(c.X(t1) - 1, y + kRowHeight - 3), col, 3.0f);
           if (cam)
-            dl->AddText(ImVec2(c.X(t0) + 5, y + 3), IM_COL32(240, 240, 245, 255), cam->name.c_str());
+          {
+            // The recording it is in, when the project has angles.
+            std::string text = cam->name;
+            if (!cuts[i].angle.empty())
+            {
+              const auto* a = p.FindAngle(cuts[i].angle);
+              text += "  @ " + (a ? a->name : std::string("removed angle"));
+            }
+            else if (!p.angles.empty())
+              text += "  @ main";
+            dl->PushClipRect(ImVec2(c.X(t0) + 1, y), ImVec2(c.X(t1) - 1, y + kRowHeight), true);
+            dl->AddText(ImVec2(c.X(t0) + 5, y + 3), IM_COL32(240, 240, 245, 255), text.c_str());
+            dl->PopClipRect();
+          }
           if (inRows && ImGui::IsMouseClicked(ImGuiMouseButton_Right) && mouse.x >= c.X(t0) && mouse.x < c.X(t1) &&
               mouse.y >= y && mouse.y < y + kRowHeight)
           {
@@ -904,6 +917,24 @@ namespace IW4Iris::Editor
               p.cuts.SetCuts(cuts);
               s.Commit("Change cut camera");
             }
+          if (!p.angles.empty())
+          {
+            ImGui::SeparatorText("Recording");
+            auto& cut = cuts[static_cast<std::size_t>(index)];
+            if (ImGui::MenuItem("Main demo", nullptr, cut.angle.empty()))
+            {
+              cut.angle.clear();
+              p.cuts.SetCuts(cuts);
+              s.Commit("Change cut angle");
+            }
+            for (const auto& a : p.angles)
+              if (ImGui::MenuItem(a.name.c_str(), nullptr, cut.angle == a.id))
+              {
+                cut.angle = a.id;
+                p.cuts.SetCuts(cuts);
+                s.Commit("Change cut angle");
+              }
+          }
           ImGui::Separator();
           if (ImGui::MenuItem("Delete cut"))
           {

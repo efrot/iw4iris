@@ -21,7 +21,7 @@ Sources and how far they were checked:
 Legend: ✓ = available (per the source above), – = not available,
 ? = not verified.
 
-| Capability | IW4Iris 0.4 | IW4Cine | T6Iris (BO2) | IW4MVM |
+| Capability | IW4Iris 0.5 | IW4Cine | T6Iris (BO2) | IW4MVM |
 | --- | --- | --- | --- | --- |
 | Install | one-click launcher, isolated copy (Windows-built) | manual mod install | own launcher | ? |
 | Editor | native docked UI, timeline, graph editor, command palette (Windows-built) | console commands / binds | native UI | ? |
@@ -30,7 +30,8 @@ Legend: ✓ = available (per the source above), – = not available,
 | Player browser and identities | ✓ (unit-tested; Windows-built) | – | ✓ | ? |
 | Other players' first person | reconstructed, labelled (Windows-built) | – | ✓ (theater has full player states) | ? |
 | Third person / chase of any player | ✓ (Windows-built) | – | ✓ | ? |
-| Kill / event browser, trickshot candidates | ✓ (unit-tested; cross-compiled) | – | partial (kill markers) | ? |
+| Kill / event browser, trickshot candidates | ✓ (unit-tested; Windows-built) | – | partial (kill markers) | ? |
+| Several recordings of one match (angles), sync from shared kills | ✓ (unit-tested; cross-compiled) | – | – (theater has every player in one recording) | ? |
 | Dolly / orbit / follow / static cameras | ✓ | camera paths in GSC | ✓ | ? |
 | Bone camera | – (needs DObj bone bindings) | – | ✓ | ? |
 | Actors (characters, animations, weapons) | ✓ via the Director Mod (protocol-reconciled; **film set loading not yet confirmed in the game**) | ✓ (bots and script models) | ✓ | ? |

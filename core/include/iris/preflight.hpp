@@ -11,6 +11,9 @@
 //     than two keys) or have no keys at all;
 //   * cameras on players that never appeared in this demo (a name typo, a
 //     project made for another demo);
+//   * cuts to angles (other recordings of the match) that were removed,
+//     are not synchronised, use an unchecked suggested sync, or come from
+//     another map or mode;
 //   * camera moves that turn or travel unusually fast (a key set too close
 //     to another one, a tangent overshoot), with the time and the speed.
 //

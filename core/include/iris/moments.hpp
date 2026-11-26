@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "iris/players.hpp"
@@ -92,6 +93,9 @@ namespace iris
         // Server times observed (first / last), for a coverage display.
         std::optional<int> FirstTime() const;
         std::optional<int> LastTime() const;
+        // The server-time spans observed: frames closer than maxGapMs
+        // together form one span (a seek forward leaves a gap).
+        std::vector<std::pair<int, int>> SeenSpans(int maxGapMs = 1000) const;
         std::size_t FrameCount() const { return frames_; }
 
     private:

@@ -114,7 +114,7 @@ namespace IW4Iris::Editor
           })->enabled = !capturing;
       add(s.flying ? "Stop flying" : "Fly the free camera", "F", "navigate wasd move", [](Session& x) { x.flying = !x.flying; });
       add("Add a camera cut at the playhead", "", "edit switch scissors", [](Session& x) {
-        x.project.cuts.AddCut({x.playhead, x.project.activeCameraId});
+        x.project.cuts.AddCut({x.playhead, x.project.activeCameraId, CutAngle(x)});
         x.project.useCameraCuts = true;
         x.Commit("Add camera cut");
       });

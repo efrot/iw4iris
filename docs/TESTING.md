@@ -95,6 +95,26 @@ screenshot) in the issue tracker. Each step names what it verifies.
 4. Add playback-speed keys (clock button) with a dip to 0.25; play.
    **Expect** slow motion in the dip.
 
+### 5a. Angles (two demos of one match)
+
+Needs two players' demos of the same match (same map, same session).
+
+1. Open demo A, play a few seconds, **Find all moments**. Right-click demo
+   B in the Demos panel, **Add as an angle of this match**. Open B from the
+   Angles panel (**Open here**), **Find all moments**.
+2. **Suggest from kills**. **Expect** "Same server clock (+0.00 s)" or a
+   small offset, with most kills matched. *(obituaries reach every client;
+   one session shares the server clock)*
+3. **Use**, then with B playing go to a kill marker of A: **expect** the
+   kill to happen at the marker in B too. Nudge if it does not; note the
+   offset needed.
+4. **Cut to it here** on B, a cut back to A a few seconds later; play
+   across the cut. **Expect** the toolbar to say the next cut is in the
+   other recording, and **Open it** to land at the same moment.
+5. Render queue: **Queue per angle**, **Render queue** with PNG.
+   **Expect** one numbered sequence without gaps or duplicates, B's part
+   showing B's own view.
+
 ### 6. Recording determinism
 
 1. Record the same range twice at 60 FPS. **Expect** identical frame

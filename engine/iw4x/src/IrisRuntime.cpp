@@ -15,7 +15,11 @@
 #include "../Window.hpp"
 
 #include <iris/rig.hpp>
+#include <iris/sync.hpp>
 #include <iris/version.hpp>
+
+#include <cctype>
+#include <filesystem>
 
 #include <imgui.h>
 #include <imgui_impl_dx9.h>
@@ -26,6 +30,10 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 namespace IW4Iris::Runtime
 {
   void FinishMomentAnalysis(Session& s);  // below
+  namespace
+  {
+    void TrackLoadedDemo(Session& s);     // below
+  }
 
   std::atomic<bool> editorVisible{false};
   std::recursive_mutex uiMutex;
@@ -528,6 +536,8 @@ namespace IW4Iris::Runtime
     st.fps = fpsAverage;
     st.seeking = DemoControl::IsSeeking();
     st.paused = DemoControl::IsPaused();
+    TrackLoadedDemo(s);
+    st.sceneShift = DemoControl::SceneShift();
     st.sceneTime = DemoControl::SceneTime();
     st.demoDuration = s.demoIndex ? s.demoIndex->DurationSeconds() : 0.0;
     if (st.demoDuration <= 0.0)
@@ -575,7 +585,7 @@ namespace IW4Iris::Runtime
         if (!st.seeking && !s.scrubbing)
         {
           const double end = std::max(project.timeline.end, project.timeRemap.timelineStart + 1.0);
-          s.playhead = project.timeRemap.CinematicTime(st.sceneTime, end);
+          s.playhead = project.timeRemap.CinematicTime(std::max(0.0, st.sceneTime), end);
           s.playing = !DemoControl::IsPaused();
           if (s.analysis.active)
           {
@@ -583,7 +593,7 @@ namespace IW4Iris::Runtime
             // per frame at common frame rates, so no event is skipped.
             DemoControl::SetSpeed(3.0);
             ++s.analysis.startedFrames;
-            const bool ended = st.demoDuration > 0.0 && st.sceneTime >= st.demoDuration - 0.15;
+            const bool ended = st.demoDuration > 0.0 && st.sceneTime - st.sceneShift >= st.demoDuration - 0.15;
             if (ended || (s.analysis.startedFrames > 120 && DemoControl::IsPaused()))
               FinishMomentAnalysis(s);
           }
@@ -600,7 +610,8 @@ namespace IW4Iris::Runtime
         // Once the demo's length is known the timeline covers all of it
         // (it used to stay at the default 10 s, so most of a demo could not
         // be reached with the playhead).
-        if (st.demoDuration > 0.0 && s.demoLengthFitted != st.demoDuration)
+        // (Only the main demo's length: an angle is another view of it.)
+        if (st.demoDuration > 0.0 && s.demoLengthFitted != st.demoDuration && s.loadedAngle && s.loadedAngle->empty())
         {
           s.demoLengthFitted = st.demoDuration;
           const double searchEnd = project.timeRemap.timelineStart + st.demoDuration * 50.0 + 60.0;
@@ -750,16 +761,18 @@ namespace IW4Iris::Runtime
       file = s.ProjectsDirectory() / (iris::SanitizeFileName(s.project.name) + std::string(iris::kProjectExtension));
     if (file.extension() != iris::kProjectExtension)
       file += iris::kProjectExtension;
-    if (s.loadedDemoPath)
-    {
-      if (!s.project.demo)
-        s.project.demo = iris::DemoRef{};
-      s.project.demo->path = s.loadedDemoPath->string();
-      s.project.demo->name = s.loadedDemoPath->stem().string();
-      s.project.demo->mapName = s.status.mapName;
-      std::error_code ec;
-      s.project.demo->fileSize = std::filesystem::file_size(*s.loadedDemoPath, ec);
-    }
+    // What is known about the recording that plays (an angle never
+    // replaces the main demo).
+    StoreKillFeed(s);
+    if (s.loadedDemoPath && s.loadedAngle)
+      if (auto* ref = SourceRef(s, *s.loadedAngle))
+      {
+        if (s.status.demoPlaying && s.status.cgameReady && !s.status.mapName.empty())
+          ref->mapName = s.status.mapName;
+        std::error_code ec;
+        if (const auto size = std::filesystem::file_size(*s.loadedDemoPath, ec); !ec)
+          ref->fileSize = size;
+      }
     if (!iris::SaveProjectFile(file, s.project, error))
       return false;
     s.projectFile = file;
@@ -831,6 +844,112 @@ namespace IW4Iris::Runtime
 
   namespace
   {
+    bool SamePath(const std::filesystem::path& a, const std::filesystem::path& b)
+    {
+      std::error_code ec;
+      if (std::filesystem::equivalent(a, b, ec) && !ec)
+        return true;
+      auto norm = [](const std::filesystem::path& p) {
+        std::error_code e;
+        auto full = std::filesystem::weakly_canonical(p, e);
+        auto text = (e ? p.lexically_normal() : full).generic_string();
+        for (auto& ch : text)
+          ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        return text;
+      };
+      return norm(a) == norm(b);
+    }
+
+    // Which recording of the project the loaded demo is.
+    std::optional<std::string> IdentifyLoadedDemo(Session& s)
+    {
+      if (!s.loadedDemoPath)  // not opened by IW4Iris (the console's "demo" command)
+        return s.project.angles.empty() ? std::optional<std::string>(std::string()) : std::nullopt;
+      const auto& loaded = *s.loadedDemoPath;
+      for (const auto& a : s.project.angles)
+        if (const auto p = iris::ResolveDemoRefPath(a.demo, s.projectFile); p && SamePath(*p, loaded))
+          return a.id;
+      if (s.project.demo)
+        if (const auto p = iris::ResolveDemoRefPath(*s.project.demo, s.projectFile); p && SamePath(*p, loaded))
+          return std::string();
+      // A project with angles keeps its main demo: their sync belongs to it.
+      if (!s.project.angles.empty() && s.project.demo && !s.project.demo->path.empty())
+        return std::nullopt;
+      // Otherwise the demo played becomes the project's (main) demo.
+      iris::DemoRef ref;
+      ref.path = loaded.string();
+      ref.name = loaded.stem().string();
+      std::error_code ec;
+      ref.fileSize = std::filesystem::file_size(loaded, ec);
+      s.project.demo = ref;
+      s.dirty = true;
+      return std::string();
+    }
+
+    // Once per frame: which recording plays, its clock, what is learnt
+    // about it, and a seek waiting for a demo that was just opened.
+    void TrackLoadedDemo(Session& s)
+    {
+      auto& st = s.status;
+      if (s.loadedAngleGeneration != s.demoGeneration)
+      {
+        s.loadedAngleGeneration = s.demoGeneration;
+        s.loadedAngle = IdentifyLoadedDemo(s);
+        if (!s.loadedAngle)
+          Log::Info("The demo played is not part of the project (it has angles of another main demo)");
+        else if (!s.loadedAngle->empty())
+          Log::Info("Angle {} loaded", *s.loadedAngle);
+      }
+      if (s.loadedAngle && !s.loadedAngle->empty() && !s.project.FindAngle(*s.loadedAngle))
+        s.loadedAngle.reset();  // the angle was removed while it was loaded
+
+      // An angle follows the main demo's clock.
+      const iris::DemoAngle* angle =
+          s.loadedAngle && !s.loadedAngle->empty() ? s.project.FindAngle(*s.loadedAngle) : nullptr;
+      if (angle && s.project.demo && s.project.demo->firstServerTime)
+        DemoControl::SetClock(*s.project.demo->firstServerTime, angle->offsetMs);
+      else
+        DemoControl::ClearClock();
+
+      if (st.demoPlaying && s.loadedAngle)
+        if (auto* ref = SourceRef(s, *s.loadedAngle))
+        {
+          if (const auto first = DemoControl::FirstServerTime(); first && ref->firstServerTime != first)
+          {
+            ref->firstServerTime = first;
+            s.dirty = true;
+          }
+          if (ref->mapName.empty() && st.cgameReady && !st.mapName.empty())
+          {
+            ref->mapName = st.mapName;
+            s.dirty = true;
+          }
+        }
+
+      // Who recorded an angle: the player whose view the demo is (once the
+      // roster belongs to this demo).
+      if (st.demoPlaying && s.loadedAngle && !s.loadedAngle->empty() && s.momentsSource == s.loadedAngle)
+        if (auto* a = s.project.FindAngle(*s.loadedAngle))
+          for (const auto& pl : s.players.Players())
+            if (pl.recording && !pl.name.empty())
+            {
+              if (a->recorder != pl.name)
+              {
+                if (a->name.empty() || a->name == a->demo.name)
+                  a->name = pl.name + "'s view";
+                a->recorder = pl.name;
+                s.dirty = true;
+              }
+              break;
+            }
+
+      if (s.pendingSeek && s.demoGeneration > s.pendingSeek->afterGeneration && DemoControl::HasScene())
+      {
+        DemoControl::Seek(s.pendingSeek->scene);
+        s.pendingSeek.reset();
+      }
+    }
+
     void FinishMomentAnalysisImpl(Session& s)
     {
       if (!s.analysis.active)
@@ -844,7 +963,68 @@ namespace IW4Iris::Runtime
                  std::to_string(shots.size()) + " trickshot candidate(s) (Moments panel)";
       Log::Info("Moments: analysis finished, {} moments, {} trickshot candidates, {} frames observed",
                 s.moments.Moments().size(), shots.size(), s.moments.FrameCount());
+      StoreKillFeed(s);
     }
+  }
+
+  iris::DemoRef* SourceRef(Session& s, const std::string& angleId)
+  {
+    if (angleId.empty())
+      return s.project.demo ? &*s.project.demo : nullptr;
+    auto* a = s.project.FindAngle(angleId);
+    return a ? &a->demo : nullptr;
+  }
+
+  void StoreKillFeed(Session& s)
+  {
+    if (!s.momentsSource)
+      return;
+    auto* ref = SourceRef(s, *s.momentsSource);
+    if (!ref)
+      return;
+    auto feed = iris::KillFeedOf(s.moments);
+    if (feed.seen.empty())
+      return;
+    auto merged = ref->killFeed ? iris::MergeKillFeeds(*ref->killFeed, feed) : feed;
+    if (!ref->killFeed || *ref->killFeed != merged)
+    {
+      ref->killFeed = std::move(merged);
+      s.dirty = true;
+    }
+  }
+
+  void OpenAngle(Session& s, const std::string& angleId)
+  {
+    StoreKillFeed(s);
+    const auto* ref = SourceRef(s, angleId);
+    const auto* angle = angleId.empty() ? nullptr : s.project.FindAngle(angleId);
+    if (!ref || ref->path.empty())
+    {
+      s.notice = "That recording is not part of the project any more";
+      return;
+    }
+    if (angle && !(s.project.demo && s.project.demo->firstServerTime))
+    {
+      s.notice = "Open the main demo once first (a moment of playback is enough): an angle follows the main demo's "
+                 "clock, and its start is not known yet";
+      return;
+    }
+    const auto path = iris::ResolveDemoRefPath(*ref, s.projectFile);
+    if (!path)
+      return;
+    s.pendingSeek = Session::PendingSeek{s.project.timeRemap.SceneTime(s.playhead), s.demoGeneration};
+    s.notice = "Opening " + (angle ? angle->name : std::string("the main demo")) + " at the same moment of the match ...";
+    const auto file = *path;
+    s.Post([file] {
+      std::string error;
+      if (!DemoControl::Play(file, &error))
+      {
+        auto& session = GetSession();
+        std::lock_guard _(session.mutex);
+        session.notice = error;
+        session.pendingSeek.reset();
+      }
+    });
   }
 
   void FinishMomentAnalysis(Session& s)
@@ -867,7 +1047,7 @@ namespace IW4Iris::Runtime
     s.analysis.returnTo = s.playhead;
     s.analysis.wasPaused = DemoControl::IsPaused();
     s.analysis.startedFrames = 0;
-    DemoControl::Seek(0.0);
+    DemoControl::Seek(DemoControl::SceneShift());  // the demo's own start (an angle's may be off the main clock's 0)
     DemoControl::SetPaused(false);
     DemoControl::SetSpeed(3.0);
     Log::Info("Moments: analysis pass started");
@@ -951,10 +1131,12 @@ namespace IW4Iris::Hooks
       const std::string key = st.demoPlaying ? "demo:" + st.demoName : "map:" + st.mapName;
       if (key != s.playersKey)
       {
+        Runtime::StoreKillFeed(s);  // what the previous recording showed
         s.players.Reset();
         s.moments.Reset();
         s.playersKey = key;
         s.selectedPlayer.clear();
+        s.momentsSource = st.demoPlaying && s.loadedAngleGeneration == s.demoGeneration ? s.loadedAngle : std::nullopt;
       }
       iris::FrameObservation frame;
       frame.serverTime = Engine::ClientServerTime();
@@ -977,6 +1159,18 @@ namespace IW4Iris::Hooks
       s.playhead = *captureTime;
     const double t = captureTime.value_or(s.playhead);
     const iris::CameraDef* def = s.project.CameraAt(t);
+    // A cut in another recording of the match than the one loaded: its
+    // picture cannot be shown here (the editor offers to open it).
+    s.status.angleNeeded.clear();
+    s.status.angleNeededName.clear();
+    if (s.status.demoPlaying && s.project.useCameraCuts)
+      if (const auto* cut = s.project.cuts.CutAt(t); cut && (!s.loadedAngle || *s.loadedAngle != cut->angle))
+        if (cut->angle.empty() ? s.project.demo.has_value() : s.project.FindAngle(cut->angle) != nullptr)
+        {
+          s.status.angleNeeded = cut->angle;
+          const auto* a = s.project.FindAngle(cut->angle);
+          s.status.angleNeededName = a ? a->name : std::string("the main demo");
+        }
     // The navigation camera: while flying, and in free view with the editor
     // shown. Never in a capture.
     const bool flying = !captureTime && (Runtime::IsFlying() || (s.freeView && Runtime::editorVisible.load()));

@@ -21,8 +21,15 @@ cd "$iw4x"
 [ -f build/mingw/iw4x.make ] || { echo "error: run tools/cross/build-iw4x.sh first" >&2; exit 1; }
 
 touch src/Components/Modules/IW4Iris/*.cpp deps/iw4iris/core/src/*.cpp
-mapfile -t commands < <(make -s -n -C build/mingw -f iw4x.make config="${cfg}_win32" \
-  FORCE_INCLUDE="-include STDInclude.hpp" 2>/dev/null | grep -- '-c ' | grep -E 'Modules/IW4Iris/|deps/iw4iris/core/src/' || true)
+# The component is part of iw4x.make; the core library is its own premake
+# project (iw4iris-core.make).
+commands=()
+for mk in iw4x.make iw4iris-core.make; do
+  [ -f "build/mingw/$mk" ] || continue
+  mapfile -t found < <(make -s -n -C build/mingw -f "$mk" config="${cfg}_win32" \
+    FORCE_INCLUDE="-include STDInclude.hpp" 2>/dev/null | grep -- '-c ' | grep -E 'Modules/IW4Iris/|iw4iris/core/src/' || true)
+  commands+=("${found[@]}")
+done
 [ "${#commands[@]}" -gt 0 ] || { echo "error: no IW4Iris compile commands found" >&2; exit 1; }
 
 extra="-fsyntax-only -Wno-error -Wshadow -Wconversion -Wno-sign-conversion -Wfloat-conversion"
@@ -34,7 +41,7 @@ for cmd in "${commands[@]}"; do
   (cd build/mingw && eval "$cmd $extra") >>"$log" 2>&1 || true
 done
 # Only diagnostics in IW4Iris's own code count (core and the component).
-issues="$(grep -E '(Modules/IW4Iris/|deps/iw4iris/core/)[^:]+:[0-9]+:[0-9]+: (warning|error)' "$log" | sort -u || true)"
+issues="$(grep -E '(Modules/IW4Iris/|iw4iris/core/)[^:]+:[0-9]+:[0-9]+: (warning|error)' "$log" | sort -u || true)"
 touch src/Components/Modules/IW4Iris/*.cpp deps/iw4iris/core/src/*.cpp  # the real build recompiles them
 if [ -n "$issues" ]; then
   echo "$issues"

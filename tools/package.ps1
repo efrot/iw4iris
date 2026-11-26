@@ -8,7 +8,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$Client,
   [Parameter(Mandatory = $true)][string]$Launcher,
-  [string]$Version = '0.4.0'
+  [string]$Version = '0.5.0'
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot

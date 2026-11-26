@@ -6,6 +6,7 @@
 #include "Session.hpp"
 
 #include <iris/demo.hpp>
+#include <iris/sync.hpp>
 
 #include <cmath>
 #include <thread>
@@ -22,6 +23,12 @@ namespace IW4Iris::DemoControl
     bool paused = false;
     int pausedRealtime = 0;
     std::optional<int> firstServerTime;
+    struct Clock
+    {
+      int mainFirstServerTime = 0;
+      int offsetMs = 0;
+    };
+    std::optional<Clock> clock;  // an angle on the main demo's clock
     std::string currentDemo;
     std::filesystem::path currentFile;
 
@@ -124,6 +131,7 @@ namespace IW4Iris::DemoControl
 
     auto stem = demo.stem().string();
     firstServerTime.reset();
+    clock.reset();
     currentDemo = std::string(kTempFolder) + "/" + stem;
     currentFile = demo;
     ReleaseTime();
@@ -163,11 +171,28 @@ namespace IW4Iris::DemoControl
     return firstServerTime;
   }
 
+  void SetClock(int mainFirstServerTime, int offsetMs)
+  {
+    clock = Clock{mainFirstServerTime, offsetMs};
+  }
+
+  void ClearClock()
+  {
+    clock.reset();
+  }
+
+  double SceneShift()
+  {
+    if (!clock || !firstServerTime)
+      return 0.0;
+    return iris::AngleSceneShift(clock->mainFirstServerTime, *firstServerTime, clock->offsetMs);
+  }
+
   double SceneTime()
   {
     if (!firstServerTime)
       return 0.0;
-    return (Engine::ClientServerTime() - *firstServerTime) / 1000.0;
+    return (Engine::ClientServerTime() - *firstServerTime) / 1000.0 + SceneShift();
   }
 
   bool HasScene()
@@ -179,7 +204,8 @@ namespace IW4Iris::DemoControl
   {
     if (!Engine::IsDemoPlaying() || currentDemo.empty())
       return false;
-    seekTarget = std::max(0.0, sceneTime);
+    // seekTarget is in the demo's own time (since its first snapshot).
+    seekTarget = std::max(0.0, sceneTime - SceneShift());
     seekFrames = 0;
     if (HasScene() && seekTarget * 1000.0 >= (Engine::ClientServerTime() - *firstServerTime) - kSeekToleranceMs)
     {

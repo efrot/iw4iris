@@ -3,11 +3,12 @@
 Persistent notes so development can continue across sessions. Update this
 file with every significant change.
 
-_Last updated: 2026-11-26 — v0.4.0 (Demo Director: players, player
-perspectives, moments and trickshot candidates, render preflight; game view
-fitted between the panels; film set loading fix). Audit findings and their
-verification state: [docs/BACKLOG.md](docs/BACKLOG.md); comparison with
-other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
+_Last updated: 2026-11-26 — v0.5.0 (Angles: several recordings of one match
+in one project, synchronised from their shared kills, switched at the same
+moment, rendered per angle; before that 0.4.0: players, perspectives,
+moments, trickshot candidates, render preflight, fitted game view). Audit
+findings and their verification state: [docs/BACKLOG.md](docs/BACKLOG.md);
+comparison with other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 
 ### Handoff (read first)
 
@@ -23,6 +24,14 @@ other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
   prev / next states, `cg_s::frameInterpolation`, `playerState_s`, entity
   flags `EF_DEAD / EF_CROUCHING / EF_PRONE / EF_ADS`, `ET_EVENTS +
   EV_OBITUARY`, `ENTITYNUM_NONE`). No new addresses.
+* **Angles (0.5):** `iris/sync` (kill feeds, sync suggestion, scene-time
+  shift), `Project::angles`, `CameraCut::angle`, `RenderJob::angle`.
+  DemoControl's clock (`SetClock`) moves an angle's scene time onto the
+  main demo's; everything that works in scene time (playhead, seeks,
+  moments, captures) follows. `Session::loadedAngle` says which recording
+  plays (identified by path per demo generation); a project with angles
+  never replaces its main demo. Unverified: obituaries reach every client
+  (kill feeds match), one server session shares the server clock.
 * **Unverified assumptions to check first with a real multi-player demo:**
   the snapshot client list holds every connected player; player entity
   `apos.trBase` carries the view pitch; obituary entities carry victim in
@@ -33,14 +42,14 @@ other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 
 | Area | State |
 | --- | --- |
-| Core library (`core/`) | scene, Director reconciler, timeline navigation, fuzzy search, diagnostics model and redaction added; 137 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) |
+| Core library (`core/`) | scene, Director reconciler, timeline navigation, fuzzy search, diagnostics, players, moments, preflight, angle sync; 171 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) and under ASan / UBSan |
 | Director Mod (`mods/iw4iris_director`) | written; **never compiled by the game** (GSC is compiled at map load; no game here) |
 | Director bridge, graphics renderer, Director / motion graphics editor | implemented; cross-compile warning-free; **never run in the game** |
 | IW4x component (`engine/iw4x/`) | implemented; **cross-compiles and links** into IW4x `912099b7c405` with IW4x's `-Werror` flags; **builds with MSVC in the Windows CI job** (client DLL since run 3); **never run in the game** |
 | Launcher (`launcher/`) | implemented; cross-compiles; install rules unit-tested; never run on Windows |
 | Blender add-on | helpers tested against the C++ exporter; not run inside Blender |
 | After Effects script | generated and structure-tested; not run in AE |
-| Windows (MSVC) build | GitHub Actions `windows-2022` job runs `tools/build.ps1`: **green since run 5** (455594a): client DLL, launcher and tests built with Visual Studio 2022, the test suite runs and passes on Windows, the package is uploaded as an artifact |
+| Windows (MSVC) build | GitHub Actions `windows-2022` job runs `tools/build.ps1`: green since run 5 (455594a) except runs 20 to 23 (C4459, fixed in a9fa81b, run 24 green): client DLL, launcher and tests built with Visual Studio 2022, the test suite runs and passes on Windows, the package is uploaded as an artifact |
 | Win32 test binary | cross-compiles; runs and passes on Windows in the CI job (MSVC build); Wine does not run in the container |
 
 ## How the current binaries were produced (Linux container)
@@ -84,6 +93,8 @@ Pitfalls met (all handled by the scripts now):
 3. **Demo Director in the game** with a real multi-player demo: player
    list complete, names / teams right, eyes / chase cameras stable,
    moments (kills) found, the analysis pass returns to its start.
+3a. **Angles in the game** (§5a) with two demos of one match: the
+   suggestion, a kill at its marker in both, switching, Queue per angle.
 4. **Milestone B** (§8): an actor spawns, animates, holds a weapon, is
    deleted and respawned.
 5. **Motion graphics in the game** (§9): is a matching depth buffer bound

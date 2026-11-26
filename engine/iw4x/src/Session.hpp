@@ -72,7 +72,8 @@ namespace IW4Iris
     int snapshotServerTime = 0;
     std::optional<int> demoFirstServerTime;
     std::optional<int> demoLastServerTime;
-    double sceneTime = 0.0;          // seconds since the demo's first snapshot
+    double sceneTime = 0.0;          // seconds since the demo's first snapshot (an angle: on the main demo's clock)
+    double sceneShift = 0.0;         // seconds an angle's own time is shifted by onto the main demo's clock
     double demoDuration = 0.0;       // from the demo index, 0 when unknown
     int renderWidth = 0;
     int renderHeight = 0;
@@ -84,6 +85,11 @@ namespace IW4Iris
     // the demo now) and the game's own view was shown: its name, else empty.
     std::string cameraWithoutPicture;
     std::uint64_t captureFramesWithoutPicture = 0;  // during the current / last recording
+    // The camera cut at the playhead belongs to another recording of the
+    // match than the one loaded: that recording's id ("" the main demo) and
+    // its name; the name is empty when the loaded recording is the right one.
+    std::string angleNeeded;
+    std::string angleNeededName;
     std::string seekMessage;
     bool paused = false;
     std::vector<std::string> checkedDvars;   // the dvars the editor uses
@@ -140,6 +146,18 @@ namespace IW4Iris
     std::optional<std::filesystem::path> loadedDemoPath;  // the original file the demo was copied from
     std::optional<iris::DemoIndex> demoIndex;
     std::uint64_t demoGeneration = 0;  // bumped for every demo started: late index scans of an older one are dropped
+    // Which recording of the project is loaded: "" the main demo, an angle's
+    // id; none when the demo playing is not part of the project (a project
+    // with angles keeps its main demo).
+    std::optional<std::string> loadedAngle;
+    std::uint64_t loadedAngleGeneration = 0;   // the demo generation it was identified for
+    std::optional<std::string> momentsSource;  // the recording `moments` was gathered from
+    struct PendingSeek
+    {
+      double scene = 0.0;
+      std::uint64_t afterGeneration = 0;       // a demo opened after this generation
+    };
+    std::optional<PendingSeek> pendingSeek;    // seek once that demo has its first snapshot
 
     // Players of the demo or film set (updated every frame on the main thread)
     iris::PlayerRoster players;
