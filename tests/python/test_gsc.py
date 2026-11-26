@@ -34,7 +34,18 @@ RESERVED = {
 # Engine (stock IW4 multiplayer) functions and methods the mod calls. A call
 # to anything else that the mod does not define fails this test, so a typo
 # or a function of another game cannot slip in. Extend this list only with
-# functions that exist in IW4 multiplayer.
+# functions shown to exist in IW4 multiplayer. Evidence for each (calls in
+# public IW4 scripts, checked 2026-11-26):
+#   IW4Cine (sortileges/iw4cine, "Cinematic mod/scripts/actors.gsc" and
+#   others): scriptModelPlayAnim, precacheMPAnim, getWeaponHideTags,
+#   getWeaponModel, hidePart, enableLinkTo, linkTo, getTagOrigin,
+#   getTagAngles, spawnStruct, loadFX, playFX, strTok;
+#   stock MW2 scripts (iw4x/iw4x-rawfiles, iw4x_00/maps/mp/...):
+#   closepopupMenu, closeInGameMenu (_menus.gsc), getEntityNumber
+#   (_playerlogic.gsc), getArrayKeys (_utility.gsc);
+#   long-standing IW-engine basics used throughout those scripts: isDefined,
+#   spawn, setModel, unlink, delete, hide, show, int, getTime, precacheModel,
+#   precacheItem.
 ENGINE = {
     "spawnstruct", "strtok", "precachemodel", "precachempanim", "precacheitem", "loadfx",
     "isdefined", "spawn", "setmodel", "gettagorigin", "gettagangles", "enablelinkto", "linkto",

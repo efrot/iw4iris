@@ -93,6 +93,19 @@ confirmed:
   running at the first frame to start on time; it is blocked while the
   set is not ready, objects failed or assets need a reload.
 
+## Engine functions the mod uses
+
+Every built-in the mod calls appears in public IW4 scripts (checked
+2026-11-26; `tests/python/test_gsc.py` lists them and fails on any other):
+IW4Cine's actor scripts use `scriptModelPlayAnim`, `precacheMPAnim`,
+`getWeaponHideTags`, `getWeaponModel`, `hidePart`, `enableLinkTo`,
+`linkTo`, `getTagOrigin`, `getTagAngles`, `spawnStruct`, `loadFX`,
+`playFX`, `strTok`; the stock MW2 multiplayer scripts (IW4x's rawfiles)
+use `closepopupMenu`, `closeInGameMenu`, `getEntityNumber`, `getArrayKeys`.
+The script language reserves `anim`, `level`, `self`, `game` and the other
+keywords; the check rejects them as names (0.3.0 shipped `anim` as a
+parameter, which the game rejected with "bad syntax").
+
 ## Safety rules
 
 * Only assets the editor found in the loaded fast files and put in the
