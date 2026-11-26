@@ -151,6 +151,7 @@ namespace IW4Iris
     // with angles keeps its main demo).
     std::optional<std::string> loadedAngle;
     std::uint64_t loadedAngleGeneration = 0;   // the demo generation it was identified for
+    std::string loadedAngleKey;                // the project's recordings it was identified against
     std::optional<std::string> momentsSource;  // the recording `moments` was gathered from
     struct PendingSeek
     {

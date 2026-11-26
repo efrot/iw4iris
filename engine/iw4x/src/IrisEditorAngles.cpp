@@ -296,6 +296,14 @@ namespace IW4Iris::Editor
       return;
     }
     auto& p = s.project;
+    // Keep the kills seen in the recording playing with it (merged), so
+    // "Suggest from kills" can use them without a save or a switch.
+    static double lastStore = 0.0;
+    if (ImGui::GetTime() - lastStore > 1.0)
+    {
+      lastStore = ImGui::GetTime();
+      Runtime::StoreKillFeed(s);
+    }
     if (!p.demo)
     {
       ImGui::TextWrapped("Open a demo first: it becomes the main demo. Then add other players' recordings of the same "
@@ -306,8 +314,30 @@ namespace IW4Iris::Editor
     ImGui::TextWrapped("Other players' recordings of this match. Each holds its recorder's exact first-person view; "
                        "cuts can switch between them. Synchronise each one before cutting to it.");
     if (s.status.demoPlaying && !s.loadedAngle)
+    {
       ImGui::TextColored(ImVec4(1.0f, 0.78f, 0.4f, 1.0f), "%s The demo playing is not part of this project.",
                          Icons::WARNING);
+      if (s.loadedDemoPath)
+      {
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Add it as an angle"))
+        {
+          const auto it = std::find_if(s.demoList.begin(), s.demoList.end(),
+                                       [&](const iris::DemoEntry& d) { return d.path == *s.loadedDemoPath; });
+          iris::DemoEntry entry;
+          if (it != s.demoList.end())
+            entry = *it;
+          else
+          {
+            entry.path = *s.loadedDemoPath;
+            entry.name = s.loadedDemoPath->stem().string();
+          }
+          AddDemoAsAngle(s, entry);
+        }
+        ImGui::SetItemTooltip("If it is another player's recording of the main demo's match. (To edit it on its own, "
+                              "start a new project.)");
+      }
+    }
 
     // The main demo.
     ImGui::SeparatorText((std::string(Icons::FILM) + "  Main demo" + (IsLoaded(s, "") ? "  (playing)" : "")).c_str());

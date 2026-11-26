@@ -860,8 +860,21 @@ namespace IW4Iris::Runtime
       return norm(a) == norm(b);
     }
 
-    // Which recording of the project the loaded demo is.
-    std::optional<std::string> IdentifyLoadedDemo(Session& s)
+    // The project's recordings, to notice when they change (load, new
+    // project, undo, adding or removing an angle).
+    std::string SourcesKey(const iris::Project& p)
+    {
+      std::string key = p.demo ? p.demo->path : std::string("-");
+      for (const auto& a : p.angles)
+        key += "|" + a.id + ":" + a.demo.path;
+      return key;
+    }
+
+    // Which recording of the project the loaded demo is. `opened`: the
+    // user just opened it (a project without angles then takes it as its
+    // main demo, as before); otherwise the project changed under a demo
+    // that keeps playing, and only a project without a demo adopts it.
+    std::optional<std::string> IdentifyLoadedDemo(Session& s, bool opened)
     {
       if (!s.loadedDemoPath)  // not opened by IW4Iris (the console's "demo" command)
         return s.project.angles.empty() ? std::optional<std::string>(std::string()) : std::nullopt;
@@ -873,7 +886,7 @@ namespace IW4Iris::Runtime
         if (const auto p = iris::ResolveDemoRefPath(*s.project.demo, s.projectFile); p && SamePath(*p, loaded))
           return std::string();
       // A project with angles keeps its main demo: their sync belongs to it.
-      if (!s.project.angles.empty() && s.project.demo && !s.project.demo->path.empty())
+      if (s.project.demo && !s.project.demo->path.empty() && (!s.project.angles.empty() || !opened))
         return std::nullopt;
       // Otherwise the demo played becomes the project's (main) demo.
       iris::DemoRef ref;
@@ -891,17 +904,26 @@ namespace IW4Iris::Runtime
     void TrackLoadedDemo(Session& s)
     {
       auto& st = s.status;
-      if (s.loadedAngleGeneration != s.demoGeneration)
+      const bool opened = s.loadedAngleGeneration != s.demoGeneration;
+      if (opened || SourcesKey(s.project) != s.loadedAngleKey)
       {
+        const auto before = s.loadedAngle;
         s.loadedAngleGeneration = s.demoGeneration;
-        s.loadedAngle = IdentifyLoadedDemo(s);
-        if (!s.loadedAngle)
-          Log::Info("The demo played is not part of the project (it has angles of another main demo)");
-        else if (!s.loadedAngle->empty())
-          Log::Info("Angle {} loaded", *s.loadedAngle);
+        s.loadedAngle = IdentifyLoadedDemo(s, opened);
+        s.loadedAngleKey = SourcesKey(s.project);
+        // The project changed under a demo that keeps playing: the moments
+        // gathered so far are this demo's. (A demo just opened keeps the
+        // previous source until its first frame resets the moments.)
+        if (!opened)
+          s.momentsSource = st.demoPlaying ? s.loadedAngle : std::nullopt;
+        if (s.loadedAngle != before || opened)
+        {
+          if (!s.loadedAngle)
+            Log::Info("The demo playing is not part of the project");
+          else if (!s.loadedAngle->empty())
+            Log::Info("Angle {} is playing", *s.loadedAngle);
+        }
       }
-      if (s.loadedAngle && !s.loadedAngle->empty() && !s.project.FindAngle(*s.loadedAngle))
-        s.loadedAngle.reset();  // the angle was removed while it was loaded
 
       // An angle follows the main demo's clock.
       const iris::DemoAngle* angle =
@@ -1163,7 +1185,7 @@ namespace IW4Iris::Hooks
     // picture cannot be shown here (the editor offers to open it).
     s.status.angleNeeded.clear();
     s.status.angleNeededName.clear();
-    if (s.status.demoPlaying && s.project.useCameraCuts)
+    if (s.status.demoPlaying && s.project.useCameraCuts && !s.project.angles.empty())
       if (const auto* cut = s.project.cuts.CutAt(t); cut && (!s.loadedAngle || *s.loadedAngle != cut->angle))
         if (cut->angle.empty() ? s.project.demo.has_value() : s.project.FindAngle(cut->angle) != nullptr)
         {
