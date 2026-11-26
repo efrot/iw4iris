@@ -8,10 +8,16 @@
 param(
   [Parameter(Mandatory = $true)][string]$Client,
   [Parameter(Mandatory = $true)][string]$Launcher,
-  [string]$Version = '0.5.0'
+  [string]$Version = ''
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+if (-not $Version) {
+  # The version is defined once, in CMakeLists.txt.
+  $m = Select-String -Path (Join-Path $repo 'CMakeLists.txt') -Pattern 'project\(IW4Iris VERSION ([0-9.]+)'
+  if (-not $m) { throw 'CMakeLists.txt has no project(IW4Iris VERSION ...)' }
+  $Version = $m.Matches[0].Groups[1].Value
+}
 $name = "IW4Iris-v$Version-Windows-x86"
 $out = Join-Path $repo "dist\$name"
 Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue

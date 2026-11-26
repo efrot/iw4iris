@@ -6,8 +6,9 @@
 set -euo pipefail
 client="${1:?usage: $0 <iw4x.dll> <launcher.exe> [version]}"
 launcher="${2:?usage: $0 <iw4x.dll> <launcher.exe> [version]}"
-version="${3:-0.5.0}"
 repo="$(cd "$(dirname "$0")/.." && pwd)"
+# The version is defined once, in CMakeLists.txt.
+version="${3:-$(sed -n 's/^project(IW4Iris VERSION \([0-9.]*\).*/\1/p' "$repo/CMakeLists.txt")}"
 name="IW4Iris-v${version}-Windows-x86"
 out="$repo/dist/$name"
 rm -rf "$out" "$repo/dist/$name.zip"

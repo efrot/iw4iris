@@ -16,9 +16,23 @@ if ($actual -ne $manifest.iw4x.commit) {
   Write-Warning "$dst is at $actual, IW4Iris is verified against $($manifest.iw4x.commit)"
 }
 
+# "git apply --reverse --check" reports a patch that is not applied yet on
+# stderr. Windows PowerShell 5.1 turns redirected native stderr into an
+# error record, which 'Stop' makes fatal (PowerShell 7 does not), so the
+# check runs with 'Continue' and only its exit code counts.
+function Test-PatchApplied([string]$patchFile) {
+  $previous = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    git -C $dst apply --reverse --check --ignore-whitespace $patchFile 2>&1 | Out-Null
+    return $LASTEXITCODE -eq 0
+  } finally {
+    $ErrorActionPreference = $previous
+  }
+}
+
 foreach ($patch in Get-ChildItem (Join-Path $repo 'engine\iw4x\patches\*.patch')) {
-  git -C $dst apply --reverse --check --ignore-whitespace $patch.FullName 2>$null
-  if ($LASTEXITCODE -eq 0) {
+  if (Test-PatchApplied $patch.FullName) {
     Write-Host "info: $($patch.Name) already applied"
   } else {
     git -C $dst apply --ignore-whitespace $patch.FullName

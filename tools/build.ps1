@@ -37,7 +37,7 @@ Run git @('-C', $iw4x, 'submodule', 'update', '--init', '--recursive')
 Push-Location $iw4x
 try {
   Run '.\tools\premake5.exe' @('vs2022')
-  $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+  $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
   if (-not $msbuild) { throw 'MSBuild (Visual Studio 2022) was not found' }
   Run $msbuild @('/m', '/v:minimal', "/p:Configuration=$Configuration", '/p:Platform=Win32', 'build\iw4x.sln')
 } finally {
@@ -50,8 +50,12 @@ Run cmake @('-S', '.', '-B', 'build\cmake-win32', '-A', 'Win32', '-DIW4IRIS_BUIL
 Run cmake @('--build', 'build\cmake-win32', '--config', $Configuration, '--parallel')
 if (-not $SkipTests) {
   Run ctest @('--test-dir', 'build\cmake-win32', '-C', $Configuration, '--output-on-failure')
-  Run python @('-I', 'tests\python\test_blender_addon.py')
-  Run python @('-I', 'tests\python\test_gsc.py')
+  # "python" can be the Microsoft Store placeholder on a fresh Windows; the
+  # py launcher (python.org installer) finds a real Python 3.
+  $python = @('python')
+  if (Get-Command py -ErrorAction SilentlyContinue) { $python = @('py', '-3') }
+  Run $python[0] (@($python | Select-Object -Skip 1) + @('-I', 'tests\python\test_blender_addon.py'))
+  Run $python[0] (@($python | Select-Object -Skip 1) + @('-I', 'tests\python\test_gsc.py'))
 }
 
 if ($Package) {

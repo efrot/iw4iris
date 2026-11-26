@@ -21,7 +21,15 @@ cd iw4iris
 Requirements: Visual Studio 2022 with *Desktop development with C++*
 (MSVC v143, Windows SDK), CMake ≥ 3.20 (included with VS), Git, Python 3
 (for the add-on tests). IW4x's build fetches its own dependencies and ships
-`premake5.exe`.
+`premake5.exe`. The free Build Tools are enough; on a fresh machine:
+
+```
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+winget install Kitware.CMake
+winget install Python.Python.3.12
+```
+
+The script runs in Windows PowerShell 5.1 and PowerShell 7.
 
 ```
 powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Configuration Release -Package

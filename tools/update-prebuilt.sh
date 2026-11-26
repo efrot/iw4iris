@@ -9,8 +9,9 @@
 # client\ must hold only the client's files: the launcher installs every
 # file in it into the cinematic environment.
 set -euo pipefail
-version="${1:-0.5.0}"
 repo="$(cd "$(dirname "$0")/.." && pwd)"
+# The version is defined once, in CMakeLists.txt.
+version="${1:-$(sed -n 's/^project(IW4Iris VERSION \([0-9.]*\).*/\1/p' "$repo/CMakeLists.txt")}"
 pkg="$repo/dist/IW4Iris-v${version}-Windows-x86"
 [ -f "$pkg/IW4Iris Launcher.exe" ] && [ -f "$pkg/client/iw4x.dll" ] ||
   { echo "error: $pkg is incomplete; run tools/package.sh first" >&2; exit 1; }
