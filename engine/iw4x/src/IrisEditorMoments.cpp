@@ -54,14 +54,9 @@ namespace IW4Iris::Editor
       return m.detail;
     }
 
-    // Server time -> timeline time, through the project's speed curve.
     std::optional<double> ToTimeline(const Session& s, int serverTime)
     {
-      if (!s.status.demoFirstServerTime)
-        return std::nullopt;
-      const double scene = (serverTime - *s.status.demoFirstServerTime) / 1000.0;
-      const double end = std::max(s.project.timeline.end, scene) * 4.0 + 60.0;
-      return s.project.timeRemap.CinematicTime(std::max(0.0, scene), end);
+      return MomentTimelineTime(s, serverTime);
     }
 
     void AddMomentMarker(Session& s, double time, const std::string& name, const char* kind, const char* color)
@@ -133,6 +128,16 @@ namespace IW4Iris::Editor
              ". Everything is editable on the timeline.");
     }
   }  // namespace
+
+  // Server time -> timeline time, through the project's speed curve.
+  std::optional<double> MomentTimelineTime(const Session& s, int serverTime)
+  {
+    if (!s.status.demoFirstServerTime)
+      return std::nullopt;
+    const double scene = (serverTime - *s.status.demoFirstServerTime) / 1000.0;
+    const double end = std::max(s.project.timeline.end, scene) * 4.0 + 60.0;
+    return s.project.timeRemap.CinematicTime(std::max(0.0, scene), end);
+  }
 
   void DrawMoments(Session& s)
   {

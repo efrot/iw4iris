@@ -796,8 +796,40 @@ namespace IW4Iris::Editor
     }
     else
     {
-      // Markers row
+      // Markers row (with the demo's kills and trickshot candidates as
+      // small ticks along the bottom: click one to go there)
       label(Icons::FLAG, "Markers", IM_COL32(247, 185, 85, 255), false);
+      if (s.status.demoPlaying && !s.moments.Moments().empty())
+      {
+        std::vector<std::pair<double, std::string>> ticks;
+        for (const auto& m : s.moments.Moments())
+          if (m.kind == iris::MomentKind::Kill)
+            if (const auto at = MomentTimelineTime(s, m.serverTime))
+              ticks.emplace_back(*at, m.detail);
+        std::vector<double> stars;
+        for (const auto& m : s.moments.Trickshots())
+          if (const auto at = MomentTimelineTime(s, m.serverTime))
+            stars.push_back(*at);
+        for (const auto& [at, text] : ticks)
+        {
+          const float x = c.X(at);
+          if (x < c.min.x - 4 || x > c.max.x + 4)
+            continue;
+          const bool star = std::any_of(stars.begin(), stars.end(), [&](double t) { return std::abs(t - at) < 1e-3; });
+          const ImU32 col = star ? IM_COL32(242, 193, 78, 255) : IM_COL32(229, 72, 77, 220);
+          dl->AddTriangleFilled(ImVec2(x - 3, y + kRowHeight - 1), ImVec2(x + 3, y + kRowHeight - 1),
+                                ImVec2(x, y + kRowHeight - 7), col);
+          if (inRows && std::abs(mouse.x - x) < 4 && mouse.y >= y + kRowHeight - 9 && mouse.y < y + kRowHeight)
+          {
+            ImGui::SetTooltip("%s%s\nClick: go there (2 s before)", star ? "Trickshot candidate: " : "", text.c_str());
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+              RequestSeek(s, std::max(tl.start, at - 2.0));
+              consumed = true;
+            }
+          }
+        }
+      }
       for (std::size_t i = 0; i < p.markers.size(); ++i)
       {
         auto& m = p.markers[i];
@@ -810,6 +842,7 @@ namespace IW4Iris::Editor
         const bool hit = inRows && std::abs(mouse.x - x) < 6 && mouse.y >= y && mouse.y < y + kRowHeight;
         if (hit)
         {
+          consumed = consumed || ImGui::IsMouseClicked(ImGuiMouseButton_Left);
           ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
           ImGui::SetTooltip("%s  %s\nDrag to move, double-click to jump there", m.name.empty() ? "Marker" : m.name.c_str(),
                             iris::FormatTime(m.time, tl.frameRate, tl.display).c_str());
@@ -1447,6 +1480,12 @@ namespace IW4Iris::Editor
       pts.push_back(m.time);
     for (const auto& c : p.cuts.Cuts())
       pts.push_back(c.time);
+    // The demo's kills: Up / Down jump from kill to kill.
+    if (s.status.demoPlaying)
+      for (const auto& m : s.moments.Moments())
+        if (m.kind == iris::MomentKind::Kill)
+          if (const auto at = MomentTimelineTime(s, m.serverTime))
+            pts.push_back(*at);
     for (const auto& cam : p.cameras)
       for (const auto& k : cam.path.Keys())
         pts.push_back(k.time);

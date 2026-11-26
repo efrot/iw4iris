@@ -541,7 +541,9 @@ each candidate:
   Everything it creates is ordinary, editable timeline content.
 
 Click a moment in the list to jump two seconds before it; double-click a
-kill to clip it.
+kill to clip it. Kills also show as small red ticks (gold for trickshot
+candidates) at the bottom of the timeline's *Markers* row, and **↑ / ↓**
+jump from kill to kill like the other edit points.
 
 Cameras remember the player by name, not by slot: when a player leaves and
 somebody else takes the slot, the camera does not film the newcomer. While

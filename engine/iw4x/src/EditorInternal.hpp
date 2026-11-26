@@ -259,6 +259,8 @@ namespace IW4Iris::Editor
   // The same for any player by name (slot as the hint); no commit.
   std::string MakePlayerCamera(Session& s, const std::string& name, int slotHint, bool recording, iris::CameraMode mode);
   void DrawMoments(Session& s);
+  // A demo moment's server time on the timeline (through the speed curve).
+  std::optional<double> MomentTimelineTime(const Session& s, int serverTime);
   void DrawCommandPalette(Session& s);
 
   // Widgets
