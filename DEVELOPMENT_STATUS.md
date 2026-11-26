@@ -57,7 +57,7 @@ other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 | Launcher (`launcher/`) | implemented; cross-compiles; install rules unit-tested; never run on Windows |
 | Blender add-on | helpers tested against the C++ exporter; not run inside Blender |
 | After Effects script | generated and structure-tested; not run in AE |
-| Windows (MSVC) build | GitHub Actions `windows-2022` job runs `tools/build.ps1`: green since run 5 (455594a) except runs 20 to 23 (C4459, fixed in a9fa81b, run 24 green): client DLL, launcher and tests built with Visual Studio 2022, the test suite runs and passes on Windows, the package is uploaded as an artifact |
+| Windows (MSVC) build | GitHub Actions `windows-2022` job runs `tools/build.ps1`: green since run 5 (455594a) except runs 20 to 23 (C4459, fixed in a9fa81b); runs 24 to 29 green (angles, coverage, BeatSync): client DLL, launcher and tests built with Visual Studio 2022, the test suite runs and passes on Windows, the package is uploaded as an artifact |
 | Win32 test binary | cross-compiles; runs and passes on Windows in the CI job (MSVC build); Wine does not run in the container |
 
 ## How the current binaries were produced (Linux container)
