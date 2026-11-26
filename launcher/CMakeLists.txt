@@ -1,10 +1,15 @@
 # IW4Iris Launcher (Windows only): Win32 + Direct3D 9 + Dear ImGui.
 set(IMGUI_DIR "${CMAKE_SOURCE_DIR}/third_party/imgui")
+set(MINIZ_DIR "${CMAKE_SOURCE_DIR}/third_party/miniz")
+enable_language(C)  # miniz (update packages)
 
 add_executable(iw4iris_launcher WIN32
   src/Main.cpp
   src/Environment.cpp
   src/InstallPlan.cpp
+  src/UpdatePlan.cpp
+  src/Updater.cpp
+  ${MINIZ_DIR}/miniz.c
   res/launcher.rc
   ${CMAKE_SOURCE_DIR}/core/src/diagnostics.cpp
   ${IMGUI_DIR}/imgui.cpp
@@ -17,10 +22,11 @@ add_executable(iw4iris_launcher WIN32
 )
 set_target_properties(iw4iris_launcher PROPERTIES OUTPUT_NAME "IW4Iris Launcher")
 target_include_directories(iw4iris_launcher PRIVATE src ${IMGUI_DIR} ${IMGUI_DIR}/backends ${CMAKE_SOURCE_DIR}/core/include)
+target_include_directories(iw4iris_launcher SYSTEM PRIVATE "${MINIZ_DIR}")
 target_include_directories(iw4iris_launcher SYSTEM PRIVATE "${IW4IRIS_JSON_INCLUDE}")
 target_compile_definitions(iw4iris_launcher PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
   IMGUI_IMPL_WIN32_DISABLE_GAMEPAD IMGUI_DISABLE_OBSOLETE_FUNCTIONS)
-target_link_libraries(iw4iris_launcher PRIVATE d3d9 dwmapi shell32 ole32 advapi32)
+target_link_libraries(iw4iris_launcher PRIVATE d3d9 dwmapi shell32 ole32 advapi32 winhttp bcrypt)
 if(MINGW)
   target_link_options(iw4iris_launcher PRIVATE -static -municode)
 elseif(MSVC)
@@ -30,6 +36,9 @@ elseif(MSVC)
   # resource (CVT1100).
   target_link_options(iw4iris_launcher PRIVATE /MANIFEST:NO)
 endif()
+# miniz defines WIN32_LEAN_AND_MEAN itself (C4005 against the project-wide define).
+set_source_files_properties(${MINIZ_DIR}/miniz.c PROPERTIES COMPILE_OPTIONS "$<$<C_COMPILER_ID:MSVC>:/wd4005>")
 # Only the launcher's own sources get the strict warnings.
-set_source_files_properties(src/Main.cpp src/Environment.cpp src/InstallPlan.cpp PROPERTIES COMPILE_OPTIONS
+set_source_files_properties(src/Main.cpp src/Environment.cpp src/InstallPlan.cpp src/UpdatePlan.cpp src/Updater.cpp
+  PROPERTIES COMPILE_OPTIONS
   "$<IF:$<CXX_COMPILER_ID:MSVC>,/W4;/permissive-;/utf-8,-Wall;-Wextra>")

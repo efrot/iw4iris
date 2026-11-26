@@ -15,6 +15,14 @@ IW4Iris is licensed under the GNU General Public License v3.0 or later
 | [nanosvg](https://github.com/memononen/nanosvg) | commit `239e102ec2c6` | zlib | SVG logo parsing. Copyright (c) 2013-14 Mikko Mononen. |
 | [earcut.hpp](https://github.com/mapbox/earcut.hpp) | v3.2.4 | ISC | Polygon triangulation with holes. Copyright (c) 2015, Mapbox. |
 
+## Built into the launcher (`IW4Iris Launcher.exe`)
+
+Dear ImGui and JSON for Modern C++ as above, and:
+
+| Component | Version | Licence | Notes |
+| --- | --- | --- | --- |
+| [miniz](https://github.com/richgel999/miniz) | 3.0.2 (amalgamated release, `third_party/miniz`) | MIT | Reads update packages. Copyright 2013-2014 RAD Game Tools and Valve Software; Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. |
+
 ## Shipped files
 
 | File | Licence | Source |

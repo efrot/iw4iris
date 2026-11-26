@@ -14,6 +14,7 @@
 #include <imgui_impl_win32.h>
 #include <misc/cpp/imgui_stdlib.h>
 
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <fstream>
@@ -23,6 +24,7 @@
 #include <nlohmann/json.hpp>
 
 #include "Environment.hpp"
+#include "Updater.hpp"
 
 #include <iris/diagnostics.hpp>
 #include <iris/version.hpp>
@@ -108,13 +110,34 @@ namespace
     std::string status;
     bool removeUserData = false;
     bool launchAfterSetup = false;  // "Install & Launch": start the game when the setup succeeds
+    bool checkUpdates = true;       // look for a new release when the launcher starts
+    bool autoInstallUpdates = true; // and install it right away
   } state;
+
+  // Self-update (Updater.hpp). Written by the worker threads, read by the UI.
+  struct UpdateState
+  {
+    std::mutex mutex;
+    std::string status;
+    std::optional<ReleaseInfo> available;  // a newer release than this launcher
+    bool checking = false;
+    bool installing = false;
+    bool devCheckout = false;              // a git checkout: updated with git
+    std::string updatedTo;                 // this start finished an update to this version
+    std::atomic<double> progress{0.0};
+    std::atomic<bool> restart{false};      // installed: start the new launcher and close
+  } updates;
 
   fs::path ExeFolder()
   {
-    wchar_t path[MAX_PATH]{};
-    GetModuleFileNameW(nullptr, path, MAX_PATH);
-    return fs::path(path).parent_path();
+    // Remembered from the first call: an update renames the running
+    // launcher into its backup folder.
+    static const fs::path folder = [] {
+      wchar_t path[MAX_PATH]{};
+      GetModuleFileNameW(nullptr, path, MAX_PATH);
+      return fs::path(path).parent_path();
+    }();
+    return folder;
   }
 
   fs::path SettingsFile()
@@ -144,6 +167,8 @@ namespace
       state.gameFolder = j.value("gameFolder", state.gameFolder);
       state.environmentFolder = j.value("environmentFolder", state.environmentFolder);
       state.ffmpeg = j.value("ffmpeg", state.ffmpeg);
+      state.checkUpdates = j.value("checkUpdates", state.checkUpdates);
+      state.autoInstallUpdates = j.value("autoInstallUpdates", state.autoInstallUpdates);
     }
     catch (...)
     {
@@ -156,7 +181,9 @@ namespace
     fs::create_directories(SettingsFile().parent_path(), ec);
     std::ofstream(SettingsFile()) << nlohmann::json{{"gameFolder", state.gameFolder},
                                                     {"environmentFolder", state.environmentFolder},
-                                                    {"ffmpeg", state.ffmpeg}}
+                                                    {"ffmpeg", state.ffmpeg},
+                                                    {"checkUpdates", state.checkUpdates},
+                                                    {"autoInstallUpdates", state.autoInstallUpdates}}
                                          .dump(2);
   }
 
@@ -199,6 +226,169 @@ namespace
     c[ImGuiCol_HeaderHovered] = ImVec4(accent.x, accent.y, accent.z, 0.35f);
     c[ImGuiCol_CheckMark] = accent;
     c[ImGuiCol_Border] = ImVec4(0.2f, 0.21f, 0.24f, 1.0f);
+  }
+
+  void Header(const char* text);  // below
+
+  Version CurrentVersion()
+  {
+    return {iris::kVersionMajor, iris::kVersionMinor, iris::kVersionPatch};
+  }
+
+  void InstallUpdate(const ReleaseInfo& release)
+  {
+    {
+      std::lock_guard _(updates.mutex);
+      if (updates.installing || updates.restart)
+        return;
+      updates.installing = true;
+      updates.progress = 0.0;
+      updates.status = "Updating to IW4Iris " + ToString(release.version) + " ...";
+    }
+    std::thread([release] {
+      std::string error;
+      const bool ok = update::Install(ExeFolder(), release, Log, [](double p) { updates.progress = p; }, &error);
+      std::lock_guard _(updates.mutex);
+      updates.installing = false;
+      if (ok)
+      {
+        updates.status = "IW4Iris " + ToString(release.version) + " is installed. The launcher restarts ...";
+        updates.restart = true;
+      }
+      else
+      {
+        updates.status = "The update did not install, nothing was changed: " + error;
+        Log(updates.status);
+      }
+    }).detach();
+  }
+
+  void CheckForUpdates()
+  {
+    {
+      std::lock_guard _(updates.mutex);
+      if (updates.checking || updates.installing || updates.devCheckout)
+        return;
+      updates.checking = true;
+      updates.status = "Looking for a new version ...";
+    }
+    std::thread([] {
+      std::string error;
+      const auto release = update::FetchLatest(&error);
+      bool install = false;
+      {
+        std::lock_guard _(updates.mutex);
+        updates.checking = false;
+        if (!release)
+        {
+          updates.status = "Could not look for updates: " + error;
+          Log(updates.status);
+        }
+        else if (!IsNewer(release->version, CurrentVersion()))
+        {
+          updates.available.reset();
+          updates.status = "You have the newest version (" + ToString(CurrentVersion()) + ").";
+        }
+        else
+        {
+          updates.available = *release;
+          updates.status = "IW4Iris " + ToString(release->version) + " is available.";
+          Log(updates.status);
+          install = state.autoInstallUpdates;
+        }
+      }
+      if (install)
+        InstallUpdate(*release);
+    }).detach();
+  }
+
+  void OpenUrl(const std::string& url)
+  {
+    // Only addresses this launcher builds itself (release pages of this project).
+    if (url.rfind("https://github.com/", 0) == 0)
+      ShellExecuteW(nullptr, L"open", Widen(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+  }
+
+  std::string ReleasePage(const std::string& version)
+  {
+    return "https://github.com/" + std::string(kUpdateRepository) + "/releases/tag/v" + version;
+  }
+
+  // Shown at the top of Home: an update that just finished, one running,
+  // or one waiting for a click.
+  void DrawUpdateBanner()
+  {
+    const ImVec4 good(0.5f, 0.9f, 0.6f, 1.0f), warn(1.0f, 0.75f, 0.4f, 1.0f);
+    std::optional<ReleaseInfo> install;
+    {
+      std::lock_guard _(updates.mutex);
+      if (!updates.updatedTo.empty())
+      {
+        ImGui::TextColored(good, "Updated to IW4Iris %s.", updates.updatedTo.c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("What's new"))
+          OpenUrl(ReleasePage(updates.updatedTo));
+      }
+      if (updates.installing || updates.restart)
+      {
+        ImGui::TextColored(warn, "%s", updates.status.c_str());
+        ImGui::ProgressBar(static_cast<float>(updates.progress.load()), ImVec2(300, 0));
+        ImGui::Separator();
+        return;
+      }
+      if (updates.available)
+      {
+        ImGui::TextColored(warn, "IW4Iris %s is available (you have %s).", ToString(updates.available->version).c_str(),
+                           ToString(CurrentVersion()).c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Update now"))
+          install = *updates.available;
+        ImGui::SameLine();
+        if (ImGui::SmallButton("What's new"))
+          OpenUrl(updates.available->pageUrl);
+        if (updates.status.rfind("The update did not install", 0) == 0)
+          ImGui::TextWrapped("%s", updates.status.c_str());
+      }
+      if (!updates.updatedTo.empty() || updates.available)
+        ImGui::Separator();
+    }
+    if (install)
+      InstallUpdate(*install);
+  }
+
+  void DrawUpdateSettings()
+  {
+    Header("Updates");
+    ImGui::Text("This is IW4Iris %s.", ToString(CurrentVersion()).c_str());
+    bool check = false;
+    {
+      std::lock_guard _(updates.mutex);
+      if (updates.devCheckout)
+      {
+        ImGui::TextDisabled("This folder is a git checkout: it is updated with git, not by the launcher.");
+        return;
+      }
+      if (ImGui::Checkbox("Look for a new version when the launcher starts", &state.checkUpdates))
+        SaveLauncherSettings();
+      if (ImGui::Checkbox("Install new versions automatically", &state.autoInstallUpdates))
+        SaveLauncherSettings();
+      ImGui::SetItemTooltip("The launcher, the IW4Iris client, the Director Mod, presets and documentation are\n"
+                            "replaced together; the game environment is updated on the next Launch.");
+      ImGui::BeginDisabled(updates.checking || updates.installing);
+      check = ImGui::Button("Check now", ImVec2(140, 0));
+      ImGui::EndDisabled();
+      if (!updates.status.empty())
+      {
+        ImGui::SameLine();
+        ImGui::TextWrapped("%s", updates.status.c_str());
+      }
+    }
+    ImGui::TextDisabled("Updates come only from the releases of github.com/%s and are checked against their",
+                        std::string(kUpdateRepository).c_str());
+    ImGui::TextDisabled("published SHA-256 before anything is replaced; a failed update puts every file back.");
+    ImGui::TextDisabled("Projects, recordings and settings are never touched.");
+    if (check)
+      CheckForUpdates();
   }
 
   bool EnvironmentReady()
@@ -318,6 +508,7 @@ namespace
 
   void PageHome()
   {
+    DrawUpdateBanner();
     Header("Cinematic Studio for IW4x");
     ImGui::TextWrapped("IW4Iris runs a separate, offline copy of IW4x with the cinematic editor built in. Your normal "
                        "game installation is only read, never modified.");
@@ -362,7 +553,7 @@ namespace
         if (LaunchGame(Utf8Path(state.environmentFolder), L"", &error))
         {
           Log("Started the cinematic build");
-          state.status = "Starting IW4Iris ... In the game, F1 shows the editor.";
+          state.status = "Starting IW4Iris ...";
         }
         else
         {
@@ -372,7 +563,7 @@ namespace
       }
     }
     ImGui::Spacing();
-    ImGui::TextDisabled("In the game: F1 shows the editor. Its start screen shows the ways in.");
+    ImGui::TextDisabled("In the game the editor opens with its start screen; F1 hides and shows it.");
     ImGui::Spacing();
     // Quick actions
     ImGui::BeginDisabled(state.busy || !h.envReady);
@@ -650,6 +841,9 @@ namespace
     if (state.busy)
       ImGui::TextDisabled("Working...");
 
+    ImGui::Spacing();
+    DrawUpdateSettings();
+
     // Director Mode needs the Director Mod in the environment.
     if (EnvironmentReady())
     {
@@ -799,7 +993,47 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
   ImGui_ImplWin32_Init(hwnd);
   ImGui_ImplDX9_Init(device);
 
+  ExeFolder();  // remembered before an update can rename this file
   LoadLauncherSettings();
+  if (const auto finished = update::FinishPreviousUpdate(ExeFolder(), Log))
+  {
+    updates.updatedTo = finished->empty() ? ToString(CurrentVersion()) : *finished;
+    Log("Updated to IW4Iris " + updates.updatedTo);
+  }
+  updates.devCheckout = update::IsDevelopmentCheckout(ExeFolder());
+  // "IW4Iris Launcher.exe" --install-package <IW4Iris-vX.Y.Z-Windows-x86.zip>:
+  // installs a package downloaded by hand (same checks as an update).
+  int argc = 0;
+  wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+  std::optional<fs::path> packageFile;
+  for (int i = 1; argv && i + 1 < argc; ++i)
+    if (std::wstring(argv[i]) == L"--install-package")
+      packageFile = fs::path(argv[i + 1]);
+  if (argv)
+    LocalFree(argv);
+  if (packageFile)
+  {
+    updates.installing = true;
+    updates.status = "Installing " + Narrow(packageFile->filename().wstring()) + " ...";
+    std::thread([file = *packageFile] {
+      std::string version, error;
+      const bool ok = update::InstallFromFile(ExeFolder(), file, Log, &version, &error);
+      std::lock_guard _(updates.mutex);
+      updates.installing = false;
+      if (ok)
+      {
+        updates.status = "IW4Iris " + version + " is installed. The launcher restarts ...";
+        updates.restart = true;
+      }
+      else
+      {
+        updates.status = "The package did not install, nothing was changed: " + error;
+        Log(updates.status);
+      }
+    }).detach();
+  }
+  else if (state.checkUpdates && !updates.devCheckout)
+    CheckForUpdates();
   state.detected = DetectGameFolders();
   if (state.gameFolder.empty() && !state.detected.empty())
     state.gameFolder = Narrow(state.detected.front().wstring());
@@ -820,6 +1054,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
     }
     if (done)
       break;
+    if (updates.restart)
+    {
+      // The new version is in place: start it and close this one.
+      std::string error;
+      if (update::RestartLauncher(ExeFolder() / L"IW4Iris Launcher.exe", &error))
+        break;
+      std::lock_guard _(updates.mutex);
+      updates.restart = false;
+      updates.status = "IW4Iris was updated; start the launcher again (" + error + ").";
+      Log(updates.status);
+    }
     if (resizeWidth != 0 && resizeHeight != 0)
     {
       params.BackBufferWidth = resizeWidth;

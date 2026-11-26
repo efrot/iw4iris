@@ -6,6 +6,11 @@
 #                 and its checksums.
 #   linux-tests:  the game-independent tests with GCC and -Werror, and the
 #                 Blender add-on tests.
+#   release:      for a version tag (vX.Y.Z) only: publishes the Windows
+#                 package and SHA256SUMS.txt as a GitHub Release. The
+#                 launcher's self-update installs exactly these files (see
+#                 launcher/src/Updater.hpp), so a release is published only
+#                 when both jobs pass and the tag matches CMakeLists.txt.
 #
 # A green run proves the build and the automated tests; it does not run the
 # game (see docs/TESTING.md for the in-game checks).
@@ -14,6 +19,7 @@ name: Build
 on:
   push:
     branches: ["main", "claude/**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -85,3 +91,43 @@ jobs:
             -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined"
           cmake --build build/sanitize --parallel
           ctest --test-dir build/sanitize --output-on-failure
+
+  release:
+    name: Publish the release (version tags only)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows-msvc, linux-tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Download the package built for this tag
+        uses: actions/download-artifact@v4
+        with:
+          name: IW4Iris-Windows-x86-msvc
+          path: release
+
+      - name: Check the version and the checksums
+        run: |
+          version="$(sed -n 's/^project(IW4Iris VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the version in CMakeLists.txt ($version)"
+            exit 1
+          fi
+          test -f "release/IW4Iris-v$version-Windows-x86.zip"
+          (cd release && tr -d '\r' < SHA256SUMS.txt | sha256sum -c -)
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v head="## ${GITHUB_REF_NAME#v} " 'index($0, head) == 1 {p = 1; next} /^## / && p {exit} p' CHANGELOG.md > notes.md
+          test -s notes.md || echo "See CHANGELOG.md." > notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/*.zip release/SHA256SUMS.txt \
+            --title "IW4Iris $GITHUB_REF_NAME" --notes-file notes.md --verify-tag

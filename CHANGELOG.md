@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.6.0 — 2026-11-26 (automatic updates; the first release on GitHub Releases)
+
+### Added
+
+* **Automatic updates.** The launcher looks for a new version when it
+  starts and installs it by itself: the launcher, the IW4Iris client, the
+  Director Mod, presets and documentation together, then it restarts and
+  says "Updated to IW4Iris x.y.z" (with *What's new*). The next **Update &
+  Launch** brings the game environment up to date.
+  * Updates come only from this project's GitHub Releases, over HTTPS (TLS
+    1.2 or newer), and every redirect must stay on GitHub's release hosts.
+  * The package must match the SHA-256 published with the release, and
+    every file in it is checked before anything is written: nothing outside
+    the IW4Iris folder can be written, links and junctions are never
+    followed, and a package without the launcher, the client and the
+    Director Mod is refused.
+  * Files are replaced one by one with a backup; any failure (a file in
+    use, a full disk) puts every file back, and an update interrupted by a
+    crash or power cut is undone at the next start.
+  * Projects, recordings and settings are never touched; files that are
+    not part of the package are left alone; a git checkout is not updated.
+  * *Setup → Updates*: look for updates at start (on), install them
+    automatically (on), *Check now*; with automatic installing off, Home
+    shows **Update now**. A package downloaded by hand installs with
+    `--install-package <file.zip>`.
+* Version tags publish the release (`.github/workflows/build.yml`, job
+  *release*): the Windows package and `SHA256SUMS.txt` from the MSVC build,
+  only when both build jobs pass and the tag matches `CMakeLists.txt`.
+
+### Also in this release
+
+Everything under 0.5.1 below: film sets load again (they stayed on the
+loading screen for everyone), *Reload set*, film sets started after a
+demo, the editor opening with the game, the readable Demos list, templates
+dressed for the map, docked panels after an update.
+
 ## 0.5.1 — 2026-11-26 (film sets load again; first fixes found in the game)
 
 ### Fixed

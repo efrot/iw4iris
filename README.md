@@ -809,9 +809,18 @@ The launcher's **Projects** page can start the game with a project
 
 ## 16. Updating and uninstalling
 
-**Update:** unzip the new version (over the old one or anywhere), start the
-launcher and click **Setup → Repair / update**. Projects, recordings and
-settings stay.
+**Update:** nothing to do. The launcher looks for a new version each time
+it starts and installs it by itself (the launcher, the IW4Iris client, the
+Director Mod, presets and documentation together), then restarts; the next
+**Update & Launch** brings the game environment up to date. Updates come
+only from this project's GitHub Releases and are checked against their
+published SHA-256 before anything is replaced; a failed update puts every
+file back. To decide yourself: launcher → **Setup → Updates**, untick
+*Install new versions automatically* (an **Update now** button appears
+instead) or *Look for a new version*. A package downloaded by hand can be
+installed with `"IW4Iris Launcher.exe" --install-package <file.zip>`, or
+unzipped over the old one. Projects, recordings and settings always stay.
+A folder that is a git checkout is not updated by the launcher (use git).
 
 **Uninstall:** launcher → **Setup → Uninstall**. Only what the launcher
 created is removed; the junctions are removed as links, and the game

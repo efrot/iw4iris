@@ -5,7 +5,7 @@
 # component is built inside the IW4x client tree with IW4x's own premake
 # build; see BUILD.md and engine/iw4x/.
 cmake_minimum_required(VERSION 3.20)
-project(IW4Iris VERSION 0.5.1 LANGUAGES CXX)
+project(IW4Iris VERSION 0.6.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -110,12 +110,14 @@ if(IW4IRIS_BUILD_TESTS)
     tests/test_demo.cpp
     tests/test_presets.cpp
     tests/test_launcher.cpp
+    tests/test_update.cpp
     tests/test_geometry.cpp
     tests/test_director.cpp
     tests/test_director_sync.cpp
     tests/test_sources.cpp
     tests/test_samples.cpp
     launcher/src/InstallPlan.cpp
+    launcher/src/UpdatePlan.cpp
   )
   target_link_libraries(iw4iris_tests PRIVATE iw4iris_core)
   target_include_directories(iw4iris_tests PRIVATE launcher/src)
