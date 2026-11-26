@@ -3,12 +3,12 @@
 Persistent notes so development can continue across sessions. Update this
 file with every significant change.
 
-_Last updated: 2026-11-26 — v0.5.0 (Angles: several recordings of one match
-in one project, synchronised from their shared kills, switched at the same
-moment, rendered per angle; before that 0.4.0: players, perspectives,
-moments, trickshot candidates, render preflight, fitted game view). Audit
-findings and their verification state: [docs/BACKLOG.md](docs/BACKLOG.md);
-comparison with other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
+_Last updated: 2026-11-26 — v0.5.0 (Angles: several recordings of one match;
+BeatSync: music row, local beat detection, beat actions, music in
+recordings; before that 0.4.0: players, perspectives, moments, trickshot
+candidates, render preflight, fitted game view). Audit findings and their
+verification state: [docs/BACKLOG.md](docs/BACKLOG.md); comparison with
+other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 
 ### Handoff (read first)
 
@@ -32,6 +32,14 @@ comparison with other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
   plays (identified by path per demo generation); a project with angles
   never replaces its main demo. Unverified: obituaries reach every client
   (kill feeds match), one server session shares the server clock.
+* **BeatSync (0.5):** `iris/audio` (WAV, peaks, onsets, tempo, Ellis DP
+  beat tracking: tested on synthetic click tracks only), `iris/beatsync`
+  (beats in file time, actions, `AudioForRange`), `Project::audio`.
+  `IrisAudio.cpp` loads (WAV directly, else FFmpeg to mono s16le 44.1 kHz),
+  analyses in a thread, previews through waveOut (mono, restarts when it
+  drifts > 120 ms). Captures add the music through FFmpeg. Unverified: the
+  preview in the game (waveOut next to the game's own sound), FFmpeg's
+  `adelay=...:all=1` (FFmpeg >= 4.2) and `apad=whole_dur` (>= 4.2).
 * **Unverified assumptions to check first with a real multi-player demo:**
   the snapshot client list holds every connected player; player entity
   `apos.trBase` carries the view pitch; obituary entities carry victim in
@@ -42,7 +50,7 @@ comparison with other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 
 | Area | State |
 | --- | --- |
-| Core library (`core/`) | scene, Director reconciler, timeline navigation, fuzzy search, diagnostics, players, moments, preflight, angle sync; 171 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) and under ASan / UBSan |
+| Core library (`core/`) | scene, Director reconciler, timeline navigation, fuzzy search, diagnostics, players, moments, preflight, angle sync, audio analysis and BeatSync; 187 test cases pass on Linux (GCC 13, `-Werror` with `-Wconversion -Wshadow -Wpedantic`) and under ASan / UBSan |
 | Director Mod (`mods/iw4iris_director`) | written; **never compiled by the game** (GSC is compiled at map load; no game here) |
 | Director bridge, graphics renderer, Director / motion graphics editor | implemented; cross-compile warning-free; **never run in the game** |
 | IW4x component (`engine/iw4x/`) | implemented; **cross-compiles and links** into IW4x `912099b7c405` with IW4x's `-Werror` flags; **builds with MSVC in the Windows CI job** (client DLL since run 3); **never run in the game** |
@@ -95,6 +103,8 @@ Pitfalls met (all handled by the scripts now):
    moments (kills) found, the analysis pass returns to its start.
 3a. **Angles in the game** (§5a) with two demos of one match: the
    suggestion, a kill at its marker in both, switching, Queue per angle.
+3b. **Music in the game** (§5b): preview heard in time, beats on real
+   music, music in recorded MP4 / next to PNG sequences.
 4. **Milestone B** (§8): an actor spawns, animates, holds a weapon, is
    deleted and respawned.
 5. **Motion graphics in the game** (§9): is a matching depth buffer bound

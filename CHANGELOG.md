@@ -1,8 +1,26 @@
 # Changelog
 
-## 0.5.0 — 2026-11-26 (Angles: several recordings of one match, not yet tested in the game)
+## 0.5.0 — 2026-11-26 (Angles and BeatSync, not yet tested in the game)
 
 ### Added
+
+* **BeatSync (music):** a Music panel and a Music row on the timeline with
+  the waveform. WAV is read directly, MP3 / FLAC / OGG / M4A and others
+  with FFmpeg. *Find beats* finds the tempo and beats locally
+  (spectral-flux onsets, an autocorrelation tempo estimate with a clarity
+  value, dynamic-programming beat tracking after Ellis 2007, implemented
+  from the paper); beats are corrected on the row (drag, double-click to
+  add, right-click to remove), x2 / /2, or a typed BPM grid from the
+  playhead. Corrected beats are never replaced without asking. Beats are
+  edit points (snapping, Up / Down).
+* **Beat actions:** cuts on every N-th beat round chosen cameras, markers
+  on beats, slow motion from a beat to a later one; all ordinary, editable
+  content.
+* **Music preview** along with the playhead (waveOut, mono mix; it follows
+  seeks and stops while scrubbing). **Music in recordings:** in the video
+  (AAC / PCM / FLAC by container) or `<name>_music.wav` next to an image
+  sequence, through FFmpeg; per-angle sequences get one music file for the
+  whole range. Project format: `audio`, `recording.includeAudio`.
 
 * **Angles:** other players' demos of the main demo's match in one
   project. Each gives its recorder's exact first-person view to cut to,

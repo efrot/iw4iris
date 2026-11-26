@@ -59,6 +59,7 @@ namespace IW4Iris::Editor
       static const std::vector<WorkspaceDef> w{
         {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Players, Panel::Moments, Panel::Angles, Panel::Inspector, Panel::Timeline, Panel::Look}},
         {"Timeline", Icons::CHART, {Panel::Outliner, Panel::Inspector, Panel::Timeline}},
+        {"Music", Icons::CLOCK, {Panel::Outliner, Panel::Music, Panel::Inspector, Panel::Timeline}},
         {"Cameras", Icons::CAMERA, {Panel::Outliner, Panel::Inspector, Panel::Timeline, Panel::Presets}},
         {"Director", Icons::USER, {Panel::Outliner, Panel::Director, Panel::Actors, Panel::ObjectInspector, Panel::Timeline}},
         {"Animation", Icons::ROUTE, {Panel::Outliner, Panel::Actors, Panel::Animations, Panel::ObjectInspector, Panel::Timeline}},
@@ -103,6 +104,7 @@ namespace IW4Iris::Editor
     case Panel::Players: return "Players###Players";
     case Panel::Moments: return "Moments###Moments";
     case Panel::Angles: return "Angles###Angles";
+    case Panel::Music: return "Music###Music";
     default: return "###unknown";
     }
   }
@@ -152,6 +154,7 @@ namespace IW4Iris::Editor
       ImGui::DockBuilderDockWindow(PanelName(Panel::Lighting), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Recording), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::RenderQueue), right);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::Music), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Export), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Presets), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Settings), right);
@@ -1644,6 +1647,12 @@ namespace IW4Iris::Editor
         }
         ImGui::TreePop();
       }
+      if (s.project.audio)
+      {
+        c |= ImGui::Checkbox("Include the music", &r.includeAudio);
+        ImGui::SetItemTooltip("Video formats get the music in the file; an image sequence gets <name>_music.wav next "
+                              "to it. Needs FFmpeg.");
+      }
       if (ImGui::TreeNode("Advanced"))
       {
         c |= ImGui::SliderInt("Frame queue", &r.queueDepth, 1, 32);
@@ -3109,6 +3118,8 @@ namespace IW4Iris::Editor
       DrawMoments(s);
     if (Shown(Panel::Angles))
       DrawAngles(s);
+    if (Shown(Panel::Music))
+      DrawMusic(s);
     if (Shown(Panel::Recording))
       DrawRecording(s);
     if (Shown(Panel::RenderQueue))

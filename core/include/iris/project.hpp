@@ -229,6 +229,27 @@ namespace iris
     // (different map or mode), or nothing.
     std::optional<std::string> AngleIncompatibility(const DemoRef& main, const DemoRef& angle);
 
+    // The music of a montage. It plays on the timeline's clock (slow motion
+    // in the demo does not slow it down). Beats are stored in seconds into
+    // the file, so moving or trimming the track keeps them on the music.
+    struct AudioTrack
+    {
+        std::string path;            // relative to the project when possible
+        std::string name;
+        std::uint64_t fileSize = 0;
+        double start = 0.0;          // timeline time at which `trimIn` plays
+        double trimIn = 0.0;         // seconds into the file
+        double trimOut = 0.0;        // seconds into the file where it stops (0: its end)
+        double fileDuration = 0.0;   // seconds, once the file was read
+        double volume = 1.0;         // 0..2
+        bool muted = false;
+        double bpm = 0.0;            // detected or typed
+        double tempoConfidence = 0.0;
+        std::vector<double> beats;   // seconds into the file: detected, then corrected by the user
+        bool beatsEdited = false;    // corrected by hand (a new analysis asks before replacing them)
+        bool operator==(const AudioTrack&) const = default;
+    };
+
     struct ExportSettings
     {
         double unitsPerMetre = 39.37007874;  // game units are inches
@@ -248,6 +269,7 @@ namespace iris
         std::string mapName;               // the film set's map (Director Mode, no demo)
         std::optional<DemoRef> demo;
         std::vector<DemoAngle> angles;     // other recordings of the same match
+        std::optional<AudioTrack> audio;   // the montage's music
 
         TimelineSettings timeline;
         TimeRemap timeRemap;
@@ -347,6 +369,8 @@ namespace iris
     // Resolves the demo path of a project loaded from `file` (relative paths
     // are relative to the project's folder).
     std::optional<std::filesystem::path> ResolveDemoPath(const Project& project, const std::filesystem::path& file);
+    // The music file's path, the same way.
+    std::optional<std::filesystem::path> ResolveAudioPath(const Project& project, const std::filesystem::path& file);
     // The same for any demo reference of the project (the main demo, an angle).
     std::optional<std::filesystem::path> ResolveDemoRefPath(const DemoRef& demo, const std::filesystem::path& file);
 

@@ -276,14 +276,57 @@ namespace iris
         return path;
     }
 
+    namespace
+    {
+        std::string Seconds(double v)
+        {
+            char text[32];
+            std::snprintf(text, sizeof(text), "%.6f", std::max(0.0, v));
+            return text;
+        }
+
+        // The audio input (-ss / -t / -i) and its filter (delay, volume).
+        void AddAudioInput(std::vector<std::string>& a, const AudioInput& in)
+        {
+            if (in.fileStart > 0.0)
+                a.insert(a.end(), {"-ss", Seconds(in.fileStart)});
+            a.insert(a.end(), {"-t", Seconds(in.duration), "-i", in.path});
+        }
+
+        std::string AudioFilter(const AudioInput& in, double seconds, bool pad)
+        {
+            std::string f;
+            if (in.delay > 0.0)
+                f += "adelay=" + std::to_string(std::llround(in.delay * 1000.0)) + ":all=1,";
+            char volume[32];
+            std::snprintf(volume, sizeof(volume), "volume=%.4f", std::clamp(in.volume, 0.0, 4.0));
+            f += volume;
+            if (pad)
+                f += seconds > 0.0 ? ",apad=whole_dur=" + Seconds(seconds) : std::string(",apad");
+            return f;
+        }
+    }  // namespace
+
+    std::vector<std::string> BuildAudioSidecarArguments(const AudioInput& audio, double seconds,
+                                                        const std::string& outputPath)
+    {
+        std::vector<std::string> a{"-hide_banner", "-loglevel", "warning", "-nostats", "-y"};
+        AddAudioInput(a, audio);
+        a.insert(a.end(), {"-af", AudioFilter(audio, seconds, true), "-t", Seconds(seconds), "-c:a", "pcm_s16le",
+                           outputPath});
+        return a;
+    }
+
     std::vector<std::string> BuildFfmpegArguments(const RecordingSettings& s, int width, int height,
-                                                  const std::string& outputPath, std::int64_t firstFrameNumber)
+                                                  const std::string& outputPath, std::int64_t firstFrameNumber,
+                                                  const AudioInput* audio)
     {
         const std::string rate = std::to_string(s.frameRate.numerator) + "/" + std::to_string(s.frameRate.denominator);
         std::vector<std::string> a{"-hide_banner", "-loglevel", "warning", "-nostats", "-y",
                                    "-f",           "rawvideo", "-pix_fmt", "bgra",     "-video_size",
                                    std::to_string(width) + "x" + std::to_string(height),
                                    "-framerate",   rate,       "-i",       "pipe:0"};
+        const std::size_t inputsEnd = a.size();  // a second input (the music) goes here
         auto add = [&](std::initializer_list<std::string> items) { a.insert(a.end(), items); };
         switch (s.format)
         {
@@ -322,6 +365,22 @@ namespace iris
             case OutputFormat::Ffv1Lossless:
                 add({"-c:v", "ffv1", "-level", "3", "-g", "1", "-slicecrc", "1", "-pix_fmt", "bgr0"});
                 break;
+        }
+        if (audio && !IsImageSequence(s.format))
+        {
+            // The audio input goes before the output options: rebuild with it
+            // as the second input.
+            const auto split = a.begin() + static_cast<std::ptrdiff_t>(inputsEnd);
+            std::vector<std::string> withAudio(a.begin(), split);
+            AddAudioInput(withAudio, *audio);
+            withAudio.insert(withAudio.end(), split, a.end());
+            const char* codec = FileExtension(s.format) == ".mp4" ? "aac" : FileExtension(s.format) == ".mkv" ? "flac" : "pcm_s16le";
+            withAudio.insert(withAudio.end(), {"-map", "0:v:0", "-map", "1:a:0", "-af", AudioFilter(*audio, 0.0, true),
+                                               "-c:a", codec});
+            if (std::string_view(codec) == "aac")
+                withAudio.insert(withAudio.end(), {"-b:a", "320k"});
+            withAudio.push_back("-shortest");
+            a = std::move(withAudio);
         }
         a.push_back(outputPath);
         return a;

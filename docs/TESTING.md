@@ -115,6 +115,18 @@ Needs two players' demos of the same match (same map, same session).
    **Expect** one numbered sequence without gaps or duplicates, B's part
    showing B's own view.
 
+### 5b. Music (BeatSync)
+
+1. Music panel: choose a WAV, then an MP3 (needs FFmpeg). **Expect** the
+   waveform on the Music row and the length in the panel.
+2. Play: **expect** to hear it in time with the playhead; seek and scrub:
+   **expect** it to follow (or stay silent while scrubbing).
+3. **Find beats** on a song with a clear beat: **expect** a sensible BPM and
+   ticks on the beats you hear; correct one by dragging.
+4. **Cuts on beats** every 2 beats with two cameras; play: cuts on the beat.
+5. Record H.264: **expect** the music in the MP4, in sync (count frames at a
+   beat). Record PNG: **expect** `<name>_music.wav` with the range's length.
+
 ### 6. Recording determinism
 
 1. Record the same range twice at 60 FPS. **Expect** identical frame

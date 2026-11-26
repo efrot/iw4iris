@@ -2437,3 +2437,17 @@ namespace IW4Iris::Editor
     return true;
   }
 }
+
+namespace IW4Iris::Editor
+{
+  // The file dialog for other panels (the music file).
+  void PickAnyFile(const char* purpose, const wchar_t* filter)
+  {
+    PickFile(purpose, filter);
+  }
+
+  std::optional<std::string> TakePickedFile(const char* purpose)
+  {
+    return TakePicked(purpose);
+  }
+}

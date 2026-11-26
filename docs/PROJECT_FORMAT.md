@@ -53,6 +53,7 @@ name and path); it never contains game files.
 | `visuals` | object | `film`, `dof`, `sun`, `fog`, `hud` blocks, each with `override` |
 | `lights`, `actors` | array | stored for the planned lighting / actor systems |
 | `recording` | object | recording settings (below) |
+| `audio` | object | optional (0.5), the montage's music: `path` (relative when possible), `name`, `size`, `start` (timeline seconds where `trimIn` plays), `trimIn`, `trimOut` (seconds into the file; 0: its end), `duration` (of the file), `volume` (0..4), `muted`, `bpm`, `tempoConfidence`, `beats` (seconds into the file), `beatsEdited` |
 | `renderQueue` | array | `{id, name, camera, angle, status, message, settings}`; `angle` (0.5): the recording the job needs loaded, empty for the main demo |
 | `export` | object | `unitsPerMetre`, `blenderKeysOnly`, `aeUnitsPerPixel` |
 | `editor` | object | `layout` (Dear ImGui ini text), `workspace` |
@@ -113,6 +114,12 @@ picture there (the recorded first-person view is shown instead), never
 another player.
 
 ## Recording settings
+
+(0.5) `includeAudio` (bool, default true): the music in the video or next
+to a sequence; `audioRange` (`[start, end]`, timeline seconds; `[-1, -1]`:
+the recording's own range): the music's span when it differs (the first
+part of a per-angle sequence writes the whole range's music).
+
 
 ```json
 { "format": "prores422hq", "useFfmpeg": false, "ffmpegPath": "", "outputDirectory": "",

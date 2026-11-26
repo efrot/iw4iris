@@ -39,7 +39,7 @@ cinematics.
    - [4b. Motion graphics: 3D titles and logos](#4b-motion-graphics-3d-titles-and-logos)
 5. [The editor](#5-the-editor)
 6. [Cameras](#6-cameras)
-7. [Timeline, keys and the graph editor](#7-timeline-keys-and-the-graph-editor)
+7. [Timeline, keys and the graph editor](#7-timeline-keys-and-the-graph-editor) · [Music and beats](#music-and-beats-beatsync)
 8. [Demos](#8-demos)
 9. [Look: colour, depth of field, sun, HUD](#9-look-colour-depth-of-field-sun-hud)
 10. [Recording](#10-recording)
@@ -477,6 +477,39 @@ shakes the same way, also in recordings.
   right-click for more. **I / O** set in / out at the playhead (B / N also
   work), or type them into the *In* / *Out* fields. *Loop* repeats the
   loop region while playing (right-click the bar: *Loop this range*).
+
+### Music and beats (BeatSync)
+
+Add the montage's music in the **Music** panel (or the *Music* workspace):
+**Choose a music file**. WAV is read directly; MP3, FLAC, OGG, M4A and
+others are read with FFmpeg (the one set for video recordings). The music
+gets its own **Music** row on the timeline with its waveform, and plays
+along with the playhead (a mono preview, for timing; muted while scrubbing,
+seeking or at another playback rate).
+
+* **Find beats** finds the tempo and the beats in the music, on this
+  computer (spectral-flux onsets, an autocorrelation tempo estimate and
+  dynamic-programming beat tracking). The clarity says how clearly one
+  tempo stands out. They are suggestions: on the music row **drag a beat**
+  to move it, **double-click** to add one, **right-click** to remove one.
+  **x2** / **/2** fix a tempo found at twice or half the real one; or type
+  the BPM and press **Grid from the playhead** with the playhead on a beat.
+  Corrected beats are never replaced by a new analysis without asking.
+* **Drag the music** on its row to move it, or set *Starts at*, *Trim in*,
+  *Trim out*, *Volume* and *Mute* in the panel. The music runs on the
+  timeline's clock: slow motion in the demo does not slow it down.
+* Beats are edit points: drags snap to them and **↑ / ↓** step from beat to
+  beat.
+* **Cuts on beats** puts a camera cut on every *N*-th beat between in and
+  out, going round the cameras you tick (in the recording that is playing,
+  see Angles). **Markers on beats** marks them. **Slow motion from the beat
+  at the playhead** eases into slow motion after that beat and back to
+  normal speed *N* beats later, so the change lands on the music. All of it
+  is ordinary cuts, markers and speed keys you can edit.
+* **Recording:** a video recording gets the music in the file (AAC in MP4,
+  PCM in MOV, FLAC in MKV); an image sequence gets `<name>_music.wav` next
+  to it, covering the same frames. Both need FFmpeg; without it the
+  recording check says so. Untick *Include the music* to leave it out.
 
 ---
 
@@ -938,6 +971,16 @@ Actors) im Panel **Object**.
    Matches.
 4. Aufnahme über mehrere Angles: Render Queue → **Queue per angle** (jeder
    Teil öffnet seine Demo und rendert seinen Abschnitt).
+
+**Musik und Beats (BeatSync)**
+
+Panel **Music** → **Choose a music file** (WAV direkt, MP3/FLAC/OGG über
+FFmpeg). **Find beats** findet Tempo und Beats lokal; in der Zeile
+*Music* der Timeline Beats ziehen, per Doppelklick hinzufügen, per
+Rechtsklick entfernen. **Cuts on beats**, **Markers on beats** und **Slow
+motion from the beat at the playhead** erzeugen normale, bearbeitbare
+Schnitte, Marker und Tempo-Keys. Aufnahmen bekommen die Musik ins Video
+(bzw. als `<Name>_music.wav` neben eine Bildsequenz).
 
 **Wichtig:** Die Cinematic-Version ist **nur offline** nutzbar und blockiert
 jeden Netzwerkverkehr. Version 0.5.0 ist eine Vorschau und wurde im Spiel

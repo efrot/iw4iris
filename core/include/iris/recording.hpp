@@ -89,6 +89,9 @@ namespace iris
         int queueDepth = 6;            // frames in flight to the encoder
         int warmupFrames = 4;          // frames rendered and discarded before the range
         bool hideEditorOverlays = true;
+        bool includeAudio = true;      // the project's music in the video / next to a sequence
+        double audioRangeStart = -1.0; // the music's span when it differs from the range (a part of a
+        double audioRangeEnd = -1.0;   // per-angle sequence writes the whole range's music); < 0: the range
         std::vector<RenderPass> passes{RenderPass{}};
         bool operator==(const RecordingSettings&) const = default;
     };
@@ -146,8 +149,28 @@ namespace iris
     // Full FFmpeg argument list (without the executable) for raw BGRA frames
     // of the given size arriving on stdin. For image sequences the output is
     // a printf-style pattern ("name_%06d.png").
+    //
+    // The music of a recording: a part of an audio file, placed `delay`
+    // seconds after the first frame (it starts later than the range).
+    struct AudioInput
+    {
+        std::string path;
+        double fileStart = 0.0;   // seconds into the file at the first frame (after the delay)
+        double delay = 0.0;       // seconds of silence before it
+        double duration = 0.0;    // seconds of the file to use
+        double volume = 1.0;
+        bool operator==(const AudioInput&) const = default;
+    };
+    // With `audio`, a video format also gets the music (AAC in MP4, PCM in
+    // MOV, FLAC in MKV), padded or cut to the video's length. Image
+    // sequences cannot hold audio: see BuildAudioSidecarArguments.
     std::vector<std::string> BuildFfmpegArguments(const RecordingSettings& settings, int width, int height,
-                                                  const std::string& outputPath, std::int64_t firstFrameNumber);
+                                                  const std::string& outputPath, std::int64_t firstFrameNumber,
+                                                  const AudioInput* audio = nullptr);
+    // FFmpeg arguments that write the music of a range to a WAV file next to
+    // an image sequence (`seconds`: the range's length).
+    std::vector<std::string> BuildAudioSidecarArguments(const AudioInput& audio, double seconds,
+                                                        const std::string& outputPath);
     // Output path for a pass: directory / base + (sequence ? "_%06d" : "") + extension.
     std::string BuildOutputPath(const RecordingSettings& settings, const std::string& directory,
                                 const std::string& baseName);

@@ -1,6 +1,7 @@
 // IW4Iris — Cinematic Studio for IW4x
 // Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
 #include "Runtime.hpp"
+#include "Audio.hpp"
 #include "Capture.hpp"
 #include "Director.hpp"
 #include "Graphics.hpp"
@@ -14,6 +15,7 @@
 #include "Session.hpp"
 #include "../Window.hpp"
 
+#include <iris/beatsync.hpp>
 #include <iris/rig.hpp>
 #include <iris/sync.hpp>
 #include <iris/version.hpp>
@@ -34,6 +36,7 @@ namespace IW4Iris::Runtime
   namespace
   {
     void TrackLoadedDemo(Session& s);     // below
+    void UpdateMusic(Session& s);         // below
   }
 
   std::atomic<bool> editorVisible{false};
@@ -447,6 +450,7 @@ namespace IW4Iris::Runtime
 
   void Shutdown()
   {
+    Audio::Shutdown();
     if (Capture::IsActive())
       Capture::Cancel();
     Engine::RestoreAll();
@@ -630,6 +634,8 @@ namespace IW4Iris::Runtime
         s.playhead = project.timeline.Advance(s.playhead, dt * s.playbackRate);
       }
     }
+
+    UpdateMusic(s);
 
     if (editorVisible || s.flying)
       UpdateFlying(s, dt);
@@ -898,6 +904,51 @@ namespace IW4Iris::Runtime
       s.project.demo = ref;
       s.dirty = true;
       return std::string();
+    }
+
+    // The montage's music: loaded when the project names it, analysed on
+    // request, previewed along with the playhead.
+    void UpdateMusic(Session& s)
+    {
+      if (!s.project.audio)
+      {
+        if (!Audio::GetStatus().loadedPath.empty() || Audio::GetStatus().loading)
+          Audio::Unload();
+        Audio::Sync(false, 0.0, 0.0);
+        return;
+      }
+      auto& a = *s.project.audio;
+      if (const auto path = iris::ResolveAudioPath(s.project, s.projectFile))
+      {
+        const std::string configured = s.settings.ffmpegPath;
+        Audio::Request(*path, [configured] { return Capture::FindFfmpeg(configured).value_or(std::string()); });
+      }
+      const auto status = Audio::GetStatus();
+      if (!status.loading && status.duration > 0.0 && std::abs(a.fileDuration - status.duration) > 1e-6)
+      {
+        a.fileDuration = status.duration;
+        s.dirty = true;
+      }
+      if (auto analysis = Audio::TakeAnalysis())
+      {
+        if (a.beatsEdited)
+        {
+          s.pendingAudioAnalysis = std::move(analysis);
+          s.notice = "Beats found. Your corrected beats were kept: replace them in the Music panel if you want";
+        }
+        else
+        {
+          iris::ApplyAnalysis(a, *analysis);
+          s.Commit("Find beats");
+          char text[96];
+          std::snprintf(text, sizeof(text), "Beats found: %.1f BPM, %zu beats", a.bpm, a.beats.size());
+          s.notice = text;
+        }
+      }
+      const bool inSpan = s.playhead >= a.start && s.playhead < iris::AudioTimelineEnd(a);
+      const bool audible = !a.muted && s.playing && inSpan && !s.status.seeking && !s.scrubbing &&
+                           !Capture::IsActive() && !s.analysis.active && std::abs(s.playbackRate - 1.0) < 1e-3;
+      Audio::Sync(audible, iris::TimelineToAudio(a, s.playhead), a.volume);
     }
 
     // Once per frame: which recording plays, its clock, what is learnt

@@ -9,6 +9,7 @@
 #include "Log.hpp"
 #include "Session.hpp"
 
+#include <iris/beatsync.hpp>
 #include <iris/preflight.hpp>
 #include <iris/version.hpp>
 
@@ -417,6 +418,61 @@ namespace IW4Iris::Capture
     return "idle";
   }
 
+  namespace
+  {
+    // Runs FFmpeg on its own (the music next to an image sequence); its
+    // output goes to a log file.
+    bool RunDetached(const std::string& exe, const std::vector<std::string>& args, const std::filesystem::path& logFile)
+    {
+      SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
+      HANDLE log = CreateFileW(logFile.wstring().c_str(), GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS,
+                               FILE_ATTRIBUTE_NORMAL, nullptr);
+      STARTUPINFOA si{};
+      si.cb = sizeof(si);
+      si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+      si.wShowWindow = SW_HIDE;
+      si.hStdOutput = log != INVALID_HANDLE_VALUE ? log : nullptr;
+      si.hStdError = log != INVALID_HANDLE_VALUE ? log : nullptr;
+      std::string commandLine = iris::JoinWindowsCommandLine(exe, args);
+      Log::Info("FFmpeg (music): {}", commandLine);
+      PROCESS_INFORMATION pi{};
+      const BOOL created = CreateProcessA(nullptr, commandLine.data(), nullptr, nullptr, TRUE,
+                                          CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS, nullptr, nullptr, &si, &pi);
+      if (log != INVALID_HANDLE_VALUE)
+        CloseHandle(log);
+      if (!created)
+        return false;
+      CloseHandle(pi.hThread);
+      CloseHandle(pi.hProcess);
+      return true;
+    }
+
+    // The music for a recording of `project` with `s`, from the frames'
+    // own times (or the span the settings ask for).
+    std::optional<iris::AudioInput> MusicFor(const iris::Project& project, const iris::RecordingSettings& s,
+                                             std::int64_t firstFrame, std::int64_t frameCount)
+    {
+      if (!s.includeAudio || !project.audio)
+        return std::nullopt;
+      std::filesystem::path projectFile;
+      {
+        auto& session = GetSession();
+        std::lock_guard _(session.mutex);
+        projectFile = session.projectFile;
+      }
+      const auto path = iris::ResolveAudioPath(project, projectFile);
+      if (!path)
+        return std::nullopt;
+      double from = s.frameRate.FrameToSeconds(firstFrame), to = s.frameRate.FrameToSeconds(firstFrame + frameCount);
+      if (s.audioRangeStart >= 0.0 && s.audioRangeEnd > s.audioRangeStart)
+      {
+        from = s.audioRangeStart;
+        to = s.audioRangeEnd;
+      }
+      return iris::AudioForRange(*project.audio, path->string(), from, to);
+    }
+  }  // namespace
+
   std::optional<std::string> FindFfmpeg(const std::string& configured)
   {
     namespace fs = std::filesystem;
@@ -507,6 +563,10 @@ namespace IW4Iris::Capture
         loadedAngle = editorSession.loadedAngle;
       }
       const auto checkRange = iris::ResolveRange(s, project->timeline);
+      if (s.includeAudio && project->audio && !project->audio->muted && !FindFfmpeg(ffmpeg))
+        issues.push_back({iris::Issue::Severity::Warning,
+                          "The music is not included: putting it in the video (or next to an image sequence) needs "
+                          "FFmpeg."});
       // A recording shows the demo that plays: every cut in the range must
       // belong to it (another angle would record the wrong player's view).
       if (Engine::IsDemoPlaying() && !project->angles.empty())
@@ -618,6 +678,21 @@ namespace IW4Iris::Capture
       return false;
     }
 
+    // The music: in a video file, or a WAV file next to an image sequence.
+    const auto music = MusicFor(project, s, range.first, range.count);
+    if (music && iris::IsImageSequence(s.format))
+    {
+      const auto exe = FindFfmpeg(ffmpeg);
+      double seconds = s.frameRate.FrameToSeconds(range.first + range.count) - s.frameRate.FrameToSeconds(range.first);
+      if (s.audioRangeStart >= 0.0 && s.audioRangeEnd > s.audioRangeStart)
+        seconds = s.audioRangeEnd - s.audioRangeStart;
+      const auto wav = outputDirectory / (baseName + "_music.wav");
+      if (!exe || !RunDetached(*exe, iris::BuildAudioSidecarArguments(*music, seconds, wav.string()),
+                               outputDirectory / (baseName + "_music.ffmpeg.log")))
+        Log::Warn("Recording: the music could not be written next to the sequence ({})",
+                  exe ? "FFmpeg did not start" : "FFmpeg was not found");
+    }
+
     // Encoder
     const bool builtin = iris::HasBuiltinEncoder(s.format) && !s.useFfmpeg;
     if (builtin)
@@ -630,7 +705,8 @@ namespace IW4Iris::Capture
       const auto exe = FindFfmpeg(ffmpeg);
       auto ff = std::make_unique<FfmpegEncoder>();
       const auto out = iris::BuildOutputPath(s, outputDirectory.string(), baseName);
-      const auto args = iris::BuildFfmpegArguments(s, Engine::RenderWidth(), Engine::RenderHeight(), out, range.first);
+      const auto args = iris::BuildFfmpegArguments(s, Engine::RenderWidth(), Engine::RenderHeight(), out, range.first,
+                                                   music ? &*music : nullptr);
       if (!exe || !ff->Open(*exe, args, outputDirectory / (baseName + ".ffmpeg.log"), error))
       {
         if (!exe)

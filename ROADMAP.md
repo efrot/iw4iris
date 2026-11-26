@@ -30,7 +30,10 @@ Demo browser, playback, speed, pause, frame step, seeking, timeline sync.
    validity, server-command sequences) translated to IW4's structures.
 3. Event markers: done in 0.4 (obituary events collected live, Moments
    panel); in-game verification pending.
-4. Multi-demo angles: done in 0.5 (kill-feed sync suggestion, switching at
+4. BeatSync: done in 0.5 (music row, local beat detection, beat actions,
+   music in recordings); not yet heard in the game. Next: sync of actor
+   actions, logo / text animations and camera shake to beats.
+5. Multi-demo angles: done in 0.5 (kill-feed sync suggestion, switching at
    the same moment, per-angle render jobs); in-game verification with two
    demos of one match pending (docs/TESTING.md §5a). Coverage (where
    each recording starts and ends) is shown and checked. A

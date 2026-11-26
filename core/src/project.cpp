@@ -289,6 +289,14 @@ namespace iris
             job.settings.customEnd = seg.end;
             job.settings.namePattern =
                 IsImageSequence(settings.format) ? pattern : pattern + "_part" + std::to_string(i + 1);
+            if (IsImageSequence(settings.format))
+            {
+                // One sequence, one music file: the first part writes the
+                // whole range's music.
+                job.settings.includeAudio = settings.includeAudio && i == 0;
+                job.settings.audioRangeStart = range.start;
+                job.settings.audioRangeEnd = range.end;
+            }
             ids.renderQueue.push_back(job);
             jobs.push_back(std::move(job));
         }
@@ -614,6 +622,8 @@ namespace iris
                     {"queueDepth", s.queueDepth},
                     {"warmupFrames", s.warmupFrames},
                     {"hideEditorOverlays", s.hideEditorOverlays},
+                    {"includeAudio", s.includeAudio},
+                    {"audioRange", json::array({s.audioRangeStart, s.audioRangeEnd})},
                     {"passes", passes}};
         }
 
@@ -657,6 +667,13 @@ namespace iris
             s.queueDepth = Get<int>(j, "queueDepth", s.queueDepth);
             s.warmupFrames = Get<int>(j, "warmupFrames", s.warmupFrames);
             s.hideEditorOverlays = Get<bool>(j, "hideEditorOverlays", true);
+            s.includeAudio = Get<bool>(j, "includeAudio", true);
+            if (const auto it = j.find("audioRange");
+                it != j.end() && it->is_array() && it->size() == 2 && (*it)[0].is_number() && (*it)[1].is_number())
+            {
+                s.audioRangeStart = (*it)[0].get<double>();
+                s.audioRangeEnd = (*it)[1].get<double>();
+            }
             if (const auto it = j.find("passes"); it != j.end() && it->is_array())
             {
                 s.passes.clear();
@@ -915,6 +932,17 @@ namespace iris
                  {"editor", {{"layout", p.editorLayout}, {"workspace", p.workspace}}}};
         if (p.demo)
             doc["demo"] = DemoRefJson(*p.demo);
+        if (p.audio)
+        {
+            const auto& a = *p.audio;
+            doc["audio"] = {{"path", a.path},          {"name", a.name},
+                            {"size", a.fileSize},      {"start", a.start},
+                            {"trimIn", a.trimIn},      {"trimOut", a.trimOut},
+                            {"duration", a.fileDuration}, {"volume", a.volume},
+                            {"muted", a.muted},        {"bpm", a.bpm},
+                            {"tempoConfidence", a.tempoConfidence},
+                            {"beats", a.beats},        {"beatsEdited", a.beatsEdited}};
+        }
         if (!p.angles.empty())
             doc["angles"] = angles;
         return pretty ? doc.dump(2) : doc.dump();
@@ -993,6 +1021,29 @@ namespace iris
 
         if (const auto it = doc.find("demo"); it != doc.end() && it->is_object())
             p.demo = DemoRefFrom(*it);
+        if (const auto it = doc.find("audio"); it != doc.end() && it->is_object())
+        {
+            AudioTrack a;
+            a.path = Get<std::string>(*it, "path", "");
+            a.name = Get<std::string>(*it, "name", "");
+            a.fileSize = Get<std::uint64_t>(*it, "size", 0);
+            a.start = GetNumber(*it, "start", 0.0);
+            a.trimIn = std::max(0.0, GetNumber(*it, "trimIn", 0.0));
+            a.trimOut = std::max(0.0, GetNumber(*it, "trimOut", 0.0));
+            a.fileDuration = std::max(0.0, GetNumber(*it, "duration", 0.0));
+            a.volume = std::clamp(GetNumber(*it, "volume", 1.0), 0.0, 4.0);
+            a.muted = Get<bool>(*it, "muted", false);
+            a.bpm = std::max(0.0, GetNumber(*it, "bpm", 0.0));
+            a.tempoConfidence = std::clamp(GetNumber(*it, "tempoConfidence", 0.0), 0.0, 1.0);
+            if (const auto beats = it->find("beats"); beats != it->end() && beats->is_array())
+                for (const auto& b : *beats)
+                    if (b.is_number() && std::isfinite(b.get<double>()) && b.get<double>() >= 0.0)
+                        a.beats.push_back(b.get<double>());
+            std::sort(a.beats.begin(), a.beats.end());
+            a.beatsEdited = Get<bool>(*it, "beatsEdited", false);
+            if (!a.path.empty())
+                p.audio = std::move(a);
+        }
         if (const auto it = doc.find("angles"); it != doc.end() && it->is_array())
             for (const auto& j : *it)
             {
@@ -1219,6 +1270,13 @@ namespace iris
         };
         if (project.demo)
             relativise(*project.demo);
+        if (project.audio && !project.audio->path.empty())
+        {
+            DemoRef music;  // the same rule for the music file
+            music.path = project.audio->path;
+            relativise(music);
+            project.audio->path = music.path;
+        }
         for (auto& a : project.angles)
             relativise(a.demo);
 
@@ -1283,6 +1341,15 @@ namespace iris
         if (!project.demo)
             return std::nullopt;
         return ResolveDemoRefPath(*project.demo, file);
+    }
+
+    std::optional<std::filesystem::path> ResolveAudioPath(const Project& project, const std::filesystem::path& file)
+    {
+        if (!project.audio)
+            return std::nullopt;
+        DemoRef music;
+        music.path = project.audio->path;
+        return ResolveDemoRefPath(music, file);
     }
 
     std::optional<std::filesystem::path> ResolveDemoRefPath(const DemoRef& demo, const std::filesystem::path& file)
@@ -1404,6 +1471,14 @@ namespace iris
             else if (project.demo->fileSize != 0 && std::filesystem::file_size(*demo, ec) != project.demo->fileSize)
                 missing.push_back("Demo file differs from the one the project was made with (size changed): " +
                                   demo->string());
+        }
+        if (const auto music = ResolveAudioPath(project, projectFile))
+        {
+            if (!std::filesystem::exists(*music, ec))
+                missing.push_back("Music file not found: " + music->string());
+            else if (project.audio->fileSize != 0 && std::filesystem::file_size(*music, ec) != project.audio->fileSize)
+                missing.push_back("Music file differs from the one the beats were found in (size changed): " +
+                                  music->string());
         }
         for (const auto& a : project.angles)
             if (const auto demo = ResolveDemoRefPath(a.demo, projectFile))

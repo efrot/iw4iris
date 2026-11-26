@@ -13,6 +13,7 @@
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -44,6 +45,7 @@ namespace IW4Iris::Editor
     Players,         // the demo's players: select, watch, cut to
     Moments,         // the demo's kills, deaths, trickshot candidates
     Angles,          // other recordings of the match: sync, switch, cut to
+    Music,           // the montage's music: beats, cuts on beats, speed ramps
     Count,
   };
 
@@ -74,6 +76,14 @@ namespace IW4Iris::Editor
     double rangeAnchor = 0.0; // press time (new range) / offset (move)
     double rangeOrigIn = 0.0, rangeOrigOut = 0.0;
     int overviewDrag = 0;     // 0 none, 1 pan, 2 left edge, 3 right edge
+    // music row
+    bool draggingBeat = false;
+    double beatDragFrom = 0.0;   // timeline time of the beat being dragged
+    double beatDragTo = 0.0;
+    bool draggingMusic = false;
+    double musicAnchor = 0.0;    // press time
+    double musicOrigStart = 0.0;
+    double musicMenuTime = 0.0;  // where the music row was right-clicked
     double overviewGrab = 0.0;
     double overviewA = 0.0, overviewB = 1.0;  // range the overview showed when the drag began
     bool vScrollDrag = false;
@@ -262,6 +272,10 @@ namespace IW4Iris::Editor
   std::string MakePlayerCamera(Session& s, const std::string& name, int slotHint, bool recording, iris::CameraMode mode);
   void DrawMoments(Session& s);
   void DrawAngles(Session& s);
+  void DrawMusic(Session& s);
+  // A file dialog on its own thread; the chosen file is taken once.
+  void PickAnyFile(const char* purpose, const wchar_t* filter);
+  std::optional<std::string> TakePickedFile(const char* purpose);
   // The recording a new cut belongs to: the one loaded ("" the main demo).
   std::string CutAngle(const Session& s);
   // Adds a demo of the list as an angle of the main demo's match (checks

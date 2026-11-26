@@ -31,6 +31,7 @@ Legend: ✓ = available (per the source above), – = not available,
 | Other players' first person | reconstructed, labelled (Windows-built) | – | ✓ (theater has full player states) | ? |
 | Third person / chase of any player | ✓ (Windows-built) | – | ✓ | ? |
 | Kill / event browser, trickshot candidates | ✓ (unit-tested; Windows-built) | – | partial (kill markers) | ? |
+| Music: waveform, local beat detection, cuts / markers / speed ramps on beats, music in the recording | ✓ (unit-tested; cross-compiled) | – | ? | ? |
 | Several recordings of one match (angles), sync from shared kills | ✓ (unit-tested; cross-compiled) | – | – (theater has every player in one recording) | ? |
 | Dolly / orbit / follow / static cameras | ✓ | camera paths in GSC | ✓ | ? |
 | Bone camera | – (needs DObj bone bindings) | – | ✓ | ? |

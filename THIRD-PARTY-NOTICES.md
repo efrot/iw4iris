@@ -24,6 +24,10 @@ IW4Iris is licensed under the GNU General Public License v3.0 or later
 
 ## Design references (no code copied)
 
+Beat tracking follows D. P. W. Ellis, "Beat Tracking by Dynamic
+Programming", Journal of New Music Research 36(1), 2007; implemented from
+the paper (no code taken from any library).
+
 IW4Iris' editor model follows [IWXMVM](https://github.com/reallyluckyy/IWXMVM)
 (reallyluckyy, Caball009, kruumy, lxkast, mallgrab, imgemmy, mrks2 and
 contributors), [Iris Studio](https://github.com/yerbisonline/IrisStudio) and

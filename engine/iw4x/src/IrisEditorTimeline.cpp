@@ -1,9 +1,11 @@
 // IW4Iris — Cinematic Studio for IW4x
 // Copyright (C) 2026 IW4Iris contributors. Licensed under GPL-3.0-or-later.
 #include "DemoControl.hpp"
+#include "Audio.hpp"
 #include "EditorInternal.hpp"
 #include "Runtime.hpp"
 
+#include <iris/beatsync.hpp>
 #include <iris/timeline_view.hpp>
 
 #include <cmath>
@@ -961,6 +963,155 @@ namespace IW4Iris::Editor
       else if (v.draggingMarker <= -100)
         v.draggingMarker = -1;
 
+      // Music row (BeatSync): the waveform and the beats. Drag the music to
+      // move it, drag a beat to correct it, double-click to add a beat,
+      // right-click for more.
+      if (p.audio)
+      {
+        auto& a = *p.audio;
+        label(Icons::CLOCK, a.muted ? "Music (muted)" : "Music", IM_COL32(94, 161, 247, 255), Shown(Panel::Music));
+        if (labelClicked())
+          Shown(Panel::Music) = true;
+        const double t0 = a.start, t1 = std::max(a.start, iris::AudioTimelineEnd(a));
+        const float x0 = c.X(t0), x1 = c.X(t1);
+        if (t1 > t0)
+          dl->AddRectFilled(ImVec2(std::max(x0, c.min.x), y + 2), ImVec2(std::min(x1, c.max.x), y + kRowHeight - 2),
+                            IM_COL32(94, 161, 247, a.muted ? 25 : 45), 3.0f);
+        if (const auto peaks = Audio::Peaks(); peaks && peaks->secondsPerBucket > 0.0 && !peaks->high.empty())
+        {
+          const float mid = y + kRowHeight * 0.5f, half = kRowHeight * 0.5f - 3.0f;
+          const float from = std::max(x0, c.min.x), to = std::min(x1, c.max.x);
+          const double perPixel = (c.end - c.start) / std::max(1.0f, c.max.x - c.min.x);
+          const auto count = static_cast<long long>(peaks->high.size());
+          const float gain = static_cast<float>(std::min(1.0, a.volume));
+          for (float x = from; x < to; x += 1.0f)
+          {
+            const double ft = iris::TimelineToAudio(a, c.T(x));
+            auto b0 = static_cast<long long>(std::floor(ft / peaks->secondsPerBucket));
+            auto b1 = std::max(b0, static_cast<long long>(std::floor((ft + perPixel) / peaks->secondsPerBucket)));
+            if (b1 < 0 || b0 >= count)
+              continue;
+            b0 = std::max(0LL, b0);
+            b1 = std::min(count - 1, b1);
+            float lo = 0.0f, hi = 0.0f;
+            for (auto b = b0; b <= b1; ++b)
+            {
+              lo = std::min(lo, peaks->low[static_cast<std::size_t>(b)]);
+              hi = std::max(hi, peaks->high[static_cast<std::size_t>(b)]);
+            }
+            dl->AddLine(ImVec2(x, mid - hi * half * gain), ImVec2(x, mid - lo * half * gain + 1.0f),
+                        IM_COL32(150, 196, 255, a.muted ? 70 : 170));
+          }
+        }
+        const bool rowHover = inRows && mouse.y >= y && mouse.y < y + kRowHeight;
+        std::optional<double> hoverBeat;
+        for (const double b : iris::BeatTimes(a, c.start, c.end))
+        {
+          const float x = c.X(b);
+          dl->AddLine(ImVec2(x, y + 2), ImVec2(x, y + kRowHeight - 2), IM_COL32(255, 255, 255, 110));
+          if (rowHover && std::abs(mouse.x - x) <= 4.0f)
+            hoverBeat = b;
+        }
+        if (v.draggingBeat)
+          dl->AddLine(ImVec2(c.X(v.beatDragTo), y + 1), ImVec2(c.X(v.beatDragTo), y + kRowHeight - 1),
+                      ImGui::GetColorU32(CurrentPalette().accent), 2.0f);
+        if (rowHover && !consumed && !v.draggingBeat && !v.draggingMusic)
+        {
+          const bool onMusic = mouse.x >= x0 && mouse.x <= x1;
+          if (hoverBeat)
+          {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+            ImGui::SetTooltip("Beat at %s\nDrag to move it, right-click to remove it",
+                              iris::FormatTime(*hoverBeat, tl.frameRate, tl.display).c_str());
+          }
+          else if (onMusic)
+            ImGui::SetTooltip("%s\nDrag to move the music; double-click: add a beat here", a.name.c_str());
+          if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && onMusic && !hoverBeat)
+          {
+            iris::AddBeat(a, Snap(s, c.T(mouse.x)));
+            s.Commit("Add beat");
+            consumed = true;
+          }
+          else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+          {
+            if (hoverBeat)
+            {
+              v.draggingBeat = true;
+              v.beatDragFrom = v.beatDragTo = *hoverBeat;
+              consumed = true;
+            }
+            else if (onMusic)
+            {
+              v.draggingMusic = true;
+              v.musicAnchor = c.T(mouse.x);
+              v.musicOrigStart = a.start;
+              consumed = true;
+            }
+          }
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+          {
+            v.musicMenuTime = hoverBeat ? *hoverBeat : c.T(mouse.x);
+            ImGui::OpenPopup("music-menu");
+            consumed = true;
+          }
+        }
+        if (v.draggingBeat)
+        {
+          if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            v.beatDragTo = Snap(s, c.T(mouse.x));
+          else
+          {
+            v.draggingBeat = false;
+            if (std::abs(v.beatDragTo - v.beatDragFrom) > 1e-6 && iris::MoveBeat(a, v.beatDragFrom, v.beatDragTo, 1e-4))
+              s.Commit("Move beat");
+          }
+        }
+        if (v.draggingMusic)
+        {
+          if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            a.start = v.musicOrigStart + (Snap(s, c.T(mouse.x)) - Snap(s, v.musicAnchor));
+          else
+          {
+            v.draggingMusic = false;
+            if (std::abs(a.start - v.musicOrigStart) > 1e-9)
+              s.Commit("Move music");
+          }
+        }
+        y += kRowHeight;
+      }
+      if (ImGui::BeginPopup("music-menu"))
+      {
+        if (p.audio)
+        {
+          auto& a = *p.audio;
+          const double at = v.musicMenuTime;
+          const double reach = 6.0 * (c.end - c.start) / std::max(1.0f, c.max.x - c.min.x);
+          if (iris::NearestBeat(a, at, reach) && ImGui::MenuItem("Remove this beat"))
+          {
+            iris::RemoveBeat(a, at, reach);
+            s.Commit("Remove beat");
+          }
+          if (ImGui::MenuItem("Add a beat here"))
+          {
+            iris::AddBeat(a, Snap(s, at));
+            s.Commit("Add beat");
+          }
+          if (ImGui::MenuItem("Start the music here"))
+          {
+            a.start = Snap(s, at);
+            s.Commit("Move music");
+          }
+          if (ImGui::MenuItem("Mute", nullptr, a.muted))
+          {
+            a.muted = !a.muted;
+            s.Commit("Mute music");
+          }
+          if (ImGui::MenuItem("Music panel ..."))
+            Shown(Panel::Music) = true;
+        }
+        ImGui::EndPopup();
+      }
+
       // Camera key rows
       for (auto& cam : p.cameras)
       {
@@ -1525,6 +1676,14 @@ namespace IW4Iris::Editor
       pts.push_back(m.time);
     for (const auto& c : p.cuts.Cuts())
       pts.push_back(c.time);
+    // The music's beats and where it starts / ends.
+    if (p.audio)
+    {
+      for (const double b : iris::BeatTimes(*p.audio, tl.start - 1.0, tl.end + 1.0))
+        pts.push_back(b);
+      pts.push_back(p.audio->start);
+      pts.push_back(iris::AudioTimelineEnd(*p.audio));
+    }
     // The demo's kills: Up / Down jump from kill to kill.
     if (s.status.demoPlaying)
       for (const auto& m : s.moments.Moments())

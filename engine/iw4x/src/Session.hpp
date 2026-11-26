@@ -11,6 +11,7 @@
 #include <iris/history.hpp>
 #include <iris/moments.hpp>
 #include <iris/players.hpp>
+#include <iris/audio.hpp>
 #include <iris/project.hpp>
 #include <iris/rig.hpp>
 
@@ -159,6 +160,9 @@ namespace IW4Iris
       std::uint64_t afterGeneration = 0;       // a demo opened after this generation
     };
     std::optional<PendingSeek> pendingSeek;    // seek once that demo has its first snapshot
+
+    // A beat analysis that would replace beats the user corrected (asked first).
+    std::optional<iris::AudioAnalysis> pendingAudioAnalysis;
 
     // Players of the demo or film set (updated every frame on the main thread)
     iris::PlayerRoster players;
