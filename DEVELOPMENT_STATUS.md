@@ -3,9 +3,31 @@
 Persistent notes so development can continue across sessions. Update this
 file with every significant change.
 
-_Last updated: 2026-11-25 — v0.3.0 "Creator Preview" (audit fixes, timeline
-navigation, free view, command palette, diagnostics). Audit findings and
-their verification state: [docs/BACKLOG.md](docs/BACKLOG.md)._
+_Last updated: 2026-11-26 — v0.4.0 (Demo Director: players, player
+perspectives, moments and trickshot candidates, render preflight; game view
+fitted between the panels; film set loading fix). Audit findings and their
+verification state: [docs/BACKLOG.md](docs/BACKLOG.md); comparison with
+other tools: [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
+
+### Handoff (read first)
+
+* **First in-game results (user reports):** 0.3.0's Director Mod did not
+  compile ("bad syntax": `anim` is a reserved word; fixed in mod 0.3.1, a
+  static GSC check now runs in CI). After that fix the film set stayed on
+  the loading screen; the cause found in the code (a paused demo left the
+  engine timescale near 0) is fixed in 0.3.1, **whether that was the user's
+  case is unconfirmed**. iw4iris.log now logs every film-set start step
+  ("Director: ..."); ask for it if loading still hangs.
+* **Engine bindings used for players / moments:** only IW4x's size-checked
+  structures (`cg_s::snap`, `snapshot_s::clients / entities`, `centity_s`
+  prev / next states, `cg_s::frameInterpolation`, `playerState_s`, entity
+  flags `EF_DEAD / EF_CROUCHING / EF_PRONE / EF_ADS`, `ET_EVENTS +
+  EV_OBITUARY`, `ENTITYNUM_NONE`). No new addresses.
+* **Unverified assumptions to check first with a real multi-player demo:**
+  the snapshot client list holds every connected player; player entity
+  `apos.trBase` carries the view pitch; obituary entities carry victim in
+  `otherEntityNum` and killer in `attackerEntityNum`; the 3x analysis pass
+  sees every snapshot at the user's frame rate.
 
 ## State
 
@@ -54,21 +76,21 @@ Pitfalls met (all handled by the scripts now):
 
 ## Next steps (priority order)
 
-1. **Milestone A in the game** (docs/TESTING.md §1–§6): does the view hook
-   move the camera, does the editor work, are real frames recorded?
-2. **Milestone B in the game** (§8): film set loads, the Director Mod
-   compiles (watch the console for script errors), an actor spawns with its
-   head, moves, animates, holds an Intervention, is deleted and respawned.
-   Fix the GSC first if it does not compile; everything in Director Mode
-   depends on this.
-3. **Motion graphics in the game** (§9): is a matching depth buffer bound
-   at present time (the Renderer section of the Motion Graphics panel says)?
-   If not, move the graphics draw to a scene stage (research IW4's
-   `R_DrawSurfs` / post-process boundary) instead of falling back to
-   always-on-top.
-4. Verify pause / seek, the render clock and frame sync (as before).
-5. Bot actors for real locomotion; vehicles; graphics-only and mask passes.
-6. Windows CI building the release package with MSVC.
+1. **In-game confirmation of the film set start** (user is testing): the
+   map loads, iw4iris.log shows "Director Mod ready". If not, the log shows
+   the last step reached.
+2. **Milestone A in the game** (docs/TESTING.md §1–§6): camera override,
+   editor, recording of real frames.
+3. **Demo Director in the game** with a real multi-player demo: player
+   list complete, names / teams right, eyes / chase cameras stable,
+   moments (kills) found, the analysis pass returns to its start.
+4. **Milestone B** (§8): an actor spawns, animates, holds a weapon, is
+   deleted and respawned.
+5. **Motion graphics in the game** (§9): is a matching depth buffer bound
+   at present time? If not, research a scene-stage draw.
+6. Then: checkpoint rewind research (needs a way to restore client and
+   cgame state; IW4x does not offer one), bone cameras (DObj bone
+   bindings), render passes, persistent GPU buffers (F-06) after profiling.
 
 ## Conventions
 
