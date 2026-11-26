@@ -166,7 +166,14 @@ namespace IW4Iris::Audio
     class Player
     {
     public:
-      ~Player() { Stop(); }
+      // Stopped by Audio::Shutdown. At static destruction (the DLL being
+      // unloaded) nothing is waited for or closed: that could hang there.
+      ~Player()
+      {
+        running_ = false;
+        if (feeder_.joinable())
+          feeder_.detach();
+      }
 
       bool Running() const { return out_ != nullptr; }
 
