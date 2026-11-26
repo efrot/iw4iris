@@ -121,6 +121,7 @@ namespace IW4Iris
       u.autosaveSeconds = std::clamp(j.value("autosaveSeconds", u.autosaveSeconds), 10, 3600);
       u.beginnerMode = j.value("beginnerMode", u.beginnerMode);
       u.layoutVersion = j.value("layoutVersion", u.layoutVersion);
+      u.showEditorAtStart = j.value("showEditorAtStart", u.showEditorAtStart);
       u.favoriteAssets = j.value("favoriteAssets", u.favoriteAssets);
       u.recentAssets = j.value("recentAssets", u.recentAssets);
       u.favoriteMaps = j.value("favoriteMaps", u.favoriteMaps);
@@ -163,6 +164,7 @@ namespace IW4Iris
                            {"autosaveSeconds", u.autosaveSeconds},
                            {"beginnerMode", u.beginnerMode},
                            {"layoutVersion", u.layoutVersion},
+                           {"showEditorAtStart", u.showEditorAtStart},
                            {"favoriteAssets", u.favoriteAssets},
                            {"recentAssets", u.recentAssets},
                            {"favoriteMaps", u.favoriteMaps},

@@ -47,6 +47,7 @@ namespace IW4Iris
 
     // Director Mode
     bool beginnerMode = true;        // only the essential controls; raw names hidden
+    bool showEditorAtStart = true;   // the editor opens with the game (F1 still toggles it)
     // Version of the panel layout saved in imgui.ini (Editor::kLayoutVersion);
     // an older layout is rebuilt once so panels added since then are docked.
     int layoutVersion = 0;

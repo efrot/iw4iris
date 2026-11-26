@@ -187,6 +187,10 @@ namespace IW4Iris::Runtime
       }
       s.freeCamera.Settings() = s.settings.freeCamera;
       s.ResetHistory();
+      // Open the editor (and its start screen) at once: a first-time user
+      // should not have to know about F1. The offline guard still decides
+      // (MainFrame hides the editor when the session is not allowed).
+      editorVisible = s.settings.showEditorAtStart && guardOk;
       // Crash recovery: an autosave newer than its project is offered by the
       // editor's File menu (Editor::RecoveryPrompt).
     }
@@ -311,9 +315,10 @@ namespace IW4Iris::Runtime
         Engine::Restore("r_lodBiasRigid");
         Engine::Restore("r_lodBiasSkinned");
       }
-      // HUD hiding applies to cinematic cameras and recordings; the game's own
-      // view keeps its HUD unless a capture runs.
-      const bool clean = modCamera || Capture::IsActive();
+      // HUD hiding applies to cinematic cameras, recordings and film sets
+      // (whose own view is a spectator HUD nobody needs); a demo's own view
+      // keeps its HUD unless a capture runs.
+      const bool clean = modCamera || Capture::IsActive() || Director::InFilmSet();
       if (v.hideHud && clean)
         Engine::OverrideBool("cg_draw2D", false);
       else

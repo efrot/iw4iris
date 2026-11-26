@@ -288,17 +288,13 @@ namespace IW4Iris::Editor
 
   // ---------------------------------------------------------------- Director home
 
-  void DrawDirector(Session& s)
+  void BuildPendingTemplate(Session& s)
   {
-    auto& ui = Ui();
-    if (!BeginPanel(Panel::Director))
-    {
-      ImGui::End();
-      return;
-    }
-    const auto st = Director::GetStatus();
-    // Build the template the wizard chose once the set is up.
-    if (!s.pendingTemplate.empty() && Director::Ready() && Catalog().version > 0)
+    // The template the wizard chose, once the set is up. Called every frame:
+    // it used to run inside the Director panel, which ImGui skips while the
+    // panel is a tab behind another one, so the template was never built.
+    if (!s.pendingTemplate.empty() && Director::Ready() && Catalog().version > 0 && s.status.cgameReady &&
+        !s.status.demoPlaying)
     {
       iris::TemplateAssets assets;
       const auto& c = Catalog();
@@ -312,10 +308,25 @@ namespace IW4Iris::Editor
       for (const auto& w : r.warnings)
         Notify(w);
       if (!r.created.empty())
+      {
         SelectObject(s, r.created.front());
+        Shown(Panel::ObjectInspector) = true;
+        ImGui::SetWindowFocus(PanelName(Panel::ObjectInspector));
+      }
       s.pendingTemplate.clear();
       s.Commit("Scene template");
     }
+  }
+
+  void DrawDirector(Session& s)
+  {
+    auto& ui = Ui();
+    if (!BeginPanel(Panel::Director))
+    {
+      ImGui::End();
+      return;
+    }
+    const auto st = Director::GetStatus();
 
     SectionHeader(Icons::FILM, "Director Mode");
     ImGui::TextWrapped("Build a cinematic on any installed map: characters, props, effects, 3D titles and cameras, "
@@ -557,6 +568,8 @@ namespace IW4Iris::Editor
         }
         Shown(Panel::Director) = true;
         Shown(Panel::ObjectInspector) = true;
+        // Show the film set's progress ("Loading mp_afghan ...") in front.
+        ImGui::SetWindowFocus(PanelName(Panel::Director));
         ImGui::CloseCurrentPopup();
       }
     }

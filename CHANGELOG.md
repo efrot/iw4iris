@@ -41,6 +41,25 @@
   double-click still works.
 * **Help > Start screen** opens the start screen at any time; it used to
   close again at once while a demo or map was loaded.
+* **The editor opens with the game** (start screen included), so nobody has
+  to know about F1 first; *Settings > Open the editor when the game
+  starts* turns it off, F1 still shows and hides it.
+* **Demos are listed by map, mode, length and when they were recorded**
+  ("Scrapyard · S&D · 3:14 · yesterday 21:05") instead of file names like
+  `auto_1795633595`; sortable by any column; file name and label are
+  optional columns (right-click a header), the tooltip has the author and
+  the path. The search also finds map names.
+* **Templates dress characters for the map:** every map loads the ghillie
+  suits of all environments, and the Sniper showcase put an arctic ghillie
+  on Afghan. Characters whose environment matches the map's own soldiers
+  (desert, arctic, forest; urban for city maps) are chosen first.
+* The game's spectator HUD is hidden in film sets (it stays in demos).
+* **The template chosen in "Create a cinematic on a map" is built again.**
+  It was built by the Director panel's drawing code, which does not run
+  while that panel is a tab behind another one (the docked layout), so the
+  map loaded empty. It is now built every frame once the game is in the
+  level, the Object panel shows the new actor, and the Director tab comes
+  to the front while the set loads.
 
 ### Build
 

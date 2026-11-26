@@ -15,6 +15,8 @@
 #include <iris/version.hpp>
 
 #include <atomic>
+#include <ctime>
+#include <map>
 #include <thread>
 
 #ifndef IW4IRIS_IW4X_REVISION
@@ -1495,6 +1497,52 @@ namespace IW4Iris::Editor
       }).detach();
     }
 
+    // The map's name as players know it ("Scrapyard"), from the installed
+    // maps' localised names; the raw name when it is not known.
+    std::string MapLabel(const std::string& raw)
+    {
+      static std::map<std::string, std::string> labels;
+      static double refreshed = -100.0;
+      static bool listRequested = false;
+      if (ImGui::GetTime() - refreshed > (labels.empty() ? 1.0 : 5.0))
+      {
+        refreshed = ImGui::GetTime();
+        labels.clear();
+        for (const auto& m : Director::Maps())
+          if (!m.label.empty())
+            labels[m.name] = m.label;
+        // The map list is built on the game's thread, otherwise only when
+        // the scene wizard opens; ask for it once.
+        if (labels.empty() && !listRequested)
+        {
+          listRequested = true;
+          GetSession().Post([] { Director::RefreshMaps(); });
+        }
+      }
+      const auto it = labels.find(raw);
+      return it != labels.end() ? it->second : raw;
+    }
+
+    // Short names of MW2's game types, as players say them.
+    const char* GametypeLabel(const std::string& gametype)
+    {
+      static const std::map<std::string, const char*> names{
+          {"dm", "FFA"},  {"war", "TDM"}, {"sd", "S&D"},       {"sab", "Sab"},   {"dom", "Dom"},
+          {"koth", "HQ"}, {"ctf", "CTF"}, {"dd", "Demo"},      {"arena", "Arena"}, {"gtnw", "GTNW"},
+          {"oneflag", "1-Flag"}, {"vip", "VIP"}};
+      const auto it = names.find(gametype);
+      return it != names.end() ? it->second : gametype.c_str();
+    }
+
+    // The viewer's offset from UTC in seconds (for "today" / "yesterday").
+    std::int32_t LocalUtcOffsetSeconds()
+    {
+      const std::time_t now = std::time(nullptr);
+      std::tm local{};
+      localtime_s(&local, &now);
+      return static_cast<std::int32_t>(_mkgmtime(&local) - now);
+    }
+
     void DrawDemos(Session& s)
     {
       if (!BeginPanel(Panel::Demos))
@@ -1521,29 +1569,79 @@ namespace IW4Iris::Editor
       const bool playSelected = !ui.selectedDemo.empty() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
                           !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
 
-      if (ImGui::BeginTable("##demos", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV,
+      if (ImGui::BeginTable("##demolist", 7,
+                            ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable |
+                                ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_Sortable | ImGuiTableFlags_Hideable |
+                                ImGuiTableFlags_Reorderable,
                             ImVec2(0, ImGui::GetContentRegionAvail().y - 120)))
       {
+        // Map, mode, length and when: what people recognise a clip by. The
+        // file name, label and author stay available (hidden columns,
+        // tooltip); right-click a header to show or hide columns.
+        enum Column { Star, MapName, Mode, Length, Recorded, Label, File };
         ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 18);
-        ImGui::TableSetupColumn("Demo");
-        ImGui::TableSetupColumn("Map", ImGuiTableColumnFlags_WidthFixed, 90);
-        ImGui::TableSetupColumn("Mode", ImGuiTableColumnFlags_WidthFixed, 40);
-        ImGui::TableSetupColumn("Length", ImGuiTableColumnFlags_WidthFixed, 56);
-        ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 80);
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort | ImGuiTableColumnFlags_NoHide, 18, Star);
+        ImGui::TableSetupColumn("Map", ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_NoHide, 0, MapName);
+        ImGui::TableSetupColumn("Mode", ImGuiTableColumnFlags_WidthFixed, 44, Mode);
+        ImGui::TableSetupColumn("Length", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_PreferSortDescending, 50, Length);
+        ImGui::TableSetupColumn("Recorded", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_DefaultSort |
+                                                ImGuiTableColumnFlags_PreferSortDescending, 104, Recorded);
+        ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_DefaultHide, 90, Label);
+        ImGui::TableSetupColumn("File", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_DefaultHide, 130, File);
         ImGui::TableHeadersRow();
+
+        const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
+        const std::int32_t utcOffset = LocalUtcOffsetSeconds();
+        auto labelOf = [&](const iris::DemoEntry& d) {
+          const auto key = d.path.string();
+          const auto it = s.settings.demoLabels.find(key);
+          return it != s.settings.demoLabels.end() ? it->second : std::string();
+        };
+        std::vector<const iris::DemoEntry*> rows;
         for (const auto& d : s.demoList)
         {
           const auto key = d.path.string();
+          if (ui.demoFavoritesOnly && !s.settings.favoriteDemos.contains(key))
+            continue;
+          const auto label = labelOf(d);
+          iris::DemoEntry byMapLabel;
+          byMapLabel.name = d.meta ? MapLabel(d.meta->mapName) : std::string();
+          if (!iris::DemoMatches(d, ui.demoSearch) && label.find(ui.demoSearch) == std::string::npos &&
+              !iris::DemoMatches(byMapLabel, ui.demoSearch))
+            continue;
+          rows.push_back(&d);
+        }
+        if (const ImGuiTableSortSpecs* sort = ImGui::TableGetSortSpecs(); sort && sort->SpecsCount > 0)
+        {
+          const ImGuiTableColumnSortSpecs spec = sort->Specs[0];
+          const bool descending = spec.SortDirection == ImGuiSortDirection_Descending;
+          auto keyOf = [&](const iris::DemoEntry* d) -> std::pair<std::int64_t, std::string> {
+            switch (spec.ColumnUserID)
+            {
+            case MapName: return {0, d->meta ? MapLabel(d->meta->mapName) : std::string()};
+            case Mode: return {0, d->meta ? d->meta->gametype : std::string()};
+            case Length: return {d->meta ? d->meta->lengthMs : 0, std::string()};
+            case Label: return {0, labelOf(*d)};
+            case File: return {0, d->name};
+            default: return {iris::RecordedUnix(*d), std::string()};
+            }
+          };
+          std::stable_sort(rows.begin(), rows.end(), [&](const iris::DemoEntry* a, const iris::DemoEntry* b) {
+            return descending ? keyOf(b) < keyOf(a) : keyOf(a) < keyOf(b);
+          });
+        }
+
+        for (const iris::DemoEntry* row : rows)
+        {
+          const auto& d = *row;
+          const auto key = d.path.string();
           const bool fav = s.settings.favoriteDemos.contains(key);
-          if (ui.demoFavoritesOnly && !fav)
-            continue;
-          const auto label = s.settings.demoLabels.contains(key) ? s.settings.demoLabels[key] : std::string();
-          if (!iris::DemoMatches(d, ui.demoSearch) && label.find(ui.demoSearch) == std::string::npos)
-            continue;
+          const auto label = labelOf(d);
+          const std::string mapLabel = d.meta ? MapLabel(d.meta->mapName) : std::string("Unknown map");
+          const std::string when = iris::RecordedWhen(iris::RecordedUnix(d), now, utcOffset);
           ImGui::PushID(key.c_str());
           ImGui::TableNextRow();
-          ImGui::TableNextColumn();
+          ImGui::TableSetColumnIndex(Star);
           if (ImGui::SmallButton(fav ? Icons::STAR : "-"))
           {
             if (fav)
@@ -1552,7 +1650,8 @@ namespace IW4Iris::Editor
               s.settings.favoriteDemos.insert(key);
             SaveSettings(s);
           }
-          ImGui::TableNextColumn();
+          ImGui::SetItemTooltip(fav ? "Remove from favourites" : "Add to favourites");
+          ImGui::TableSetColumnIndex(MapName);
           const bool loaded = s.loadedDemoPath && *s.loadedDemoPath == d.path;
           const bool selected = loaded || ui.selectedDemo == d.path;
           auto play = [&s, path = d.path] {
@@ -1562,7 +1661,8 @@ namespace IW4Iris::Editor
                 Notify(error);
             });
           };
-          if (ImGui::Selectable(d.name.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
+          const std::string title = label.empty() ? mapLabel : label + "  (" + mapLabel + ")";
+          if (ImGui::Selectable(title.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
           {
             ui.selectedDemo = d.path;
             if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -1577,7 +1677,7 @@ namespace IW4Iris::Editor
               play();
             ImGui::Separator();
             std::string edit = label;
-            if (ImGui::InputText("Label", &edit))
+            if (ImGui::InputTextWithHint("Label", "a name for this clip", &edit))
             {
               s.settings.demoLabels[key] = edit;
               SaveSettings(s);
@@ -1590,16 +1690,20 @@ namespace IW4Iris::Editor
             ImGui::TextDisabled("%s", key.c_str());
             ImGui::EndPopup();
           }
-          ImGui::SetItemTooltip("%s\n%s", key.c_str(), d.meta ? ("by " + d.meta->author).c_str() : "no IW4x metadata");
-          ImGui::TableNextColumn();
-          ImGui::TextUnformatted(d.meta ? d.meta->mapName.c_str() : "?");
-          ImGui::TableNextColumn();
-          ImGui::TextUnformatted(d.meta ? d.meta->gametype.c_str() : "");
-          ImGui::TableNextColumn();
+          const std::string author = d.meta && !d.meta->author.empty() ? " by " + d.meta->author : std::string();
+          ImGui::SetItemTooltip("%s\nRecorded %s%s\n%s", mapLabel.c_str(), when.empty() ? "(unknown)" : when.c_str(),
+                                author.c_str(), key.c_str());
+          ImGui::TableSetColumnIndex(Mode);
+          ImGui::TextUnformatted(d.meta ? GametypeLabel(d.meta->gametype) : "");
+          ImGui::TableSetColumnIndex(Length);
           if (d.meta && d.meta->lengthMs > 0)
             ImGui::Text("%d:%02d", static_cast<int>(d.meta->lengthMs / 60000), static_cast<int>(d.meta->lengthMs / 1000 % 60));
-          ImGui::TableNextColumn();
-          ImGui::TextDisabled("%s", label.c_str());
+          ImGui::TableSetColumnIndex(Recorded);
+          ImGui::TextUnformatted(when.c_str());
+          if (ImGui::TableSetColumnIndex(Label))
+            ImGui::TextDisabled("%s", label.c_str());
+          if (ImGui::TableSetColumnIndex(File))
+            ImGui::TextDisabled("%s", d.name.c_str());
           ImGui::PopID();
         }
         ImGui::EndTable();
@@ -2232,6 +2336,7 @@ namespace IW4Iris::Editor
         ImGui::EndCombo();
       }
       c |= ImGui::Checkbox("Show getting-started guide", &u.onboarding);
+      c |= ImGui::Checkbox("Open the editor when the game starts (F1 shows / hides it)", &u.showEditorAtStart);
       c |= ImGui::Checkbox("Show the start screen when nothing is loaded", &u.showHome);
       c |= ImGui::Checkbox("Camera path overlay", &u.showPathOverlay);
       c |= ImGui::Checkbox("Camera frustums", &u.showFrustums);
@@ -2489,7 +2594,7 @@ namespace IW4Iris::Editor
         ApplyWorkspace("Cinematic");
         Shown(Panel::Demos) = true;
         ImGui::SetWindowFocus(PanelName(Panel::Demos));
-        Notify("Double-click a demo in the Demos panel to load it");
+        Notify("Pick a demo in the Demos panel and click Play");
         ui.homeOpen = false;
       }
       ImGui::SameLine();
@@ -3234,6 +3339,7 @@ namespace IW4Iris::Editor
       DrawPresets(s);
     if (Shown(Panel::Actors))
       DrawCharacters(s);
+    BuildPendingTemplate(s);
     if (Shown(Panel::Director))
       DrawDirector(s);
     if (Shown(Panel::Animations))

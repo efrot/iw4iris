@@ -13,6 +13,28 @@
 
 using namespace iris;
 
+TEST_CASE("demo list: when a demo was recorded, said like people say it")
+{
+    // 2026-11-26 20:31:00 UTC
+    const std::int64_t now = 1795725060;
+    CHECK(RecordedWhen(0, now, 0).empty());
+    CHECK(RecordedWhen(now - 60, now, 0) == "today 20:30");
+    CHECK(RecordedWhen(now - 86400, now, 0) == "yesterday 20:31");
+    CHECK(RecordedWhen(now - 3 * 86400, now, 0) == "3 days ago");
+    CHECK(RecordedWhen(now - 30 * 86400, now, 0) == "27 Oct 2026");
+    CHECK(RecordedWhen(951782400, now, 0) == "29 Feb 2000");  // leap day
+    // The viewer's midnight decides "today": 23:30 UTC is tomorrow 00:30 in UTC+1.
+    const std::int64_t lateEvening = now + 3 * 3600 - 60;  // 23:30 UTC
+    CHECK(RecordedWhen(now, lateEvening, 0) == "today 20:31");
+    CHECK(RecordedWhen(now, lateEvening, 3600) == "yesterday 21:31");
+    DemoEntry e;
+    e.modifiedUnix = 100;
+    CHECK(RecordedUnix(e) == 100);
+    e.meta = DemoMeta{};
+    e.meta->timestamp = 200;
+    CHECK(RecordedUnix(e) == 200);
+}
+
 namespace
 {
     void PutInt(std::vector<unsigned char>& b, std::int32_t v)

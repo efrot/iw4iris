@@ -228,6 +228,7 @@ namespace IW4Iris::Editor
 
   // Director Mode (IrisEditorDirector.cpp)
   void DrawDirector(Session& s);
+  void BuildPendingTemplate(Session& s);  // every frame, whatever panel is in front
   void DrawCharacters(Session& s);
   void DrawAnimations(Session& s);
   void DrawAssets(Session& s);

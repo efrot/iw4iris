@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 
@@ -327,5 +328,47 @@ namespace iris
         if (entry.meta)
             return has(entry.meta->mapName) || has(entry.meta->gametype) || has(entry.meta->author);
         return false;
+    }
+
+    std::int64_t RecordedUnix(const DemoEntry& entry)
+    {
+        if (entry.meta && entry.meta->timestamp > 0)
+            return entry.meta->timestamp;
+        return entry.modifiedUnix > 0 ? entry.modifiedUnix : 0;
+    }
+
+    std::string RecordedWhen(std::int64_t recordedUnix, std::int64_t nowUnix, std::int32_t utcOffsetSeconds)
+    {
+        if (recordedUnix <= 0)
+            return {};
+        constexpr std::int64_t kDay = 86400;
+        // Local days since the epoch (floor division, also before 1970).
+        auto localDay = [&](std::int64_t t) {
+            const std::int64_t local = t + utcOffsetSeconds;
+            return local >= 0 ? local / kDay : -((-local + kDay - 1) / kDay);
+        };
+        const std::int64_t days = localDay(nowUnix) - localDay(recordedUnix);
+        const std::int64_t secondOfDay = recordedUnix + utcOffsetSeconds - localDay(recordedUnix) * kDay;
+        char clock[8];
+        std::snprintf(clock, sizeof(clock), "%02d:%02d", static_cast<int>(secondOfDay / 3600),
+                      static_cast<int>(secondOfDay / 60 % 60));
+        if (days == 0)
+            return std::string("today ") + clock;
+        if (days == 1)
+            return std::string("yesterday ") + clock;
+        if (days > 1 && days < 7)
+            return std::to_string(days) + " days ago";
+        // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
+        const std::int64_t z = localDay(recordedUnix) + 719468;
+        const std::int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+        const std::int64_t doe = z - era * 146097;
+        const std::int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        const std::int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        const std::int64_t mp = (5 * doy + 2) / 153;
+        const std::int64_t day = doy - (153 * mp + 2) / 5 + 1;
+        const std::int64_t month = mp < 10 ? mp + 3 : mp - 9;
+        const std::int64_t year = yoe + era * 400 + (month <= 2 ? 1 : 0);
+        static const char* names[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+        return std::to_string(day) + " " + names[month - 1] + " " + std::to_string(year);
     }
 }  // namespace iris

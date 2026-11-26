@@ -99,4 +99,14 @@ namespace iris
 
     // Case-insensitive substring filter over name / map / gametype / author.
     bool DemoMatches(const DemoEntry& entry, std::string_view query);
+
+    // When a demo was recorded, as people say it: "today 20:31",
+    // "yesterday 18:05", "3 days ago", or "25 Nov 2026" for older ones.
+    // Times are Unix seconds; utcOffsetSeconds is the viewer's local offset
+    // (so that "today" follows the viewer's midnight). Empty for unknown (<= 0).
+    std::string RecordedWhen(std::int64_t recordedUnix, std::int64_t nowUnix, std::int32_t utcOffsetSeconds);
+
+    // The recording time of an entry: IW4x's metadata if present, else the
+    // file's modification time (0 when neither is known).
+    std::int64_t RecordedUnix(const DemoEntry& entry);
 }  // namespace iris
