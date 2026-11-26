@@ -5,9 +5,15 @@
 // initialises its network:
 //
 //   1. Game::Sys_SendPacket (the engine's only UDP send path, which IW4x's
-//      own Network component also goes through) drops every packet.
-//      Loopback traffic of a local session never reaches it (the engine
-//      delivers NA_LOOPBACK packets in NET_SendPacket).
+//      own Network component also goes through) drops every packet to a
+//      network address. Packets to NA_LOOPBACK, NA_BOT and NA_BAD go on to
+//      the original function, which delivers loopback in the process and
+//      returns for bots / bad addresses: IW4x's Network::SendRaw sends to
+//      the local server through Sys_SendPacket (the client's stats packets
+//      while it connects), so dropping loopback left every film set on the
+//      loading screen (seen in the game, 2026-11-26). The original is
+//      reached through a trampoline holding its first instruction, which is
+//      checked before use; without it every packet is dropped as before.
 //   2. The Winsock imports of the game executable and of the client DLL
 //      (connect, sendto, WSAConnect, WSASendTo) refuse every destination
 //      that is not a loopback address, and listen() only works on sockets
@@ -31,6 +37,9 @@ namespace IW4Iris::OfflineGuard
   {
     bool installed = false;
     bool engineSendBlocked = false;
+    // Loopback packets reach the engine (needed for film sets).
+    bool loopbackForwarding = false;
+    std::uint64_t forwardedLoopbackPackets = 0;
     int winsockImportsGuarded = 0;
     int httpImportsGuarded = 0;
     std::uint64_t droppedPackets = 0;

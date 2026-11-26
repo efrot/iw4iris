@@ -33,6 +33,11 @@ namespace IW4Iris::Director
 
     bool requested = false;          // the editor started a film set
     std::string requestedMap;
+    std::string requestedGametype = "dm";
+    // A map command waiting until the game has left its previous session
+    // (demo or film set): see LeaveThenLoad().
+    std::string pendingMapCommand;
+    int pendingFrames = 0;
     SetState state = SetState::None;
     std::string capabilities;
     std::string lastError;
@@ -80,6 +85,13 @@ namespace IW4Iris::Director
     bool wasPlaying = false;
     int framesWithoutGame = 0;
     int loadingFrames = 0;
+    // Loading trace: where a film set that does not come up stops.
+    int tracedConnectionState = -1;
+    bool outOfGameNoted = false;
+    int joiningFrames = 0;
+    int traceFrames = 0;
+    std::uint64_t tracedDroppedPackets = 0;
+    bool droppedNoted = false;
 
     std::vector<MapInfo> mapCache;
     std::optional<SurfaceHit> viewTarget;
@@ -90,6 +102,80 @@ namespace IW4Iris::Director
       while (logLines.size() > 200)
         logLines.pop_front();
       Log::Info("Director: {}", line);
+    }
+
+    // The command that starts a film set's local listen server: no match
+    // timer, no score limit, no pre-match countdown.
+    std::string MapCommand(const std::string& map, const std::string& gametype)
+    {
+      return std::format("set g_gametype {0}; set scr_{0}_timelimit 0; set scr_{0}_scorelimit 0; "
+                         "set scr_{0}_numlives 0; set scr_game_matchstarttime 0; set scr_game_playerwaittime 0; "
+                         "map {1}",
+                         gametype, map);
+    }
+
+    // Starts the film set's map. A session the game is in (a demo, a film
+    // set) is left first and the map command waits until the game has
+    // settled: leaving a demo recorded on a modded server makes IW4x switch
+    // the mod folder back, and a "map" queued behind that "disconnect" was
+    // lost (seen in the game: black screen, server never started).
+    void LeaveThenLoad(const std::string& mapCommand)
+    {
+      const bool inSession = Engine::IsDemoPlaying() || Engine::ConnectionState() > Game::CA_DISCONNECTED;
+      if (!inSession)
+      {
+        Engine::Execute(mapCommand);
+        return;
+      }
+      {
+        std::lock_guard _(bridgeMutex);
+        pendingMapCommand = mapCommand;
+        pendingFrames = 0;
+      }
+      Engine::Execute("disconnect");
+    }
+
+    const char* ConnectionStateName(int connectionState)
+    {
+      static const char* names[] = {"disconnected", "cinematic", "logo", "connecting", "challenging",
+                                    "connected", "sending stats", "loading", "primed", "active"};
+      return connectionState >= 0 && connectionState < 10 ? names[connectionState] : "unknown";
+    }
+
+    // Called every frame while the film set is loading: logs every change
+    // of the client's connection state and, every 5 s, where it stands.
+    void TraceLoading()
+    {
+      const int client = Engine::ConnectionState();
+      const auto guard = OfflineGuard::GetStatus();
+      if (client != tracedConnectionState)
+      {
+        Note(std::format("loading: client {} (state {}), server {}", ConnectionStateName(client), client,
+                         Engine::GetBool("sv_running").value_or(false) ? "running" : "not running"));
+        tracedConnectionState = client;
+      }
+      // Loopback packets pass the guard; a dropped packet while the set loads
+      // went to a network address (a reconnect by address, the server list).
+      // Said once, then counted in the status line (it can be every frame).
+      if (guard.droppedPackets != tracedDroppedPackets && !droppedNoted)
+      {
+        droppedNoted = true;
+        Note(std::format("loading: the offline guard is dropping engine packets{}",
+                         guard.lastBlocked.empty() ? "" : " (" + guard.lastBlocked + ")"));
+      }
+      if (++traceFrames % 300 == 0)
+        Note(std::format("still loading after {} frames: client {}, server {}, map '{}', {} packet(s) dropped",
+                         traceFrames, ConnectionStateName(client),
+                         Engine::GetBool("sv_running").value_or(false) ? "running" : "not running",
+                         Engine::GetString("mapname").value_or(""), guard.droppedPackets - tracedDroppedPackets));
+    }
+
+    void ResetTrace()
+    {
+      tracedConnectionState = -1;
+      traceFrames = 0;
+      droppedNoted = false;
+      tracedDroppedPackets = OfflineGuard::GetStatus().droppedPackets;
     }
 
     bool Has(const std::set<std::string>& set, const std::string& name) { return !name.empty() && set.contains(name); }
@@ -609,13 +695,23 @@ namespace IW4Iris::Director
       std::lock_guard _(bridgeMutex);
       requested = true;
       requestedMap = map;
+      requestedGametype = gt;
       state = SetState::Loading;
       capabilities.clear();
       lastError.clear();
       framesWithoutGame = 0;
       loadingFrames = 0;
       ResetObjects();
-      Note("loading film set " + map + " (" + gt + ")");
+      ResetTrace();
+      outOfGameNoted = false;
+      joiningFrames = 0;
+      const auto fsGame = Engine::GetString("fs_game").value_or("");
+      Note("loading film set " + map + " (" + gt + ")" +
+           (fsGame.empty() ? std::string() : ", mod folder active: " + fsGame));
+      if (fsGame.find("iw4iris_director") != std::string::npos)
+        Log::Warn("Director: the IW4Iris Director Mod is loaded as an IW4x mod ({}); the launcher installs it into "
+                  "userraw and an outdated copy in the mods folder can replace the current scripts",
+                  fsGame);
     }
     // A paused or slowed demo leaves the timescale near 0; the film set
     // must start at normal speed or it seems to hang while loading.
@@ -623,11 +719,7 @@ namespace IW4Iris::Director
     // Leave a playing demo first, then start a local listen server under
     // the offline guard: no match timer, no score limit, no pre-match
     // countdown.
-    const char* leaveDemo = Engine::IsDemoPlaying() ? "disconnect; " : "";
-    Engine::Execute(leaveDemo + std::format("set g_gametype {0}; set scr_{0}_timelimit 0; set scr_{0}_scorelimit 0; "
-                                "set scr_{0}_numlives 0; set scr_game_matchstarttime 0; set scr_game_playerwaittime 0; "
-                                "map {1}",
-                                gt, map));
+    LeaveThenLoad(MapCommand(map, gt));
     return true;
   }
 
@@ -640,10 +732,25 @@ namespace IW4Iris::Director
       state = SetState::Loading;
       loadingFrames = 0;
       ResetObjects();
+      ResetTrace();
+      outOfGameNoted = false;
+      joiningFrames = 0;
       Note("reloading the film set");
     }
     DemoControl::ReleaseTime();
-    Engine::Execute("map_restart");
+    // Not map_restart: in the game, map_restart reloaded the level and the
+    // new precache, then the game dropped its own client, which tried to
+    // reconnect through a network address (blocked offline) and timed out
+    // ("Server connection timed out", 2026-11-26). Leaving the level and
+    // loading the map again is the path a new film set takes, which joins
+    // through loopback.
+    std::string map, gt;
+    {
+      std::lock_guard _(bridgeMutex);
+      map = requestedMap;
+      gt = requestedGametype;
+    }
+    LeaveThenLoad(MapCommand(map, gt));
   }
 
   void LeaveFilmSet()
@@ -654,6 +761,7 @@ namespace IW4Iris::Director
       wasRequested = requested;
       requested = false;
       state = SetState::None;
+      pendingMapCommand.clear();
       ResetObjects();
     }
     if (wasRequested)
@@ -665,7 +773,40 @@ namespace IW4Iris::Director
     std::lock_guard _(bridgeMutex);
     if (!requested)
       return;
+    if (!pendingMapCommand.empty())
+    {
+      // Load the map once the game has settled after leaving its previous
+      // session (half a second disconnected, no demo).
+      const bool settled = Engine::ConnectionState() <= Game::CA_DISCONNECTED && !Engine::IsDemoPlaying();
+      pendingFrames = settled ? pendingFrames + 1 : 0;
+      if (pendingFrames >= 30)
+      {
+        const auto fsGame = Engine::GetString("fs_game").value_or("");
+        Note("left the previous session; loading the map" +
+             (fsGame.empty() ? std::string() : " (mod folder active: " + fsGame + ")"));
+        Engine::Execute(pendingMapCommand);
+        pendingMapCommand.clear();
+      }
+    }
     const bool inGame = s.status.cgameReady && !s.status.demoPlaying;
+    // The server's Director Mod answers "ready" while the map loads, usually
+    // before the game's own client has joined the level: a client between
+    // "connecting" and "active" is still joining, it has not left.
+    const int connection = Engine::ConnectionState();
+    const bool joining =
+        !s.status.demoPlaying && connection >= Game::CA_CONNECTING && connection < Game::CA_ACTIVE;
+    if (state == SetState::Loading || (state == SetState::Ready && !inGame))
+    {
+      if (state == SetState::Ready && !outOfGameNoted)
+      {
+        outOfGameNoted = true;
+        ResetTrace();
+        Note(std::format("the film set's server is ready, the game is not in its level (client {}, server {})",
+                         ConnectionStateName(connection),
+                         Engine::GetBool("sv_running").value_or(false) ? "running" : "not running"));
+      }
+      TraceLoading();
+    }
     if (!inGame)
     {
       // The map never came up: a script compile error (shown by the game
@@ -685,11 +826,36 @@ namespace IW4Iris::Director
       if (state == SetState::Loading && ++loadingFrames > 1800)
       {
         state = SetState::Failed;
-        lastError = "The film set's map did not load. If the game showed \"script compile error\", the Director Mod "
+        const int stuck = Engine::ConnectionState();
+        const bool serverUp = Engine::GetBool("sv_running").value_or(false);
+        lastError = std::format("The film set did not finish loading (the game stopped at \"{}\", server {}). ",
+                                ConnectionStateName(stuck), serverUp ? "running" : "not running") +
+                    "If the game showed \"script compile error\", the Director Mod "
                     "scripts in the cinematic environment are broken or outdated: close the game, open the IW4Iris "
                     "launcher and click \"Update & Launch\" (or Repair). The console (~) names the file and line. "
                     "Do not copy the mod into IW4x's own mods folder; the launcher installs it.";
         Note(lastError);
+        return;
+      }
+      if (state == SetState::Ready && joining)
+      {
+        // Still joining: as long as a slow map load can take, then say
+        // where it stopped instead of waiting forever.
+        if (++joiningFrames > 3600)
+        {
+          state = SetState::Failed;
+          const auto guard = OfflineGuard::GetStatus();
+          lastError = std::format("The film set's map is running, but the game did not join it (it stopped at "
+                                  "\"{}\").",
+                                  ConnectionStateName(connection)) +
+                      (guard.loopbackForwarding
+                           ? std::string(" Close the game and start it again from the IW4Iris launcher; if it "
+                                         "happens again, send iw4iris.log (Help > Diagnostics > Save a support "
+                                         "bundle).")
+                           : std::string(" The offline guard blocks local packets in this game build, so the game "
+                                         "cannot reach its own server: report the IW4x revision."));
+          Note(lastError);
+        }
         return;
       }
       // Left the set (disconnect, demo, error): give up after a while.
@@ -702,6 +868,11 @@ namespace IW4Iris::Director
       }
       return;
     }
+    if (state == SetState::Ready && outOfGameNoted)
+      Note(std::format("the game is in the film set's level ({} frames after the server was ready)",
+                       joiningFrames + framesWithoutGame));
+    outOfGameNoted = false;
+    joiningFrames = 0;
     framesWithoutGame = 0;
     if (state == SetState::Loading)
     {

@@ -84,6 +84,10 @@ namespace IW4Iris::Editor
       else if (!guard.installed || !guard.engineSendBlocked)
         add("offline", "Offline session", "Safety", State::Failed, "the network guard is not active",
             "Repair the installation with the launcher.");
+      else if (!guard.loopbackForwarding)
+        add("offline", "Offline session", "Safety", State::Limited,
+            "offline, but local packets are blocked too: film sets stay on the loading screen",
+            "Report the IW4x revision with a support bundle; demos still work.");
       else
         add("offline", "Offline session", "Safety", State::Ready,
             std::to_string(guard.winsockImportsGuarded) + " socket and " + std::to_string(guard.httpImportsGuarded) +

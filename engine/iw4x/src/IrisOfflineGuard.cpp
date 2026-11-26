@@ -5,6 +5,7 @@
 #include "Log.hpp"
 
 #include <atomic>
+#include <cstring>
 #include <mutex>
 
 #include <winsock2.h>
@@ -57,8 +58,53 @@ namespace IW4Iris::OfflineGuard
 
     // ---- layer 1: the engine's UDP send path
 
-    bool Sys_SendPacket_Blocked(Game::netsrc_t, size_t, const char*, Game::netadr_t adr)
+    using Sys_SendPacket_t = bool (*)(Game::netsrc_t, size_t, const char*, Game::netadr_t);
+    Sys_SendPacket_t originalSendPacket = nullptr;
+    std::atomic<std::uint64_t> forwardedLoopback{0};
+
+    // The original Sys_SendPacket, reached through a trampoline: its first
+    // instruction (the one the hook's 5-byte jump replaces) copied into
+    // executable memory, followed by a jump to the instruction after it.
+    // The instruction is `mov eax, [moffs32]` (A1 + absolute address, 5
+    // bytes, position independent; disassembled from the game executable):
+    // anything else is refused and the guard stays at "drop everything".
+    Sys_SendPacket_t BuildTrampoline(const void* function)
     {
+      constexpr std::size_t kLength = 5;
+      const auto* entry = static_cast<const std::uint8_t*>(function);
+      if (entry[0] != 0xA1)
+        return nullptr;
+      auto* code = static_cast<std::uint8_t*>(VirtualAlloc(nullptr, 16, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
+      if (!code)
+        return nullptr;
+      std::memcpy(code, entry, kLength);
+      code[kLength] = 0xE9;  // jmp rel32
+      const auto target = reinterpret_cast<std::intptr_t>(entry + kLength);
+      const auto next = reinterpret_cast<std::intptr_t>(code + kLength + 5);
+      const auto relative = static_cast<std::int32_t>(target - next);
+      std::memcpy(code + kLength + 1, &relative, sizeof(relative));
+      DWORD old = 0;
+      if (!VirtualProtect(code, 16, PAGE_EXECUTE_READ, &old))
+      {
+        VirtualFree(code, 0, MEM_RELEASE);
+        return nullptr;
+      }
+      FlushInstructionCache(GetCurrentProcess(), code, 16);
+      return reinterpret_cast<Sys_SendPacket_t>(reinterpret_cast<void*>(code));
+    }
+
+    bool Sys_SendPacket_Guarded(Game::netsrc_t sock, size_t length, const char* data, Game::netadr_t adr)
+    {
+      // Loopback is delivered inside the process; bots and bad addresses
+      // make the original return without sending. Nothing leaves the
+      // machine (and layer 2 refuses any non-loopback socket send anyway).
+      if (originalSendPacket &&
+          (adr.type == Game::NA_LOOPBACK || adr.type == Game::NA_BOT || adr.type == Game::NA_BAD))
+      {
+        if (adr.type == Game::NA_LOOPBACK)
+          ++forwardedLoopback;
+        return originalSendPacket(sock, length, data, adr);
+      }
       ++droppedPackets;
       if (adr.type != Game::NA_LOOPBACK && adr.type != Game::NA_BOT)
         NoteBlocked("UDP packet to a network address");
@@ -208,8 +254,13 @@ namespace IW4Iris::OfflineGuard
     if (installed)
       return true;
 
-    // Layer 1
-    Utils::Hook(Game::Sys_SendPacket, Sys_SendPacket_Blocked, HOOK_JUMP).install()->quick();
+    // Layer 1. The trampoline is built from the untouched function, before
+    // the hook overwrites its first instruction.
+    originalSendPacket = BuildTrampoline(reinterpret_cast<const void*>(Game::Sys_SendPacket));
+    if (!originalSendPacket)
+      Log::Error("Offline guard: the engine's packet sender has an unexpected first instruction; local packets "
+                 "are dropped too, so film sets cannot load (the client cannot reach its own server)");
+    Utils::Hook(Game::Sys_SendPacket, Sys_SendPacket_Guarded, HOOK_JUMP).install()->quick();
     engineSendBlocked = *reinterpret_cast<const std::uint8_t*>(Game::Sys_SendPacket) == 0xE9;
     if (!engineSendBlocked)
     {
@@ -244,8 +295,9 @@ namespace IW4Iris::OfflineGuard
     }
 
     installed = true;
-    Log::Info("Offline guard installed: engine sends blocked, {} Winsock and {} HTTP imports guarded",
-              winsockGuarded.load(), httpGuarded.load());
+    Log::Info("Offline guard installed: engine sends to network addresses blocked (loopback {}), {} Winsock and {} "
+              "HTTP imports guarded",
+              originalSendPacket ? "delivered" : "BLOCKED TOO", winsockGuarded.load(), httpGuarded.load());
     return true;
   }
 
@@ -254,6 +306,8 @@ namespace IW4Iris::OfflineGuard
     Status s;
     s.installed = installed;
     s.engineSendBlocked = engineSendBlocked;
+    s.loopbackForwarding = originalSendPacket != nullptr;
+    s.forwardedLoopbackPackets = forwardedLoopback;
     s.winsockImportsGuarded = winsockGuarded;
     s.httpImportsGuarded = httpGuarded;
     s.droppedPackets = droppedPackets;

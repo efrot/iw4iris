@@ -120,12 +120,30 @@ namespace IW4Iris::DemoControl
     const fs::path target = folder / demo.filename();
     if (fs::absolute(demo, ec) != fs::absolute(target, ec))
     {
-      fs::copy_file(demo, target, fs::copy_options::overwrite_existing, ec);
-      if (ec)
+      // copy_options::overwrite_existing is not reliable here: the MinGW
+      // libstdc++ build reports "File exists" for an existing target (seen
+      // in a user's log when a demo was opened a second time). Reuse an
+      // identical copy, otherwise remove the old one and copy again.
+      std::error_code sizeError, timeError;
+      const bool same = fs::is_regular_file(target, ec) &&
+                        fs::file_size(target, sizeError) == fs::file_size(demo, sizeError) && !sizeError &&
+                        fs::last_write_time(target, timeError) == fs::last_write_time(demo, timeError) && !timeError;
+      if (!same)
       {
-        if (error)
-          *error = "Could not copy the demo to " + target.string() + ": " + ec.message();
-        return false;
+        fs::remove(target, ec);
+        std::error_code copyError;
+        fs::copy_file(demo, target, copyError);
+        if (!copyError)
+          fs::last_write_time(target, fs::last_write_time(demo, ec), ec);
+        std::error_code checkError;
+        if (!fs::is_regular_file(target, checkError) ||
+            fs::file_size(target, checkError) != fs::file_size(demo, checkError))
+        {
+          if (error)
+            *error = "Could not copy the demo to " + target.string() +
+                     (copyError ? ": " + copyError.message() : std::string(" (is the file open in another program?)"));
+          return false;
+        }
       }
     }
 
