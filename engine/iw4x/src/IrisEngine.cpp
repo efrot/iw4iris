@@ -250,6 +250,8 @@ namespace IW4Iris::Engine
       o.dead = (e.lerp.eFlags & Game::EF_DEAD) != 0;
       o.stance = stanceOf(e.lerp.eFlags);
       o.weapon = e.weapon;
+      o.airborne = e.groundEntityNum == static_cast<int>(Game::ENTITYNUM_NONE);
+      o.ads = (e.lerp.eFlags & Game::EF_ADS) != 0;
       const auto& cent = Game::cg_entitiesArray[e.number].entity;
       if (cent.nextValid)
       {
@@ -293,6 +295,8 @@ namespace IW4Iris::Engine
       o.visible = true;
       o.dead = (ps.eFlags & Game::EF_DEAD) != 0;
       o.stance = stanceOf(ps.eFlags);
+      o.airborne = ps.groundEntityNum == static_cast<int>(Game::ENTITYNUM_NONE);
+      o.ads = (ps.eFlags & Game::EF_ADS) != 0;
       o.origin = {ps.origin[0], ps.origin[1], ps.origin[2]};
       o.angles = {ps.viewangles[0], ps.viewangles[1], 0.0};
       o.eyeHeight = ps.viewHeightCurrent;
@@ -310,6 +314,32 @@ namespace IW4Iris::Engine
           o.name = name;
       }
       out.push_back(std::move(o));
+    }
+    return out;
+  }
+
+  std::vector<iris::KillObservation> ObserveKills()
+  {
+    std::vector<iris::KillObservation> out;
+    if (!IsCgameReady() || !Game::cgArray[0].snap)
+      return out;
+    const Game::snapshot_s* snap = Game::cgArray[0].snap;
+    const int numEntities = std::clamp(snap->numEntities, 0, static_cast<int>(std::size(snap->entities)));
+    // Obituaries are event entities (ET_EVENTS + EV_OBITUARY): victim in
+    // otherEntityNum, killer in attackerEntityNum (world kills: no slot).
+    constexpr int kObituary = static_cast<int>(Game::ET_EVENTS) + static_cast<int>(Game::EV_OBITUARY);
+    for (int i = 0; i < numEntities; ++i)
+    {
+      const auto& e = snap->entities[i];
+      if (e.eType != kObituary)
+        continue;
+      iris::KillObservation k;
+      k.victim = e.otherEntityNum >= 0 && e.otherEntityNum < 18 ? e.otherEntityNum : -1;
+      k.attacker = e.attackerEntityNum >= 0 && e.attackerEntityNum < 18 ? e.attackerEntityNum : -1;
+      k.weapon = e.weapon;
+      k.means = static_cast<int>(e.eventParm);
+      if (k.victim >= 0)
+        out.push_back(k);
     }
     return out;
   }

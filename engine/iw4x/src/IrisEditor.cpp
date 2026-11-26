@@ -57,7 +57,7 @@ namespace IW4Iris::Editor
     const std::vector<WorkspaceDef>& Workspaces()
     {
       static const std::vector<WorkspaceDef> w{
-        {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Players, Panel::Inspector, Panel::Timeline, Panel::Look}},
+        {"Cinematic", Icons::FILM, {Panel::Outliner, Panel::Demos, Panel::Players, Panel::Moments, Panel::Inspector, Panel::Timeline, Panel::Look}},
         {"Timeline", Icons::CHART, {Panel::Outliner, Panel::Inspector, Panel::Timeline}},
         {"Cameras", Icons::CAMERA, {Panel::Outliner, Panel::Inspector, Panel::Timeline, Panel::Presets}},
         {"Director", Icons::USER, {Panel::Outliner, Panel::Director, Panel::Actors, Panel::ObjectInspector, Panel::Timeline}},
@@ -101,6 +101,7 @@ namespace IW4Iris::Editor
     case Panel::Graphics: return "Motion Graphics###Graphics";
     case Panel::ObjectInspector: return "Object###ObjectInspector";
     case Panel::Players: return "Players###Players";
+    case Panel::Moments: return "Moments###Moments";
     default: return "###unknown";
     }
   }
@@ -142,6 +143,7 @@ namespace IW4Iris::Editor
       ImGui::DockBuilderDockWindow(PanelName(Panel::Outliner), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Demos), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Players), left);
+      ImGui::DockBuilderDockWindow(PanelName(Panel::Moments), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Actors), left);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Inspector), right);
       ImGui::DockBuilderDockWindow(PanelName(Panel::Look), right);
@@ -3041,6 +3043,8 @@ namespace IW4Iris::Editor
       DrawDemos(s);
     if (Shown(Panel::Players))
       DrawPlayers(s);
+    if (Shown(Panel::Moments))
+      DrawMoments(s);
     if (Shown(Panel::Recording))
       DrawRecording(s);
     if (Shown(Panel::RenderQueue))

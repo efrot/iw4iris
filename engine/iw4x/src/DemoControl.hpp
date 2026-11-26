@@ -33,6 +33,8 @@ namespace IW4Iris::DemoControl
   void Update();  // once per frame
 
   double SceneTime();
+  // Server time of the demo's first snapshot (its time origin), once known.
+  std::optional<int> FirstServerTime();
   bool HasScene();          // a demo is playing and its first snapshot is known
   bool Seek(double sceneTime);
   bool IsSeeking();

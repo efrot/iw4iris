@@ -158,6 +158,11 @@ namespace IW4Iris::DemoControl
     }
   }
 
+  std::optional<int> FirstServerTime()
+  {
+    return firstServerTime;
+  }
+
   double SceneTime()
   {
     if (!firstServerTime)

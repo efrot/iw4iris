@@ -42,6 +42,7 @@ namespace IW4Iris::Editor
     Graphics,        // motion graphics: add / list / renderer status
     ObjectInspector, // the selected actor / prop / effect / graphic
     Players,         // the demo's players: select, watch, cut to
+    Moments,         // the demo's kills, deaths, trickshot candidates
     Count,
   };
 
@@ -255,6 +256,9 @@ namespace IW4Iris::Editor
   // Makes (or reuses) a camera of `mode` on the selected player and shows it;
   // with `cut`, also adds a camera cut to it at the playhead. Returns its id.
   std::string WatchSelectedPlayer(Session& s, iris::CameraMode mode, bool cut);
+  // The same for any player by name (slot as the hint); no commit.
+  std::string MakePlayerCamera(Session& s, const std::string& name, int slotHint, bool recording, iris::CameraMode mode);
+  void DrawMoments(Session& s);
   void DrawCommandPalette(Session& s);
 
   // Widgets

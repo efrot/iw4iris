@@ -9,6 +9,7 @@
 
 #include <iris/demo.hpp>
 #include <iris/history.hpp>
+#include <iris/moments.hpp>
 #include <iris/players.hpp>
 #include <iris/project.hpp>
 #include <iris/rig.hpp>
@@ -144,6 +145,17 @@ namespace IW4Iris
     iris::PlayerRoster players;
     std::string playersKey;       // the demo / map the roster belongs to
     std::string selectedPlayer;   // roster id
+
+    // Moments of the demo (kills, deaths, trickshot candidates ...), from
+    // what has been played; the analysis pass plays the whole demo fast.
+    iris::MomentLog moments;
+    struct MomentAnalysis
+    {
+      bool active = false;
+      double returnTo = 0.0;      // playhead to go back to
+      bool wasPaused = true;
+      int startedFrames = 0;
+    } analysis;
     std::vector<iris::DemoEntry> demoList;
     SeekState seekState = SeekState::Idle;
     double seekTargetScene = 0.0;

@@ -114,6 +114,14 @@ namespace iris
         ScalarCurve speed_{1.0};
     };
 
+    // Slows the scene down around the moment at scene time `sceneMoment`
+    // (a kill, a trickshot): from shortly before it the speed ramps down to
+    // `slow`, holds for `holdSeconds` of cinematic time and ramps back to the
+    // speed it had. Speed keys already in that stretch are replaced. Returns
+    // the cinematic time the moment is at afterwards (inside the slow part).
+    double AddSlowMotion(TimeRemap& remap, double sceneMoment, double slow = 0.3, double holdSeconds = 2.0,
+                         double searchEnd = 36000.0);
+
     struct LoopRegion
     {
         bool enabled = false;

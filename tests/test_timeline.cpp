@@ -132,3 +132,23 @@ TEST_CASE("timeline: fits a demo's length once it is known")
     CHECK(!FitTimelineToSource(same, 0.0, 0.0));
     CHECK(!FitTimelineToSource(same, std::nan(""), 0.0));
 }
+
+TEST_CASE("timeline: slow motion around a moment keeps the moment inside the slow part")
+{
+    TimeRemap remap;
+    const double moment = 10.0;  // scene seconds
+    const double at = AddSlowMotion(remap, moment, 0.25, 2.0);
+    // The moment is shown later than before (the scene slowed down before it),
+    // within the held slow part, and maps back to the same scene time.
+    CHECK(at > 10.0);
+    CHECK_NEAR(remap.SpeedAt(at), 0.25, 0.02);
+    CHECK_NEAR(remap.SceneTime(at), moment, 1e-6);
+    // Before the ramp and after it: normal speed.
+    CHECK_NEAR(remap.SpeedAt(5.0), 1.0, 1e-9);
+    CHECK_NEAR(remap.SpeedAt(20.0), 1.0, 1e-9);
+    CHECK(remap.Speed().Size() == 4);
+    // Doing it again replaces its own keys instead of stacking them.
+    const double again = AddSlowMotion(remap, moment, 0.25, 2.0);
+    CHECK(remap.Speed().Size() == 4);
+    CHECK_NEAR(again, at, 1e-6);
+}

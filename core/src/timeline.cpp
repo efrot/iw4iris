@@ -207,6 +207,50 @@ namespace iris
         return !(tl == before);
     }
 
+    double AddSlowMotion(TimeRemap& remap, double sceneMoment, double slow, double holdSeconds, double searchEnd)
+    {
+        slow = std::clamp(slow, 0.02, 1.0);
+        holdSeconds = std::max(holdSeconds, 0.2);
+        const double rampIn = 0.35, lead = 0.5, rampOut = 0.4;
+        // Clear a window around the moment first (an earlier slow motion on
+        // the same moment included), so applying it twice does not stack.
+        {
+            const double k0 = remap.CinematicTime(sceneMoment, searchEnd);
+            const double from = k0 - (lead + rampIn + holdSeconds + rampOut);
+            const double to = k0 + holdSeconds + rampIn + rampOut;
+            std::vector<ScalarKey> kept;
+            for (const auto& key : remap.Speed().Keys())
+                if (key.time < from || key.time > to)
+                    kept.push_back(key);
+            remap.Speed().SetKeys(std::move(kept));
+        }
+        const double k = remap.CinematicTime(sceneMoment, searchEnd);
+        const double a = std::max(remap.timelineStart, k - lead);
+        const double b = a + rampIn;
+        const double c = b + holdSeconds;
+        const double d = c + rampOut;
+        const double normal = remap.SpeedAt(a);
+        auto& speed = remap.Speed();
+        std::vector<ScalarKey> keys;
+        for (const auto& key : speed.Keys())
+            if (key.time < a || key.time > d)
+                keys.push_back(key);
+        auto add = [&](double t, double v) {
+            ScalarKey key;
+            key.time = t;
+            key.value = v;
+            keys.push_back(key);
+        };
+        add(a, normal);
+        add(b, slow);
+        add(c, slow);
+        add(d, normal);
+        std::sort(keys.begin(), keys.end(), [](const ScalarKey& x, const ScalarKey& y) { return x.time < y.time; });
+        speed.SetKeys(std::move(keys));
+        speed.UpdateAutoHandles();
+        return remap.CinematicTime(sceneMoment, searchEnd + holdSeconds / slow);
+    }
+
     void TimelineSettings::Normalize()
     {
         if (end < start)

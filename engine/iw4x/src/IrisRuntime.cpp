@@ -25,6 +25,8 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 namespace IW4Iris::Runtime
 {
+  void FinishMomentAnalysis(Session& s);  // below
+
   std::atomic<bool> editorVisible{false};
   std::recursive_mutex uiMutex;
 
@@ -530,6 +532,7 @@ namespace IW4Iris::Runtime
     st.demoDuration = s.demoIndex ? s.demoIndex->DurationSeconds() : 0.0;
     if (st.demoDuration <= 0.0)
       s.demoLengthFitted = 0.0;  // the next demo is fitted again
+    st.demoFirstServerTime = st.demoPlaying ? DemoControl::FirstServerTime() : std::nullopt;
     if (std::chrono::duration<double>(now - lastDvarCheck).count() > 2.0)
     {
       lastDvarCheck = now;
@@ -558,6 +561,12 @@ namespace IW4Iris::Runtime
     Graphics::MainFrame(s);
 
     auto& project = s.project;
+    if (s.analysis.active && !st.demoPlaying && !DemoControl::IsSeeking())
+    {
+      // The demo stopped before the pass reached its end.
+      s.analysis.active = false;
+      s.notice = "The demo ended during the analysis: moments up to there were found";
+    }
     if (!Capture::IsActive())
     {
       if (DemoControl::HasScene())
@@ -568,7 +577,17 @@ namespace IW4Iris::Runtime
           const double end = std::max(project.timeline.end, project.timeRemap.timelineStart + 1.0);
           s.playhead = project.timeRemap.CinematicTime(st.sceneTime, end);
           s.playing = !DemoControl::IsPaused();
-          if (s.playing)
+          if (s.analysis.active)
+          {
+            // The analysis pass: three times real time keeps one snapshot
+            // per frame at common frame rates, so no event is skipped.
+            DemoControl::SetSpeed(3.0);
+            ++s.analysis.startedFrames;
+            const bool ended = st.demoDuration > 0.0 && st.sceneTime >= st.demoDuration - 0.15;
+            if (ended || (s.analysis.startedFrames > 120 && DemoControl::IsPaused()))
+              FinishMomentAnalysis(s);
+          }
+          else if (s.playing)
             DemoControl::SetSpeed(project.timeRemap.SpeedAt(s.playhead) * s.playbackRate);
           // Loop region: jump back to its start.
           const auto& loop = project.timeline.loop;
@@ -810,6 +829,57 @@ namespace IW4Iris::Runtime
     Engine::RestoreAll();
   }
 
+  namespace
+  {
+    void FinishMomentAnalysisImpl(Session& s)
+    {
+      if (!s.analysis.active)
+        return;
+      s.analysis.active = false;
+      DemoControl::SetPaused(s.analysis.wasPaused);
+      DemoControl::Seek(s.project.timeRemap.SceneTime(s.analysis.returnTo));
+      s.playhead = s.analysis.returnTo;
+      const auto shots = s.moments.Trickshots();
+      s.notice = "Analysis finished: " + std::to_string(s.moments.Moments().size()) + " moments, " +
+                 std::to_string(shots.size()) + " trickshot candidate(s) (Moments panel)";
+      Log::Info("Moments: analysis finished, {} moments, {} trickshot candidates, {} frames observed",
+                s.moments.Moments().size(), shots.size(), s.moments.FrameCount());
+    }
+  }
+
+  void FinishMomentAnalysis(Session& s)
+  {
+    FinishMomentAnalysisImpl(s);
+  }
+
+  void StartMomentAnalysis()
+  {
+    auto& s = GetSession();
+    std::lock_guard _(s.mutex);
+    if (s.analysis.active || !s.status.demoPlaying)
+      return;
+    if (!s.demoIndex)
+    {
+      s.notice = "Wait a moment: the demo is still being read (its length is needed for the analysis)";
+      return;
+    }
+    s.analysis.active = true;
+    s.analysis.returnTo = s.playhead;
+    s.analysis.wasPaused = DemoControl::IsPaused();
+    s.analysis.startedFrames = 0;
+    DemoControl::Seek(0.0);
+    DemoControl::SetPaused(false);
+    DemoControl::SetSpeed(3.0);
+    Log::Info("Moments: analysis pass started");
+  }
+
+  void StopMomentAnalysis()
+  {
+    auto& s = GetSession();
+    std::lock_guard _(s.mutex);
+    FinishMomentAnalysisImpl(s);
+  }
+
   void AddKeyFromView()
   {
     auto& s = GetSession();
@@ -874,17 +944,27 @@ namespace IW4Iris::Hooks
     s.status.gameView = gameView;
 
     // The players of this demo / film set, followed by identity, read at
-    // the same point of the frame the cameras are evaluated at.
+    // the same point of the frame the cameras are evaluated at; and the
+    // demo's moments (kills, deaths ...) from the same observations.
     {
       const auto& st = s.status;
       const std::string key = st.demoPlaying ? "demo:" + st.demoName : "map:" + st.mapName;
       if (key != s.playersKey)
       {
         s.players.Reset();
+        s.moments.Reset();
         s.playersKey = key;
         s.selectedPlayer.clear();
       }
-      s.players.Update(Engine::SnapshotServerTime(), Engine::ObservePlayers());
+      iris::FrameObservation frame;
+      frame.serverTime = Engine::ClientServerTime();
+      frame.players = Engine::ObservePlayers();
+      s.players.Update(Engine::SnapshotServerTime(), frame.players);
+      if (st.demoPlaying)
+      {
+        frame.kills = Engine::ObserveKills();
+        s.moments.Add(frame);
+      }
     }
 
     // While a capture runs, the frame's time comes from the scene time it

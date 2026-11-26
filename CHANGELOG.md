@@ -23,6 +23,14 @@
 * When the shot camera has no picture (its player is not in the demo at
   that moment) the toolbar says so and a recording counts those frames,
   instead of silently showing something else.
+* **Moments panel:** kills (from the game's own kill events), deaths,
+  spawns, joins and leaves, filled in while the demo plays or by one
+  analysis pass over the whole demo; click to jump, double-click a kill
+  to clip it.
+* **Trickshot candidates:** airborne kills with a turn or a long jump, with
+  their evidence and a confidence (a local analysis of the recorded
+  movement). *Clip* or *Make cinematic*: slow motion around the kill and
+  chase / eyes cuts on the shooter, all editable.
 
 ### Fixed
 

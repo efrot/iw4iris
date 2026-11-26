@@ -47,6 +47,10 @@ namespace IW4Iris::Runtime
   void ResetLook();      // restore every dvar IW4Iris changed
   // Adds a key to the edit-target dolly at the playhead from the current view.
   void AddKeyFromView();
+  // Plays the whole demo fast to find its moments, then returns to where it
+  // was (main thread; the session must not be locked by the caller).
+  void StartMomentAnalysis();
+  void StopMomentAnalysis();
 }
 
 namespace IW4Iris

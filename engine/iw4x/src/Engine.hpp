@@ -11,6 +11,7 @@
 #include <iris/camera.hpp>
 #include <iris/math.hpp>
 
+#include <iris/moments.hpp>
 #include <iris/players.hpp>
 
 #include <optional>
@@ -67,6 +68,8 @@ namespace IW4Iris::Engine
   // stance and life; the recording player comes from the predicted player
   // state (exact eyes). Main thread.
   std::vector<iris::PlayerObservation> ObservePlayers();
+  // The kills the current snapshot announces (obituary event entities).
+  std::vector<iris::KillObservation> ObserveKills();
   std::optional<iris::Vec3> EntityOrigin(int entityNum);
   int LocalClientNum();          // the demo's / game's own client number
   iris::Vec3 LocalPlayerOrigin();

@@ -86,6 +86,71 @@ namespace IW4Iris::Editor
       Notify("Player: " + p->name);
   }
 
+  std::string MakePlayerCamera(Session& s, const std::string& name, int slotHint, bool recording, iris::CameraMode mode)
+  {
+    // The recording player's eyes are the demo's own view: the game's
+    // first-person camera (with the weapon and the recorded field of view).
+    if (mode == iris::CameraMode::PlayerEyes && recording)
+      mode = iris::CameraMode::FirstPerson;
+    auto& proj = s.project;
+    for (auto& c : proj.cameras)
+    {
+      if (c.mode != mode)
+        continue;
+      if (mode == iris::CameraMode::FirstPerson)
+        return c.id;
+      if (c.target.kind == iris::TargetKind::Player && c.target.name == name)
+      {
+        c.target.index = slotHint;  // the player's slot now, as the hint
+        return c.id;
+      }
+    }
+    iris::CameraDef c;
+    c.id = iris::MakeUniqueId(proj, "cam");
+    c.mode = mode;
+    c.target.kind = iris::TargetKind::Player;
+    c.target.index = slotHint;
+    c.target.name = name;
+    c.target.offset = {0, 0, 0};
+    switch (mode)
+    {
+      case iris::CameraMode::FirstPerson:
+        c.name = "Recorded POV";
+        c.target = {};
+        break;
+      case iris::CameraMode::PlayerEyes:
+        c.name = "Eyes: " + name;
+        c.horizontalFov = 80.0;
+        break;
+      case iris::CameraMode::Chase:
+        c.name = "Chase: " + name;
+        c.orbitDistance = 110.0;
+        c.orbitHeight = 14.0;
+        c.chaseShoulder = 18.0;
+        c.horizontalFov = 80.0;
+        break;
+      case iris::CameraMode::Follow:
+        c.name = "Follow: " + name;
+        c.orbitDistance = 150.0;
+        c.orbitHeight = 50.0;
+        c.orbitStartAngle = 200.0;
+        c.target.offset = {0, 0, 48};
+        break;
+      case iris::CameraMode::Orbit:
+        c.name = "Orbit: " + name;
+        c.orbitDistance = 170.0;
+        c.orbitHeight = 40.0;
+        c.orbitSpeed = 20.0;
+        c.target.offset = {0, 0, 48};
+        break;
+      default:
+        c.name = std::string(iris::ToString(mode)) + ": " + name;
+        break;
+    }
+    proj.cameras.push_back(c);
+    return c.id;
+  }
+
   std::string WatchSelectedPlayer(Session& s, iris::CameraMode mode, bool cut)
   {
     const auto* p = s.players.Find(s.selectedPlayer);
@@ -94,75 +159,9 @@ namespace IW4Iris::Editor
       Notify("Select a player first (Players panel, or click a name in the view)");
       return {};
     }
-    // The recording player's eyes are the demo's own view: the game's
-    // first-person camera (with the weapon and the recorded field of view).
-    if (mode == iris::CameraMode::PlayerEyes && p->recording)
-      mode = iris::CameraMode::FirstPerson;
-
+    const std::string id = MakePlayerCamera(s, p->name, p->clientNum, p->recording, mode);
     auto& proj = s.project;
-    iris::CameraDef* cam = nullptr;
-    for (auto& c : proj.cameras)
-    {
-      if (c.mode != mode)
-        continue;
-      if (mode == iris::CameraMode::FirstPerson ||
-          (c.target.kind == iris::TargetKind::Player && c.target.name == p->name))
-      {
-        cam = &c;
-        break;
-      }
-    }
-    if (!cam)
-    {
-      iris::CameraDef c;
-      c.id = iris::MakeUniqueId(proj, "cam");
-      c.mode = mode;
-      c.target.kind = iris::TargetKind::Player;
-      c.target.index = p->clientNum;
-      c.target.name = p->name;
-      c.target.offset = {0, 0, 0};
-      switch (mode)
-      {
-        case iris::CameraMode::FirstPerson:
-          c.name = "Recorded POV";
-          c.target = {};
-          break;
-        case iris::CameraMode::PlayerEyes:
-          c.name = "Eyes: " + p->name;
-          c.horizontalFov = 80.0;
-          break;
-        case iris::CameraMode::Chase:
-          c.name = "Chase: " + p->name;
-          c.orbitDistance = 110.0;
-          c.orbitHeight = 14.0;
-          c.chaseShoulder = 18.0;
-          c.horizontalFov = 80.0;
-          break;
-        case iris::CameraMode::Follow:
-          c.name = "Follow: " + p->name;
-          c.orbitDistance = 150.0;
-          c.orbitHeight = 50.0;
-          c.orbitStartAngle = 200.0;
-          c.target.offset = {0, 0, 48};
-          break;
-        case iris::CameraMode::Orbit:
-          c.name = "Orbit: " + p->name;
-          c.orbitDistance = 170.0;
-          c.orbitHeight = 40.0;
-          c.orbitSpeed = 20.0;
-          c.target.offset = {0, 0, 48};
-          break;
-        default:
-          c.name = std::string(iris::ToString(mode)) + ": " + p->name;
-          break;
-      }
-      proj.cameras.push_back(std::move(c));
-      cam = &proj.cameras.back();
-    }
-    else if (cam->target.kind == iris::TargetKind::Player)
-      cam->target.index = p->clientNum;  // the player's slot now, as the hint
-
-    const std::string id = cam->id;
+    const auto* cam = proj.FindCamera(id);
     if (cut)
     {
       proj.cuts.AddCut({s.playhead, id});
@@ -173,10 +172,10 @@ namespace IW4Iris::Editor
     s.selectedCamera = id;
     ShowShot(s);
     s.Commit(cut ? "Cut to player" : "Watch player");
-    if (mode == iris::CameraMode::PlayerEyes)
+    if (cam && cam->mode == iris::CameraMode::PlayerEyes)
       Notify("Eyes of " + p->name + ": reconstructed from the demo (position, stance, view angles); their own "
                                      "model and weapon may be in view");
-    else if (cut)
+    else if (cut && cam)
       Notify("Cut to " + cam->name + " at the playhead");
     return id;
   }

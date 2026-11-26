@@ -20,7 +20,7 @@ cinematics.
 > with Visual Studio (Windows CI). None of the engine integration has been
 > run in IW4x by the authors yet. The game-independent code (scene,
 > Director synchronisation, timeline, geometry, fonts, logos, diagnostics,
-> ...) is covered by 145 automated test cases.
+> ...) is covered by 151 automated test cases.
 > [docs/BACKLOG.md](docs/BACKLOG.md) lists every audit finding with how far
 > it is verified.
 > [FEATURE_MATRIX.md](FEATURE_MATRIX.md) lists exactly what is verified,
@@ -517,6 +517,31 @@ For the selected player:
 * Tick **Add as a cut at the playhead** to build a sequence: move the
   playhead, pick a player and a view, repeat. The cuts appear on the
   timeline's *Camera cuts* row.
+
+### Moments and trickshot candidates
+
+The **Moments** panel lists what happens in the demo: **kills** (from the
+game's own kill events), **deaths**, **spawns**, players **joining** and
+**leaving** (inferred from what the demo shows; marked *time approximate*
+when frames were skipped by a seek). They fill in while the demo plays;
+**Find all moments in this demo** plays it once at three times its speed
+and comes back.
+
+**Trickshot candidates** are airborne kills with a turn or a long jump,
+listed with the evidence (degrees turned in the air, seconds in the air,
+scoped or not) and a confidence. It is a local analysis of the recorded
+movement, not a judgement, and it only uses what the demo contains. For
+each candidate:
+
+* **Go** jumps there.
+* **Clip** sets in / out around it and puts a marker on the kill.
+* **Make cinematic** adds slow motion around the kill, the clip, and
+  camera cuts: a chase camera on the shooter, their eyes for the shot
+  (the exact view when they recorded the demo), the chase camera again.
+  Everything it creates is ordinary, editable timeline content.
+
+Click a moment in the list to jump two seconds before it; double-click a
+kill to clip it.
 
 Cameras remember the player by name, not by slot: when a player leaves and
 somebody else takes the slot, the camera does not film the newcomer. While

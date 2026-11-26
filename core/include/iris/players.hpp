@@ -56,6 +56,8 @@ namespace iris
         EulerAngles angles;        // view angles
         double eyeHeight = -1.0;   // exact eye height when recorded (the recording player), else < 0
         int weapon = 0;            // weapon index
+        bool airborne = false;     // not standing on anything (jumping, falling)
+        bool ads = false;          // aiming down the sights
         bool recording = false;    // the player the demo was recorded by (exact first-person view)
     };
 
