@@ -32,8 +32,8 @@ Demo browser, playback, speed, pause, frame step, seeking, timeline sync.
    panel); in-game verification pending.
 4. Multi-demo angles: done in 0.5 (kill-feed sync suggestion, switching at
    the same moment, per-angle render jobs); in-game verification with two
-   demos of one match pending (docs/TESTING.md §5a). Next: show an
-   angle's coverage on the timeline (where its demo starts and ends), a
+   demos of one match pending (docs/TESTING.md §5a). Coverage (where
+   each recording starts and ends) is shown and checked. A
    picture-in-picture preview of a second recording is not possible (one
    client plays one demo).
 

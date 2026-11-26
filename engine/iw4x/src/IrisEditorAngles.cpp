@@ -60,6 +60,23 @@ namespace IW4Iris::Editor
       return s.status.demoPlaying && s.loadedAngle && *s.loadedAngle == id;
     }
 
+    // Where on the timeline a recording has pictures.
+    void CoverageLine(const Session& s, const std::string& id)
+    {
+      const auto& p = s.project;
+      if (const auto cover = iris::RecordingCoverage(p, id))
+      {
+        const double search = std::max(p.timeline.end, cover->end) * 4.0 + 60.0;
+        const double a = p.timeRemap.CinematicTime(std::max(0.0, cover->start), search);
+        const double b = p.timeRemap.CinematicTime(std::max(0.0, cover->end), search);
+        const auto& tl = p.timeline;
+        ImGui::TextDisabled("Covers %s to %s of the timeline", iris::FormatTime(a, tl.frameRate, tl.display).c_str(),
+                            iris::FormatTime(b, tl.frameRate, tl.display).c_str());
+      }
+      else
+        ImGui::TextDisabled("Coverage not known yet: open it once");
+    }
+
     void FeedLine(const iris::DemoRef& ref)
     {
       if (ref.killFeed && !ref.killFeed->Empty())
@@ -232,6 +249,7 @@ namespace IW4Iris::Editor
         ImGui::PopID();
         return;
       }
+      CoverageLine(s, a.id);
       FeedLine(a.demo);
       ImGui::PopID();
     }
@@ -344,6 +362,7 @@ namespace IW4Iris::Editor
     ImGui::TextUnformatted(p.demo->name.c_str());
     if (!p.demo->firstServerTime)
       ImGui::TextDisabled("Its start is not known yet: play it for a moment (angles follow its clock).");
+    CoverageLine(s, "");
     FeedLine(*p.demo);
     ImGui::BeginDisabled(IsLoaded(s, ""));
     if (ImGui::Button((std::string(Icons::PLAY) + "  Open the main demo here").c_str()))

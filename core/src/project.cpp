@@ -241,6 +241,23 @@ namespace iris
         return out;
     }
 
+    std::optional<SceneSpan> RecordingCoverage(const Project& project, const std::string& angleId)
+    {
+        if (!project.demo)
+            return std::nullopt;
+        if (angleId.empty())
+        {
+            if (!project.demo->durationSeconds)
+                return std::nullopt;
+            return SceneSpan{0.0, *project.demo->durationSeconds};
+        }
+        const auto* a = project.FindAngle(angleId);
+        if (!a || !a->demo.durationSeconds || !a->demo.firstServerTime || !project.demo->firstServerTime)
+            return std::nullopt;
+        const double shift = AngleSceneShift(*project.demo->firstServerTime, *a->demo.firstServerTime, a->offsetMs);
+        return SceneSpan{shift, shift + *a->demo.durationSeconds};
+    }
+
     std::vector<RenderJob> PlanAngleRenders(const Project& project, const RecordingSettings& settings,
                                             std::string_view stamp)
     {
@@ -524,6 +541,8 @@ namespace iris
                    {"author", d.author}, {"size", d.fileSize}, {"sceneStart", d.sceneStart}};
             if (d.firstServerTime)
                 j["firstServerTime"] = *d.firstServerTime;
+            if (d.durationSeconds)
+                j["duration"] = *d.durationSeconds;
             if (d.killFeed)
             {
                 json seen = json::array(), kills = json::array();
@@ -548,6 +567,8 @@ namespace iris
             d.sceneStart = GetNumber(j, "sceneStart", 0.0);
             if (const auto it = j.find("firstServerTime"); it != j.end() && it->is_number_integer())
                 d.firstServerTime = it->get<int>();
+            if (const auto it = j.find("duration"); it != j.end() && it->is_number() && it->get<double>() >= 0.0)
+                d.durationSeconds = it->get<double>();
             if (const auto it = j.find("killFeed"); it != j.end() && it->is_object())
             {
                 KillFeed feed;

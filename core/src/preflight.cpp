@@ -51,6 +51,31 @@ namespace iris
         // Angles (other recordings of the match) the range cuts to.
         for (const auto& seg : AngleSegments(p, rangeStart, rangeEnd))
         {
+            // Does the recording cover the part? (Players recorded different
+            // stretches of the match.)
+            if (!p.angles.empty() && (seg.angle.empty() || p.FindAngle(seg.angle)))
+            {
+                const auto* a = p.FindAngle(seg.angle);
+                const std::string name = a ? "Angle '" + a->name + "'" : std::string("The main demo");
+                if (const auto cover = RecordingCoverage(p, seg.angle))
+                {
+                    const double from = p.timeRemap.SceneTime(seg.start), to = p.timeRemap.SceneTime(seg.end);
+                    constexpr double kSlack = 0.05;
+                    if (from < cover->start - kSlack || to > cover->end + kSlack)
+                    {
+                        // Its span on the timeline (through the speed curve).
+                        const double search = std::max(rangeEnd, p.timeline.end) * 4.0 + 60.0;
+                        const double a0 = p.timeRemap.CinematicTime(std::max(0.0, cover->start), search);
+                        const double a1 = p.timeRemap.CinematicTime(std::max(0.0, cover->end), search);
+                        error(name + " does not cover all of " + Time(seg.start) + " to " + Time(seg.end) +
+                              " (its demo covers " + Time(a0) + " to " + Time(a1) +
+                              " of the timeline): move the cut or cut to another recording there.");
+                    }
+                }
+                else if (a)
+                    warn(name + " was not played yet, so whether its demo covers " + Time(seg.start) + " to " +
+                         Time(seg.end) + " is not known: open it once.");
+            }
             if (seg.angle.empty())
                 continue;
             const auto* a = p.FindAngle(seg.angle);

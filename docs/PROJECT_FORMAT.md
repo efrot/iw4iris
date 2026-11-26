@@ -40,7 +40,7 @@ name and path); it never contains game files.
 | `generator`, `name`, `created`, `modified` | string | ISO 8601 UTC timestamps |
 | `map` | string | the film set's map in Director Mode (`mp_highrise`) |
 | `scene` | object | Director Mode and motion graphics objects, below |
-| `demo` | object | `path` (relative to the project file when possible), `name`, `map`, `gametype`, `author`, `size` (bytes, for change detection), `sceneStart`; optional (0.5): `firstServerTime` (int, its first snapshot's server time once played), `killFeed` (below) |
+| `demo` | object | `path` (relative to the project file when possible), `name`, `map`, `gametype`, `author`, `size` (bytes, for change detection), `sceneStart`; optional (0.5): `firstServerTime` (int, its first snapshot's server time once played), `duration` (seconds from its first to its last snapshot, once its index was read), `killFeed` (below) |
 | `angles` | array | optional (0.5): other recordings of the main demo's match: `{id, name, demo (as above), recorder, offsetMs, sync, confidence}`. `offsetMs`: its server time minus the main demo's at the same moment; `sync`: `unsynced` / `suggested` / `manual` / `confirmed`; `confidence`: 0..1 of the suggestion it came from |
 | `timeline` | object | `fps`, `start`, `end`, `in`, `out`, `loop {enabled,start,end}`, `display` (`timecode`/`seconds`/`frames`), `snap` |
 | `timeRemap` | object | `timelineStart`, `sceneOffset`, `speed` (curve, default 1) |

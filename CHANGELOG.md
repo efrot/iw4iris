@@ -26,10 +26,14 @@
   recording other than the one playing (it would show the wrong player's
   view). *Queue per angle* makes one render job per part, each opening its
   recording first; image sequences from all parts form one sequence.
+* **Coverage:** each recording covers only the stretch its player
+  recorded. Its span on the timeline is learnt when it is opened, shown in
+  the Angles panel and as a red band on cuts it does not cover.
 * **Render preflight:** cuts to angles that were removed, are not
-  synchronised or come from another map or mode block recording; an
-  unchecked suggested sync is a warning.
-* Project format: `angles`, `demo.firstServerTime`, `demo.killFeed`,
+  synchronised, come from another map or mode, or fall outside their
+  recording's coverage block recording; an unchecked suggested sync and a
+  recording not opened yet are warnings.
+* Project format: `angles`, `demo.firstServerTime`, `demo.duration`, `demo.killFeed`,
   `cuts[].angle`, `renderQueue[].angle` (all optional; older files load
   unchanged).
 

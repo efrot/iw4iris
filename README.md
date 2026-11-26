@@ -586,7 +586,10 @@ to an angle shows that player's own recorded view.
    one sequence (frames are numbered by timeline frame); a video format
    gives one file per part.
 
-The render check blocks angles that are not synchronised, were removed or
+Each recording only covers the stretch of the match its player recorded:
+the Angles panel shows where on the timeline (once it was opened), and a
+red band on a cut marks the part its recording does not cover. The render
+check blocks such parts, angles that are not synchronised, were removed or
 come from another map or mode, and warns about a suggested sync that was
 not checked. Opening a demo is slow (it is played from its start up to the
 moment), so switching recordings takes as long as that.

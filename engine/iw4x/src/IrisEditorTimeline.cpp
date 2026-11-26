@@ -880,6 +880,20 @@ namespace IW4Iris::Editor
           const auto* cam = p.FindCamera(cuts[i].cameraId);
           const ImU32 col = cam ? ParseColor(cam->color, 0.55f) : IM_COL32(120, 120, 120, 140);
           dl->AddRectFilled(ImVec2(c.X(t0) + 1, y + 3), ImVec2(c.X(t1) - 1, y + kRowHeight - 3), col, 3.0f);
+          // Where the cut's recording does not cover the match (its player
+          // recorded another stretch): a red band, the render check refuses it.
+          if (!p.angles.empty())
+            if (const auto cover = iris::RecordingCoverage(p, cuts[i].angle))
+            {
+              const double search = std::max(tl.end, t1) * 4.0 + 60.0;
+              const double c0 = cover->start <= 0.0 ? -1e9 : p.timeRemap.CinematicTime(cover->start, search);
+              const double c1 = p.timeRemap.CinematicTime(std::max(0.0, cover->end), search);
+              const ImU32 gap = IM_COL32(229, 72, 77, 150);
+              if (c0 > t0)
+                dl->AddRectFilled(ImVec2(c.X(t0) + 1, y + kRowHeight - 7), ImVec2(c.X(std::min(c0, t1)), y + kRowHeight - 3), gap);
+              if (c1 < t1)
+                dl->AddRectFilled(ImVec2(c.X(std::max(c1, t0)), y + kRowHeight - 7), ImVec2(c.X(t1) - 1, y + kRowHeight - 3), gap);
+            }
           if (cam)
           {
             // The recording it is in, when the project has angles.

@@ -19,6 +19,7 @@
 #include <iris/version.hpp>
 
 #include <cctype>
+#include <cmath>
 #include <filesystem>
 
 #include <imgui.h>
@@ -941,6 +942,15 @@ namespace IW4Iris::Runtime
             ref->firstServerTime = first;
             s.dirty = true;
           }
+          // Its length, from the index of this demo (the scan of an older
+          // demo is dropped, see DemoControl).
+          if (s.demoIndex && s.loadedAngleGeneration == s.demoGeneration)
+            if (const double length = s.demoIndex->DurationSeconds();
+                length > 0.0 && (!ref->durationSeconds || std::abs(*ref->durationSeconds - length) > 1e-6))
+            {
+              ref->durationSeconds = length;
+              s.dirty = true;
+            }
           if (ref->mapName.empty() && st.cgameReady && !st.mapName.empty())
           {
             ref->mapName = st.mapName;

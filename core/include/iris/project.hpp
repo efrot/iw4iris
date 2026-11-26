@@ -194,6 +194,7 @@ namespace iris
         std::uint64_t fileSize = 0;
         double sceneStart = 0.0; // demo time (s) at timeline 0
         std::optional<int> firstServerTime;  // server time of its first snapshot, once it was played
+        std::optional<double> durationSeconds;  // first to last snapshot, once its index was read
         std::optional<KillFeed> killFeed;    // kills it was seen to contain (for synchronising angles)
         bool operator==(const DemoRef&) const = default;
     };
@@ -287,6 +288,18 @@ namespace iris
         // Latest key / cut / marker time, for fitting the timeline.
         double ContentEnd() const;
     };
+
+    // The part of the main demo's scene time (seconds) a recording covers:
+    // [0, length] for the main demo, the angle's own span moved onto the
+    // main clock for an angle. None while its start or length is unknown
+    // (it was not played yet).
+    struct SceneSpan
+    {
+        double start = 0.0;
+        double end = 0.0;
+        bool operator==(const SceneSpan&) const = default;
+    };
+    std::optional<SceneSpan> RecordingCoverage(const Project& project, const std::string& angleId);
 
     // The parts of [start, end] (cinematic time) and the recording each needs:
     // consecutive cuts in one angle are merged. Without camera cuts the whole

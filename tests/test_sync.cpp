@@ -386,3 +386,37 @@ TEST_CASE("angles: a range across angles becomes one render job per segment")
     const auto videos = PlanAngleRenders(p, rec, "x");
     CHECK(videos[0].settings.namePattern != videos[1].settings.namePattern);
 }
+
+TEST_CASE("angles: a recording's coverage of the match, and preflight on parts it does not cover")
+{
+    auto p = TwoAngleProject();
+    // Unknown until played.
+    CHECK(!RecordingCoverage(p, "angle-1"));
+    CHECK(!RecordingCoverage(p, ""));
+    CHECK(HasIssue(PreflightProject(p, 0.0, 8.0, {}), "was not played yet", Issue::Severity::Warning));
+
+    p.demo->durationSeconds = 60.0;
+    // Bob's demo starts 2.5 s after the main one (offset 25 ms) and is 4 s long.
+    p.angles[0].demo.durationSeconds = 4.0;
+    const auto cover = RecordingCoverage(p, "angle-1");
+    CHECK(cover.has_value());
+    CHECK(std::abs(cover->start - 2.475) < 1e-9);
+    CHECK(std::abs(cover->end - 6.475) < 1e-9);
+    CHECK(RecordingCoverage(p, "") == (SceneSpan{0.0, 60.0}));
+
+    // The angle's part is 2 s to 5 s: it starts before Bob's demo does.
+    CHECK(HasIssue(PreflightProject(p, 0.0, 8.0, {}), "does not cover all of 2.00 s to 5.00 s", Issue::Severity::Error));
+    // Moving the cut inside the coverage fixes it.
+    auto cuts = p.cuts.Cuts();
+    cuts[1].time = 2.5;
+    cuts[2].time = 3.0;
+    p.cuts.SetCuts(cuts);
+    CHECK(!HasIssue(PreflightProject(p, 0.0, 8.0, {}), "does not cover", Issue::Severity::Error));
+    // The main demo's own length counts too.
+    p.demo->durationSeconds = 6.0;
+    CHECK(HasIssue(PreflightProject(p, 0.0, 8.0, {}), "The main demo does not cover", Issue::Severity::Error));
+    // The length round-trips.
+    const auto r = ParseProject(SerializeProject(p));
+    CHECK(r.project->demo->durationSeconds == p.demo->durationSeconds);
+    CHECK(r.project->angles[0].demo.durationSeconds == 4.0);
+}
