@@ -3,7 +3,8 @@
 #
 # IW4x builds with Visual Studio at warning level 4 and warnings as errors.
 # Two kinds of MSVC warnings have no equivalent in the project's GCC flags:
-# C4456/C4457/C4458 (a declaration hides a local, parameter or member) and
+# C4456/C4457/C4458/C4459 (a declaration hides a local, parameter, member or
+# global; GCC's -Wshadow) and
 # C4244/C4267 (a conversion may lose data). This re-runs the compile
 # commands of IW4Iris's own files (from the MinGW cross build) with
 # -fsyntax-only and GCC's closest warnings, and fails when any are reported
@@ -24,7 +25,7 @@ mapfile -t commands < <(make -s -n -C build/mingw -f iw4x.make config="${cfg}_wi
   FORCE_INCLUDE="-include STDInclude.hpp" 2>/dev/null | grep -- '-c ' | grep -E 'Modules/IW4Iris/|deps/iw4iris/core/src/' || true)
 [ "${#commands[@]}" -gt 0 ] || { echo "error: no IW4Iris compile commands found" >&2; exit 1; }
 
-extra="-fsyntax-only -Wno-error -Wshadow=local -Wconversion -Wno-sign-conversion -Wfloat-conversion"
+extra="-fsyntax-only -Wno-error -Wshadow -Wconversion -Wno-sign-conversion -Wfloat-conversion"
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
 for cmd in "${commands[@]}"; do

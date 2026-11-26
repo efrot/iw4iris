@@ -502,8 +502,8 @@ namespace IW4Iris::Capture
         for (const auto& pl : editorSession.players.Players())
           players.insert(pl.name);
       }
-      const auto range = iris::ResolveRange(s, project->timeline);
-      for (auto& i : iris::PreflightProject(*project, range.start, range.end, players))
+      const auto checkRange = iris::ResolveRange(s, project->timeline);
+      for (auto& i : iris::PreflightProject(*project, checkRange.start, checkRange.end, players))
         issues.push_back(std::move(i));
     }
     return issues;
