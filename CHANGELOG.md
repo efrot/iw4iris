@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+* The Getting Started window says to load a demo with *Play* (it still
+  said to double-click one in View > Demos).
+* Documentation brought up to date with 0.5.1 to 0.6.1: status and
+  verification states, the release package name, automatic updates (the
+  only download IW4Iris makes), *Game files* in the scene wizard, the
+  German quick guide, troubleshooting for film sets.
+
 ## 0.6.1 — 2026-11-27 (film sets keep to the standard game files)
 
 ### Fixed

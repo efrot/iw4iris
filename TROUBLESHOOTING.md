@@ -1,7 +1,8 @@
 # Troubleshooting
 
-Always look at `<environment>\iw4iris\logs\iw4iris.log` first (the previous
-run is `iw4iris.log.previous`), and at **Help → Diagnostics** in the editor,
+Always look at `<environment>\iw4iris\logs\iw4iris.log` first (the five
+runs before it are `iw4iris.log.previous` to `.previous5`), and at
+**Help → Diagnostics** in the editor,
 which lists the offline guard, the engine state, the dvars the editor found
 and the log.
 
@@ -36,7 +37,19 @@ with ~: the line above the error names the script file and line; please
 report it together with a support bundle (**Help → Diagnostics → Save a
 support bundle**).
 
-**F1 does nothing.** Check the log for "offline guard". If it says FAILED,
+**A film set stays on the loading screen.** Fixed in 0.5.1: the offline
+guard also dropped the packets the game sends to its own local server.
+Let the launcher update itself (or **Update & Launch**), then try again.
+If a set still hangs, the log names the connection stage it stopped at
+(every stage is logged while a set loads); please report it with the log.
+
+**A film set has odd weapons, skins or menus (after a demo from a modded
+server).** Since 0.6.1 a film set uses the standard game files unless a
+mod is chosen under **Create new scene → Game files**; check that choice.
+
+**The editor does not open / F1 does nothing.** The editor opens with the
+game unless *Settings → Open the editor when the game starts* is off; F1
+shows and hides it. Check the log for "offline guard". If it says FAILED,
 the tools stay disabled by design. Make sure you started the game from the
 launcher (the environment's `iw4x.exe`, not your normal installation).
 

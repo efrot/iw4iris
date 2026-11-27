@@ -3,7 +3,7 @@
 How IW4Iris compares with the established MW2 / Black Ops 2 moviemaking
 tools, capability by capability. **No superiority is claimed here**: the
 IW4Iris column gives the verification state from
-[BACKLOG.md](BACKLOG.md) (nothing is runtime-tested yet), and the other
+[BACKLOG.md](BACKLOG.md) (since 0.5.1 partly tested in the game), and the other
 columns only state what was verified from the tools' own public sources.
 
 Sources and how far they were checked:
@@ -21,7 +21,7 @@ Sources and how far they were checked:
 Legend: ✓ = available (per the source above), – = not available,
 ? = not verified.
 
-| Capability | IW4Iris 0.5 | IW4Cine | T6Iris (BO2) | IW4MVM |
+| Capability | IW4Iris 0.6 | IW4Cine | T6Iris (BO2) | IW4MVM |
 | --- | --- | --- | --- | --- |
 | Install | one-click launcher, isolated copy (Windows-built) | manual mod install | own launcher | ? |
 | Editor | native docked UI, timeline, graph editor, command palette (Windows-built) | console commands / binds | native UI | ? |
@@ -35,7 +35,7 @@ Legend: ✓ = available (per the source above), – = not available,
 | Several recordings of one match (angles), sync from shared kills | ✓ (unit-tested; Windows-built) | – | – (theater has every player in one recording) | ? |
 | Dolly / orbit / follow / static cameras | ✓ | camera paths in GSC | ✓ | ? |
 | Bone camera | – (needs DObj bone bindings) | – | ✓ | ? |
-| Actors (characters, animations, weapons) | ✓ via the Director Mod (protocol-reconciled; **film set loading not yet confirmed in the game**) | ✓ (bots and script models) | ✓ | ? |
+| Actors (characters, animations, weapons) | ✓ via the Director Mod (film sets load, a template actor spawns and holds its weapon: runtime-tested; animations and directions not yet) | ✓ (bots and script models) | ✓ | ? |
 | Animation scrubbing (pose at any time) | – (script models restart clips; pre-roll in recordings) | – | ✓ | ? |
 | Native 3D text and logos in the world | ✓ (D3D9 renderer; occlusion when verified) | – | – | ? |
 | Render passes (depth, greenscreen) | beauty only | – | ✓ | ? |
@@ -50,6 +50,7 @@ Legend: ✓ = available (per the source above), – = not available,
   client demos do not. IW4Iris reconstructs what the demo contains and
   labels the rest.
 * Where IW4Iris adds things none of the others list (native 3D graphics,
-  player identities across slot reuse, trickshot candidates, render
-  preflight, diagnostics), none of it is runtime-verified yet. The
+  player identities across slot reuse, trickshot candidates, angles of one
+  match, beat detection, render preflight), none of it is runtime-verified
+  yet. The
   in-game acceptance procedure in [TESTING.md](TESTING.md) decides.

@@ -2,6 +2,8 @@
 
 Status labels (the same verification states as [docs/BACKLOG.md](docs/BACKLOG.md)):
 
+* **End-to-end verified** — the whole user workflow run for real and its result checked.
+* **Runtime-tested** — run in IW4x (Windows 11, Steam MW2 with IW4x, on the development machine or by a user) with the result recorded in docs/BACKLOG.md.
 * **Unit-tested** — game-independent logic covered by the automated tests (Linux CI job).
 * **Windows-built** — compiled into the cinematic client by the Windows (MSVC) CI job and the MinGW cross build, **not yet run in the game**.
 * **Implemented** — compiled into the cinematic client (MinGW cross build), **not yet run in the game**.
@@ -9,8 +11,9 @@ Status labels (the same verification states as [docs/BACKLOG.md](docs/BACKLOG.md
 * **Planned** — designed, not implemented; the project format already stores it where noted.
 * **Blocked** — needs engine research or bindings that are not available yet.
 
-Nothing in this matrix is **Runtime-tested** or **End-to-end verified** yet:
-no IW4x installation is available to the development and CI environments.
+Since 0.5.1 parts of IW4Iris are tested in the game; those rows say so,
+with the evidence in docs/BACKLOG.md. Every other row has not been run in
+the game yet, whatever its state.
 
 ## Core (game independent)
 
@@ -56,7 +59,7 @@ no IW4x installation is available to the development and CI environments.
 | --- | --- | --- |
 | Native IW4x component, compiles and links | Windows-built | MinGW-w64 cross build and the MSVC CI job (client DLL built with MSVC since CI run 3) |
 | Offline guard (engine sends, Winsock, HTTP, session check) | Implemented | fail closed when the packet hook cannot be installed |
-| Editor overlay toggle (F1), docking UI, theme, workspaces | Implemented | |
+| Editor overlay toggle (F1), docking UI, theme, workspaces | Runtime-tested | opens with the game and its start screen; panels dock after an update (F-49, F-54) |
 | Free camera (WASD, vertical, roll, speed, acceleration, smoothing, FOV wheel, gamepad) | Implemented | |
 | Camera override through the view hook | Experimental | see COMPATIBILITY.md |
 | Dolly cameras with keys, eases, tangents | Implemented | |
@@ -96,11 +99,11 @@ no IW4x installation is available to the development and CI environments.
 | Fog | Implemented (on/off only) | IW4 fog parameters come from map scripts |
 | Lift / gamma / gain, curves, LUTs, grain, vignette, bloom controls | Planned | need a post-process pass |
 | Reset to defaults (restore every changed dvar) | Implemented | |
-| Demo browser: folders, search, favourites, labels, metadata | Implemented | |
-| Demo playback, speed | Implemented | |
+| Demo browser: folders, search, favourites, labels, metadata; listed by map, mode, length, date; Play button | Runtime-tested | F-54 (screenshots) |
+| Demo playback, speed | Runtime-tested | demos open with Play, also when opened before (F-45, F-51); a 1248 s demo played and indexed (user log) |
 | Pause, frame step | Experimental | holds `clientStatic_t::realtime` |
 | Forward seek | Experimental | advances `realtime` in steps |
-| Backward seek | Experimental | restarts the demo and replays (checkpoint = first snapshot) |
+| Backward seek | Runtime-tested | restarts the demo and replays (checkpoint = first snapshot); seen working in a user log |
 | Snapshot-checkpoint rewinding | Planned | the record scanner already indexes snapshot offsets |
 | Kill / event markers from demo data | Windows-built | the Moments panel and the timeline's kill ticks (above) |
 | Recording: PNG / JPEG sequences (built-in) | Implemented | |
@@ -128,15 +131,16 @@ no IW4x installation is available to the development and CI environments.
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Film set: a map loaded as a local, offline listen server (no timer, score limit, countdown) | Implemented | not run in the game yet |
-| Director Mod (GSC) installed into the environment by the launcher, inactive outside film sets | Implemented | `scripts/mp` loading is IW4x's; GSC not compiled here (no game) |
+| Film set: a map loaded as a local, offline listen server (no timer, score limit, countdown) | Runtime-tested | Highrise, Afghan, Terminal; from the main menu and after a demo from a modded server (F-48, F-51) |
+| Film set game files: the standard game unless a mod is chosen (saved with the project); no server log, no demo of itself | Runtime-tested | after a modded server's demo, standard sets on Terminal and Afghan and a set with the mod chosen (F-56, 0.6.1) |
+| Director Mod (GSC) installed into the environment by the launcher, inactive outside film sets | Runtime-tested | compiles and answers in the game ("Director Mod ready: protocol 2"; a static check runs in CI) |
 | Editor ↔ mod protocol: GSC builtins, requests, responses, capability report | Implemented | IW4x `Script::AddFunction`; docs/DIRECTOR_PROTOCOL.md |
 | Asset discovery from the loaded fast files (models, animations, weapons, effects) | Implemented | `DB_EnumXAssets` |
-| Precache manifest validated against the loaded assets; "Reload set" for new ones | Implemented | assets must be precached when the map starts (engine rule) |
+| Precache manifest validated against the loaded assets; "Reload set" for new ones | Runtime-tested | Reload set precached a rifle and rebuilt the actor holding it (F-50) |
 | Map browser: installed maps, names, descriptions, search, favourites, recent | Implemented | preview images planned |
-| Scene wizard (map, template, create) | Implemented | |
+| Scene wizard (map, template, game files, create) | Runtime-tested | Afghan + Sniper showcase builds its actor, dressed for the map (F-52, F-53) |
 | Character library by faction, search, favourites, add where the camera looks | Implemented | |
-| Actors: script-model body + linked head, transform / path, visibility | Implemented | |
+| Actors: script-model body + linked head, transform / path, visibility | Runtime-tested (spawn, weapon) | a template actor spawned and held its weapon; paths and visibility not checked yet |
 | Animation clips (start, duration) and idle animation | Implemented | clips play from their start at engine speed; no scrubbing, offset, speed or blending for script models |
 | Weapons on tags with hidden attachment parts, camo index, extra attachments | Implemented | |
 | Directions applied to actors | Implemented | in-place animations moved along the path; foot sliding depends on the chosen speed |
@@ -188,4 +192,4 @@ no IW4x installation is available to the development and CI environments.
 | Director Mod: install, verify against the package, repair | Implemented | manifest paths restricted to relative `.gsc` files (unit-tested) |
 | Third-party extensions | Planned | format documented (docs/EXTENSIONS.md); never enabled without explicit approval |
 | No administrator rights | Implemented | `asInvoker` manifest |
-| Automatic updates | Not planned | deliberate: a verified client is never replaced silently |
+| Automatic updates from GitHub Releases (HTTPS, SHA-256 checked, every file backed up and restored on failure); Setup > Updates | End-to-end verified | an older launcher updated itself to the published v0.6.0 and restarted (F-55); update logic unit-tested |

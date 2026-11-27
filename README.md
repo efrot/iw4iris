@@ -13,14 +13,15 @@ cinematics.
 > normal IW4x installation stays as it is, and you keep playing online with
 > that one.
 
-> **Status: v0.5.0 preview, not yet tested in the game.** The
-> editor, the camera system, demo control, the recorder, Director Mode
-> (actors, props, effects on film sets) and native motion graphics (3D text
-> and logos) are implemented; the cinematic client builds with MinGW and
-> with Visual Studio (Windows CI). None of the engine integration has been
-> run in IW4x by the authors yet. The game-independent code (scene,
-> Director synchronisation, timeline, geometry, fonts, logos, diagnostics,
-> ...) is covered by 153 automated test cases.
+> **Status: v0.6.1 preview, partly tested in the game.** Verified in IW4x:
+> film sets load (Highrise, Afghan, Terminal; from the main menu and after a
+> demo from a modded server), a template's character spawns and holds its
+> weapon after *Reload set*, demos open with **Play** and seek backwards,
+> the editor docks its panels after an update, and the launcher updates
+> itself from GitHub Releases. Not yet verified in the game: recording to
+> a file, motion graphics, players / moments / angles on a real
+> multi-player demo, and the music preview. The game-independent code is
+> covered by automated tests on Linux and Windows.
 > [docs/BACKLOG.md](docs/BACKLOG.md) lists every audit finding with how far
 > it is verified.
 > [FEATURE_MATRIX.md](FEATURE_MATRIX.md) lists exactly what is verified,
@@ -116,8 +117,9 @@ IW4Iris comes ready to run in two ways; both contain the launcher:
   then **Download ZIP**. The ZIP holds one folder (named after the
   repository and branch) with `IW4Iris Launcher.exe` at its top, next to
   `client\` and `resources\`, plus the source code.
-* **The release package** `IW4Iris-v0.5.0-Windows-x86.zip`: only the
-  program, documentation, samples and presets.
+* **The release package** `IW4Iris-v0.6.1-Windows-x86.zip` from the
+  repository's **Releases** page: only the program, documentation, samples
+  and presets. Later versions arrive by themselves (section 16).
 
 1. Download one of them.
 2. Right-click the ZIP, then **Extract All...** and choose a folder
@@ -203,7 +205,9 @@ What setup did:
    `%LOCALAPPDATA%\IW4Iris\game\iw4iris\ffmpeg\`, or type its full path into
    the **ffmpeg.exe** box and click **Save FFmpeg path**.
 
-IW4Iris never downloads anything by itself.
+IW4Iris does not download FFmpeg (or anything else) for you. The only
+download it makes is its own update from this project's GitHub Releases,
+which you can turn off (section 16).
 
 ### Step 5: launch
 
@@ -295,13 +299,17 @@ This is the full workflow from demo to video file.
 No demo needed: Director Mode loads a map as a private, offline *film set*
 and lets you place characters, props, effects and graphics on it.
 
-1. **F1** → **Director** panel (or the **Director** workspace) → **Create
-   new scene**.
+1. On the start screen choose **Create a cinematic on a map** (or the
+   **Director** panel / workspace → **Create new scene**).
 2. **Map:** pick an installed map (search, star favourites; recent maps come
    first). **Template:** "Empty film set", "Sniper showcase", "Trickshot
    sequence", "Two-character confrontation", "Squad introduction", ...
-   **Create scene.** The map loads (a few seconds); the Director panel says
-   *ready*, and the template is built where the camera looks.
+   **Game files:** *Standard game* (recommended) or a mod from your game's
+   `mods` folder, for its custom camos or skins; the choice is saved with
+   the project. **Create scene.** The map loads (a few seconds; a demo that
+   was playing is left first); the Director panel says *ready*, and the
+   template is built where the camera looks, with characters dressed for
+   the map's environment.
 3. **Characters** panel: double-click a character (grouped by faction:
    Task Force 141, Rangers, Navy SEALs, Spetsnaz, Militia, OpFor, Ghillie
    suits) to place it where the camera looks.
@@ -332,7 +340,8 @@ Good to know:
 * Animations start from their beginning when their clip is reached; they
   cannot be scrubbed. Effects (particles) run on the game's clock.
 * The film set is a local listen server under the offline guard; nobody can
-  join and nothing is sent.
+  join and nothing is sent. It writes no server log and records no demo of
+  itself (IW4x's automatic demo recording is off while a film set runs).
 
 ## 4b. Motion graphics: 3D titles and logos
 
@@ -919,7 +928,8 @@ Optional FFmpeg für Videoformate.
 **Installation**
 
 1. Auf der GitHub-Seite **Code → Download ZIP** klicken (oder das
-   Release-Paket `IW4Iris-v0.5.0-Windows-x86.zip` nehmen) und **außerhalb**
+   Release-Paket `IW4Iris-v0.6.1-Windows-x86.zip` von der Seite **Releases**
+   nehmen) und **außerhalb**
    des Spielordners entpacken (z. B. `C:\Tools\IW4Iris`). Im entpackten
    Ordner (beim GitHub-ZIP im Ordner darin) liegt **IW4Iris Launcher.exe**
    direkt oben, daneben `client\` und `resources\`. Die Dateien zusammen
@@ -939,7 +949,9 @@ Optional FFmpeg für Videoformate.
 
 **Erste Kamerafahrt**
 
-1. Im Spiel **F1** drücken; im Panel **Demos** eine Demo doppelklicken.
+1. Der Editor öffnet sich mit dem Spiel (**F1** blendet ihn aus und ein).
+   Auf dem Startbildschirm **Edit a recorded demo** wählen, im Panel
+   **Demos** eine Demo anklicken und **Play** drücken (oder doppelklicken).
 2. **Rechte Maustaste** halten und mit **WASD** fliegen (Leertaste/Strg
    hoch/runter, Q/E rollen, Shift schneller, Mausrad Zoom). **F** schaltet
    Dauerfliegen ein, **F** oder **Esc** wieder aus.
@@ -954,8 +966,11 @@ Optional FFmpeg für Videoformate.
 
 **Eigene Szene ohne Demo (Director Mode)**
 
-1. **F1** → Panel **Director** → **Create new scene** → Map wählen (z. B.
-   Highrise) → Vorlage wählen (z. B. „Sniper showcase“) → **Create scene**.
+1. Startbildschirm → **Create a cinematic on a map** (oder Panel
+   **Director** → **Create new scene**) → Map wählen (z. B. Highrise) →
+   Vorlage wählen (z. B. „Sniper showcase“) → bei **Game files** das
+   Standardspiel lassen (oder einen Mod für eigene Skins wählen) →
+   **Create scene**. Eine laufende Demo wird vorher verlassen.
 2. Panel **Characters**: Figur doppelklicken, sie erscheint dort, wo die
    Kamera hinschaut. Anklicken, mit **G/R/S** bewegen, drehen, skalieren.
 3. Panel **Object**: Waffe (z. B. *Intervention*), Animation, Regie-Aktionen
@@ -995,10 +1010,18 @@ motion from the beat at the playhead** erzeugen normale, bearbeitbare
 Schnitte, Marker und Tempo-Keys. Aufnahmen bekommen die Musik ins Video
 (bzw. als `<Name>_music.wav` neben eine Bildsequenz).
 
+**Updates:** kommen von selbst. Der Launcher sucht bei jedem Start nach
+einer neuen Version auf GitHub Releases, prüft sie und installiert sie;
+das nächste **Update & Launch** bringt die Spielumgebung auf Stand.
+Abschalten unter **Setup → Updates**. Projekte, Aufnahmen und
+Einstellungen bleiben immer erhalten.
+
 **Wichtig:** Die Cinematic-Version ist **nur offline** nutzbar und blockiert
-jeden Netzwerkverkehr. Version 0.5.0 ist eine Vorschau und wurde im Spiel
-noch nicht vollständig getestet; Probleme bitte mit der Logdatei
-`iw4iris\logs\iw4iris.log` melden.
+jeden Netzwerkverkehr. Version 0.6.1 ist eine Vorschau: Film-Sets, Figuren
+und das Abspielen von Demos sind im Spiel getestet, Aufnahmen, Motion
+Graphics, Angles und Musik noch nicht. Probleme bitte mit der Logdatei
+`iw4iris\logs\iw4iris.log` melden (die letzten fünf Sitzungen liegen
+daneben als `iw4iris.log.previous` bis `.previous5`).
 
 **Deinstallieren:** Launcher → **Setup** → **Uninstall**. Entfernt nur, was
 der Launcher angelegt hat; der Spielordner bleibt unberührt.

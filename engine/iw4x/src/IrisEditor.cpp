@@ -2526,7 +2526,7 @@ namespace IW4Iris::Editor
         bool done;
         const char* text;
       } steps[] = {
-        {s.status.demoPlaying || s.status.cgameReady, "Load a demo: View > Demos, double-click one."},
+        {s.status.demoPlaying || s.status.cgameReady, "Load a demo: Demos panel, click one, then Play."},
         {s.status.gameView.has_value(), "Fly: hold the right mouse button in the view, move with WASD."},
         {dolly && dolly->path.Size() >= 3, "Add three or more keys with K at different times (Space plays)."},
         {dolly && s.project.activeCameraId == dolly->id,

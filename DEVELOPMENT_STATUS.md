@@ -3,9 +3,10 @@
 Persistent notes so development can continue across sessions. Update this
 file with every significant change.
 
-_Last updated: 2026-11-27 — v0.6.0 (automatic updates from GitHub
-Releases; before that 0.5.1: film sets load again, editor UX found while
-testing in the game). Audit findings and their verification state:
+_Last updated: 2026-11-27 — v0.6.1 (film sets use the standard game files
+unless a mod is chosen, and record no demos of themselves; 0.6.0:
+automatic updates from GitHub Releases; 0.5.1: film sets load again,
+editor UX found while testing in the game). Audit findings and their verification state:
 [docs/BACKLOG.md](docs/BACKLOG.md); comparison with other tools:
 [docs/COMPETITIVE.md](docs/COMPETITIVE.md)._
 
@@ -48,10 +49,9 @@ testing in the game). Audit findings and their verification state:
   (Highrise) and while a modded server's demo played (Afghan); template
   actor spawned; *Reload set* precached the rifle and rebuilt the actor
   holding it; demo opened with the new Play button; panels docked after an
-  update. **Open question:** a film set started after such a demo keeps the
-  demo's mod folder (`fs_game`), so the mod's own scripts may run in the
-  set; decide whether to clear it (IW4x's own mod switch restarts the
-  renderer).
+  update. The demo's mod folder (`fs_game`) staying active in a film set
+  started after it is resolved in 0.6.1 (F-56): standard game files unless
+  a mod is chosen, verified in the game.
 * **Earlier user results:** the Director Mod compiles and answers in the
   game (0.3.1 scripts: "Director Mod ready: protocol 2", 48 models
   precached on mp_highrise); a 1248 s demo plays, indexes, fits the
