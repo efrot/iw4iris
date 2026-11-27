@@ -50,9 +50,11 @@ path**.
 ## First cinematic
 
 1. **Home → Launch IW4Iris (offline)**.
-2. Press **F1** in the game. The Getting Started window tracks the steps.
-3. **Demos** panel: double-click a demo. Demos from your installation's
-   demo folders are listed; the file is copied into the environment to play
+2. The editor opens in the game with its start screen (**F1** hides and
+   shows it). The Getting Started window tracks the steps.
+3. *Edit a recorded demo*, then in the **Demos** panel click a demo and
+   **Play**. Demos from your installation's demo folders are listed by map,
+   mode, length and date; the file is copied into the environment to play
    it, never modified.
 4. Hold the **right mouse button** in the view and fly with **WASD**
    (Space / Ctrl up / down, Q / E roll, Shift faster, wheel zoom).

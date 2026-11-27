@@ -209,8 +209,8 @@ IW4Iris never downloads anything by itself.
 
 1. Click **Home**, then **Launch IW4Iris (offline)** (or **Install &
    Launch** the first time).
-2. The game starts from the cinematic copy. Press **F1** in the game to
-   show the editor. The **start screen** offers the ways in: *Edit a
+2. The game starts from the cinematic copy and the editor opens by itself
+   (**F1** hides and shows it). The **start screen** offers the ways in: *Edit a
    recorded demo*, *Create a cinematic on a map*, *Open a project*,
    *Browse templates*, and your recent projects. **Ctrl+K** searches every
    action by name; **?** lists the keyboard shortcuts.
@@ -229,9 +229,12 @@ To check that everything works, open the game console with **~** and type
 
 This is the full workflow from demo to video file.
 
-1. **Load a demo.** Press **F1**. In the **Demos** panel (left), double-click
-   a demo. The list shows the demos from your installation's demo folders;
-   add more folders at the bottom of the panel. The demo file is copied
+1. **Load a demo.** On the start screen choose *Edit a recorded demo*. In
+   the **Demos** panel (left) click a demo, then **Play** (or double-click
+   it, or press Enter). Demos are listed by map, mode, length and when they
+   were recorded, newest first; click a column header to sort, right-click
+   it to show the file name or your labels. Add more demo folders at the
+   bottom of the panel. The demo file is copied
    into the cinematic copy to play it and never modified.
 2. **Fly.** Hold the **right mouse button** over the game view and move the
    mouse. Use **W A S D** to move, **Space** / **Ctrl** for up and down,
@@ -361,7 +364,8 @@ do not apply to them.
 
 ## 5. The editor
 
-Press **F1** to show or hide it. The game keeps running in the middle; the
+It opens with the game (**Settings → Open the editor when the game
+starts**); **F1** shows or hides it. The game keeps running in the middle; the
 panels are docked around it and can be moved, resized, tabbed or floated by
 dragging their title bars. **View → Reset layout** puts them back.
 
