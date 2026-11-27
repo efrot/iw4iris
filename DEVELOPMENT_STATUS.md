@@ -22,6 +22,14 @@ testing in the game). Audit findings and their verification state:
   both build jobs pass and the tag matches CMakeLists.txt. Never re-use or
   move a tag: launchers compare versions, a changed package under an old
   tag would not reach anyone.
+* **Repository settings (2026-11-27):** a tool to use, not an open project.
+  No collaborators; pull requests only from collaborators; wiki, projects,
+  discussions and commit comments off; issues open for bug reports;
+  **releases are immutable** (a broken release is fixed by a new version,
+  never by replacing its files); rulesets block deleting / force-pushing
+  the default branch and moving or deleting `v*` tags (creating new tags
+  is allowed, so releasing works); outside contributors' workflows need
+  approval. See CONTRIBUTING.md.
 
 * **In-game testing is possible on the development machine** (Windows 11,
   Steam MW2 with IW4x, Visual Studio 2022 Build Tools, CMake, Python 3.12):
