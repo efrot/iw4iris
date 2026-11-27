@@ -139,8 +139,17 @@ namespace iris
     struct FilmSetSettings
     {
         std::string gametype = "dm";   // the game mode the set runs under
+        // The IW4x mod folder the set runs with ("mods/<name>"), empty for the
+        // standard game files. Chosen on purpose (custom camos or skins);
+        // never inherited from the last demo (whose server's mod IW4x
+        // switches to while the demo plays).
+        std::string modFolder;
         bool operator==(const FilmSetSettings&) const = default;
     };
+
+    // "mods/<name>" with a plain folder name (letters, digits, - _ .; no
+    // "..", no path separators beyond the one after "mods"), or empty.
+    bool IsValidModFolder(std::string_view folder);
 
     struct Scene
     {

@@ -436,6 +436,7 @@ namespace IW4Iris::Editor
     {
       ImGui::OpenPopup("Create new scene");
       ui.wizardOpen = false;
+      ui.wizardModFolder = s.project.scene.filmSet.modFolder;
     }
     ImGui::SetNextWindowSize(ImVec2(620, 520), ImGuiCond_Appearing);
     if (!ImGui::BeginPopupModal("Create new scene", nullptr, ImGuiWindowFlags_NoSavedSettings))
@@ -537,11 +538,39 @@ namespace IW4Iris::Editor
     }
     else
     {
-      const bool sameSet = Director::Ready() && Director::GetStatus().map == ui.wizardMap;
+      const auto setStatus = Director::GetStatus();
+      const bool sameSet = Director::Ready() && setStatus.map == ui.wizardMap && setStatus.modFolder == ui.wizardModFolder;
       ImGui::TextWrapped("Map: %s", ui.wizardMap.empty() ? "(current film set)" : ui.wizardMap.c_str());
       for (const auto& t : iris::SceneTemplates())
         if (t.id == ui.wizardTemplate)
           ImGui::TextWrapped("Template: %s. %s", t.label.c_str(), t.description.c_str());
+      // Game files: the standard game, or a mod chosen on purpose (custom
+      // camos, skins, weapons); never the mod of the last demo by accident.
+      {
+        static std::vector<std::string> mods;
+        static double listed = -100.0;
+        if (ImGui::GetTime() - listed > 3.0)
+        {
+          mods = Director::InstalledModFolders();
+          listed = ImGui::GetTime();
+        }
+        auto label = [](const std::string& m) {
+          return m.empty() ? std::string("Standard game (recommended)") : "Mod: " + m.substr(m.find('/') + 1);
+        };
+        ImGui::SetNextItemWidth(320);
+        if (ImGui::BeginCombo("Game files", label(ui.wizardModFolder).c_str()))
+        {
+          if (ImGui::Selectable(label("").c_str(), ui.wizardModFolder.empty()))
+            ui.wizardModFolder.clear();
+          for (const auto& m : mods)
+            if (ImGui::Selectable(label(m).c_str(), ui.wizardModFolder == m))
+              ui.wizardModFolder = m;
+          ImGui::EndCombo();
+        }
+        ImGui::SetItemTooltip("Standard: the game's own weapons, skins and menus.\n"
+                              "A mod: its weapon files, camos, skins and menus come into the film set\n"
+                              "(and its scripts, if it has any). Demos of modded servers do not change this.");
+      }
       ImGui::Spacing();
       ImGui::TextWrapped("The map loads as a local offline film set (a few seconds). The template is built where the "
                          "camera looks; move anything afterwards. Characters, animations and weapons come from the "
@@ -556,12 +585,14 @@ namespace IW4Iris::Editor
         if (!sameSet && !ui.wizardMap.empty())
         {
           s.project.mapName = ui.wizardMap;
+          s.project.scene.filmSet.modFolder = ui.wizardModFolder;
           s.settings.recentMaps = iris::PushRecent(s.settings.recentMaps, ui.wizardMap, 8);
           SaveSettings(s);
-          const std::string map = ui.wizardMap, gametype = s.project.scene.filmSet.gametype;
-          s.Post([map, gametype] {
+          const std::string map = ui.wizardMap, gametype = s.project.scene.filmSet.gametype,
+                            modFolder = s.project.scene.filmSet.modFolder;
+          s.Post([map, gametype, modFolder] {
             std::string error;
-            if (!Director::StartFilmSet(map, gametype, &error))
+            if (!Director::StartFilmSet(map, gametype, modFolder, &error))
               Notify(error);
           });
           s.Commit("Film set");

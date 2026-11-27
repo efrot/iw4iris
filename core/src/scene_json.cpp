@@ -382,7 +382,10 @@ namespace iris::detail
                                {"enabled", e.enabled}});
         for (const auto& g : s.graphics)
             graphics.push_back(GraphicJson(g));
-        return {{"filmSet", {{"gametype", s.filmSet.gametype}}},
+        json filmSet{{"gametype", s.filmSet.gametype}};
+        if (!s.filmSet.modFolder.empty())
+            filmSet["modFolder"] = s.filmSet.modFolder;
+        return {{"filmSet", filmSet},
                 {"actors", actors},
                 {"props", props},
                 {"effects", effects},
@@ -395,7 +398,15 @@ namespace iris::detail
         if (!j.is_object())
             return s;
         if (const auto it = j.find("filmSet"); it != j.end() && it->is_object())
+        {
             s.filmSet.gametype = Get<std::string>(*it, "gametype", "dm");
+            s.filmSet.modFolder = Get<std::string>(*it, "modFolder", "");
+            if (!IsValidModFolder(s.filmSet.modFolder))
+            {
+                w.push_back("filmSet.modFolder \"" + s.filmSet.modFolder + "\" is not a mod folder; the standard game is used");
+                s.filmSet.modFolder.clear();
+            }
+        }
         if (const auto it = j.find("actors"); it != j.end() && it->is_array())
             for (const auto& a : *it)
                 if (a.is_object())

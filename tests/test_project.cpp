@@ -133,6 +133,7 @@ namespace
         title.track.SetKey(1.0, title.transform, Interpolation::Smooth, true);
         p.scene.graphics.push_back(title);
         p.scene.filmSet.gametype = "war";
+        p.scene.filmSet.modFolder = "mods/snrservers-v7";
         DemoRef demo;
         demo.path = "demos/rust_trickshot.dm_13";
         demo.name = "rust_trickshot";
@@ -175,6 +176,27 @@ TEST_CASE("project: serialize and parse round-trip")
     CHECK(q.editorLayout == p.editorLayout);
     // A second round trip is byte-identical.
     CHECK(SerializeProject(q) == text);
+}
+
+TEST_CASE("project: a film set's mod folder is a plain mods/<name> or nothing")
+{
+    CHECK(IsValidModFolder(""));
+    CHECK(IsValidModFolder("mods/sesh_server_v2"));
+    CHECK(IsValidModFolder("mods/snrservers-v7"));
+    for (const char* bad : {"mods/", "mods/..", "mods/../main", "mods/a/b", "mods\\x", "main", "/mods/x", "mods/.hidden",
+                            "mods/x;quit", "mods/x y", "mods/\"x\""})
+        CHECK_MSG(!IsValidModFolder(bad), bad);
+    // A project naming something else loads with the standard game and a warning.
+    Project p = MakeDefaultProject("m");
+    p.scene.filmSet.modFolder = "mods/ok";
+    auto text = SerializeProject(p);
+    const auto pos = text.find("mods/ok");
+    CHECK(pos != std::string::npos);
+    text.replace(pos, 7, "../x;q");
+    const auto r = ParseProject(text);
+    CHECK(r.project.has_value());
+    CHECK(r.project->scene.filmSet.modFolder.empty());
+    CHECK(!r.warnings.empty());
 }
 
 TEST_CASE("project: rejects what it cannot read")

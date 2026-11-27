@@ -56,6 +56,7 @@ namespace IW4Iris::Director
   {
     SetState state = SetState::None;
     std::string map;
+    std::string modFolder;        // "" = the standard game files
     std::string capabilities;     // from the mod
     std::string lastError;
     std::size_t pendingRequests = 0;  // queued + sent, not answered
@@ -89,7 +90,13 @@ namespace IW4Iris::Director
   };
 
   // Main thread.
-  bool StartFilmSet(const std::string& map, const std::string& gametype, std::string* error);
+  // modFolder: "" for the standard game files, else "mods/<name>" (see
+  // iris::FilmSetSettings::modFolder); applied right before the map loads.
+  bool StartFilmSet(const std::string& map, const std::string& gametype, const std::string& modFolder,
+                    std::string* error);
+  // The IW4x mod folders of the installation ("mods/<name>" with a mod.ff or
+  // an .iwd), for the film set's "Game files" choice.
+  std::vector<std::string> InstalledModFolders();
   void ReloadFilmSet();
   void LeaveFilmSet();
   void MainFrame(Session& session);  // with the session locked

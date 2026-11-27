@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+* **A film set no longer inherits the mod of the last demo.** While a demo
+  recorded on a modded server plays, IW4x switches to that server's mod
+  and leaves it active; a film set started afterwards got the mod's weapon
+  files, skins and menus, and its server log was written into the mod's
+  folder in the game installation. Film sets now use the standard game
+  files unless a mod is chosen in *Create new scene → Game files* (for
+  custom camos or skins); the choice is saved with the project, and film
+  sets write no server log. *Not yet tested in the game.*
+
 ## 0.6.0 — 2026-11-26 (automatic updates; the first release on GitHub Releases)
 
 ### Added

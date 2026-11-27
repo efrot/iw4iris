@@ -38,7 +38,8 @@ declares and uses it.
 | `Game::cg_entitiesArray` (0x8F3CA8) `.entity.pose.origin`, `.nextValid`, `.nextState.eType` | `Game/Client.cpp` (`CG_GetEntity`) | orbit / follow targets, player list | that `pose.origin` is the interpolated origin |
 | `Game::CL_GetClientName` (0x4563D0) | `Game/Client.cpp` | player names | — |
 | `Game::CL_IsCgameInitialized` (0x43EB20), `CL_GetLocalClientConnectionState` | `Game/Client.cpp`, `Discord.cpp` | readiness | — |
-| `Game::Sys_SendPacket` (0x60FDC0) | `Game/System.cpp`; used by `Network::SendRaw` | **replaced** by the offline guard | that nothing else sends UDP (Winsock guards cover the rest) |
+| `Game::Sys_SendPacket` (0x60FDC0) | `Game/System.cpp`; used by `Network::SendRaw` | **hooked** by the offline guard: packets to network addresses are dropped; NA_LOOPBACK / NA_BOT / NA_BAD go to the original through a trampoline holding its first instruction (`A1 xx xx xx xx`, `mov eax,[moffs32]`, checked at install; disassembled from the game executable, 2026-11-26) | that the first instruction is 5 position-independent bytes (checked; without it every packet is dropped and film sets cannot load, shown in Diagnostics); verified in the game: film sets join their local server |
+| `Game::fs_gameDirVar` (0x63D0CC0) | `Game/Dvars.cpp`; `ModList.cpp` (Mods menu) | the film set's game files (standard or a chosen mod), set right before its map loads | that the map load restarts the file system with it, as IW4x's Mods menu relies on |
 | `Game::Sys_Milliseconds` (0x42A660) | `Game/System.cpp`, `Theatre.cpp` | render-clock self check | `Clock::Verify` checks at run time |
 | `Game::com_timescale` (0x1AD7920) | `Game/Dvars.cpp` | playback speed | — |
 | `Game::Dvar_FindVar`, `Dvar_SetBool/Float/Int/String` | `Game/Dvars.cpp` | all dvar access | — |

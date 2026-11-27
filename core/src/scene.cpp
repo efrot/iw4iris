@@ -482,4 +482,20 @@ namespace iris
         b.out.end = b.t;
         return b.out;
     }
+
+    bool IsValidModFolder(std::string_view folder)
+    {
+        if (folder.empty())
+            return true;
+        constexpr std::string_view prefix = "mods/";
+        if (folder.size() <= prefix.size() || folder.substr(0, prefix.size()) != prefix || folder.size() > 64 + prefix.size())
+            return false;
+        const std::string_view name = folder.substr(prefix.size());
+        if (name == "." || name == ".." || name.front() == '.')
+            return false;
+        for (const char c : name)
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.'))
+                return false;
+        return true;
+    }
 }  // namespace iris

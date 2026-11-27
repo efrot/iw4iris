@@ -34,9 +34,11 @@ namespace IW4Iris::Director
     bool requested = false;          // the editor started a film set
     std::string requestedMap;
     std::string requestedGametype = "dm";
+    std::string requestedModFolder;  // "" = the standard game files
     // A map command waiting until the game has left its previous session
     // (demo or film set): see LeaveThenLoad().
     std::string pendingMapCommand;
+    std::string pendingModFolder;
     int pendingFrames = 0;
     SetState state = SetState::None;
     std::string capabilities;
@@ -108,7 +110,10 @@ namespace IW4Iris::Director
     // timer, no score limit, no pre-match countdown.
     std::string MapCommand(const std::string& map, const std::string& gametype)
     {
-      return std::format("set g_gametype {0}; set scr_{0}_timelimit 0; set scr_{0}_scorelimit 0; "
+      // No server log (g_log ""): a film set needs none, and with a mod
+      // folder active it would be written into that mod's folder, which is
+      // the user's own game folder behind the environment's mods link.
+      return std::format("set g_log \"\"; set g_gametype {0}; set scr_{0}_timelimit 0; set scr_{0}_scorelimit 0; "
                          "set scr_{0}_numlives 0; set scr_game_matchstarttime 0; set scr_game_playerwaittime 0; "
                          "map {1}",
                          gametype, map);
@@ -119,17 +124,37 @@ namespace IW4Iris::Director
     // settled: leaving a demo recorded on a modded server makes IW4x switch
     // the mod folder back, and a "map" queued behind that "disconnect" was
     // lost (seen in the game: black screen, server never started).
-    void LeaveThenLoad(const std::string& mapCommand)
+    // Sets the mod folder the next map loads with (the engine restarts its
+    // file system when a map starts, as IW4x's own Mods menu relies on).
+    // While a demo recorded on a modded server plays, IW4x switches to that
+    // server's mod and leaves it set afterwards; a film set must not inherit
+    // it by accident (its weapon files, menus and images came along, and the
+    // server log went into the user's game folder). Main thread, disconnected.
+    void ApplyModFolder(const std::string& wanted)
+    {
+      if (!Game::fs_gameDirVar || !*Game::fs_gameDirVar)
+        return;
+      const std::string current = (*Game::fs_gameDirVar)->current.string ? (*Game::fs_gameDirVar)->current.string : "";
+      if (current == wanted)
+        return;
+      Log::Info("Director: film set game files: {} (the game had {})", wanted.empty() ? "standard" : wanted,
+                current.empty() ? "standard" : current);
+      Game::Dvar_SetString(*Game::fs_gameDirVar, wanted.c_str());
+    }
+
+    void LeaveThenLoad(const std::string& mapCommand, const std::string& modFolder)
     {
       const bool inSession = Engine::IsDemoPlaying() || Engine::ConnectionState() > Game::CA_DISCONNECTED;
       if (!inSession)
       {
+        ApplyModFolder(modFolder);
         Engine::Execute(mapCommand);
         return;
       }
       {
         std::lock_guard _(bridgeMutex);
         pendingMapCommand = mapCommand;
+        pendingModFolder = modFolder;
         pendingFrames = 0;
       }
       Engine::Execute("disconnect");
@@ -678,8 +703,23 @@ namespace IW4Iris::Director
 
   // ---------------------------------------------------------------- main thread
 
-  bool StartFilmSet(const std::string& map, const std::string& gametype, std::string* error)
+  bool StartFilmSet(const std::string& map, const std::string& gametype, const std::string& modFolder,
+                    std::string* error)
   {
+    if (!iris::IsValidModFolder(modFolder))
+    {
+      *error = "\"" + modFolder + "\" is not a mod folder.";
+      return false;
+    }
+    if (!modFolder.empty())
+    {
+      std::error_code ec;
+      if (!std::filesystem::is_directory(std::filesystem::path(Engine::BasePath()) / modFolder, ec))
+      {
+        *error = "The mod folder " + modFolder + " is not installed.";
+        return false;
+      }
+    }
     if (map.empty() || map.find_first_of(" ;\"\n\r") != std::string::npos)
     {
       *error = "Choose a map.";
@@ -696,6 +736,7 @@ namespace IW4Iris::Director
       requested = true;
       requestedMap = map;
       requestedGametype = gt;
+      requestedModFolder = modFolder;
       state = SetState::Loading;
       capabilities.clear();
       lastError.clear();
@@ -706,9 +747,10 @@ namespace IW4Iris::Director
       outOfGameNoted = false;
       joiningFrames = 0;
       const auto fsGame = Engine::GetString("fs_game").value_or("");
-      Note("loading film set " + map + " (" + gt + ")" +
-           (fsGame.empty() ? std::string() : ", mod folder active: " + fsGame));
-      if (fsGame.find("iw4iris_director") != std::string::npos)
+      Note("loading film set " + map + " (" + gt + ", " +
+           (modFolder.empty() ? std::string("standard game files") : modFolder) + ")" +
+           (fsGame.empty() || fsGame == modFolder ? std::string() : "; the game had " + fsGame + ", it is switched"));
+      if (modFolder.find("iw4iris_director") != std::string::npos)
         Log::Warn("Director: the IW4Iris Director Mod is loaded as an IW4x mod ({}); the launcher installs it into "
                   "userraw and an outdated copy in the mods folder can replace the current scripts",
                   fsGame);
@@ -719,7 +761,7 @@ namespace IW4Iris::Director
     // Leave a playing demo first, then start a local listen server under
     // the offline guard: no match timer, no score limit, no pre-match
     // countdown.
-    LeaveThenLoad(MapCommand(map, gt));
+    LeaveThenLoad(MapCommand(map, gt), modFolder);
     return true;
   }
 
@@ -744,13 +786,14 @@ namespace IW4Iris::Director
     // ("Server connection timed out", 2026-11-26). Leaving the level and
     // loading the map again is the path a new film set takes, which joins
     // through loopback.
-    std::string map, gt;
+    std::string map, gt, mod;
     {
       std::lock_guard _(bridgeMutex);
       map = requestedMap;
       gt = requestedGametype;
+      mod = requestedModFolder;
     }
-    LeaveThenLoad(MapCommand(map, gt));
+    LeaveThenLoad(MapCommand(map, gt), mod);
   }
 
   void LeaveFilmSet()
@@ -781,9 +824,10 @@ namespace IW4Iris::Director
       pendingFrames = settled ? pendingFrames + 1 : 0;
       if (pendingFrames >= 30)
       {
+        ApplyModFolder(pendingModFolder);
         const auto fsGame = Engine::GetString("fs_game").value_or("");
-        Note("left the previous session; loading the map" +
-             (fsGame.empty() ? std::string() : " (mod folder active: " + fsGame + ")"));
+        Note("left the previous session; loading the map with " +
+             (fsGame.empty() ? std::string("the standard game files") : "the mod folder " + fsGame));
         Engine::Execute(pendingMapCommand);
         pendingMapCommand.clear();
       }
@@ -1031,6 +1075,7 @@ namespace IW4Iris::Director
     Status st;
     st.state = state;
     st.map = requestedMap;
+    st.modFolder = requestedModFolder;
     st.capabilities = capabilities;
     st.lastError = lastError;
     st.pendingRequests = reconciler.Queued() + reconciler.InFlight();
@@ -1067,6 +1112,26 @@ namespace IW4Iris::Director
   {
     std::lock_guard _(bridgeMutex);
     return reconciler.Status(id);
+  }
+
+  std::vector<std::string> InstalledModFolders()
+  {
+    std::vector<std::string> mods;
+    std::error_code ec;
+    const auto root = std::filesystem::path(Engine::BasePath()) / "mods";
+    for (std::filesystem::directory_iterator it(root, ec), end; it != end; it.increment(ec))
+    {
+      if (!it->is_directory(ec))
+        continue;
+      bool content = std::filesystem::is_regular_file(it->path() / "mod.ff", ec);
+      for (std::filesystem::directory_iterator f(it->path(), ec); !content && f != end; f.increment(ec))
+        content = f->path().extension() == ".iwd";
+      const std::string folder = "mods/" + it->path().filename().string();
+      if (content && iris::IsValidModFolder(folder) && folder != "mods/iw4iris_director")
+        mods.push_back(folder);
+    }
+    std::sort(mods.begin(), mods.end());
+    return mods;
   }
 
   bool InFilmSet()

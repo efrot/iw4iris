@@ -161,6 +161,7 @@ namespace IW4Iris::Editor
     std::string mapSearch;
     bool mapFavoritesOnly = false;
     std::string wizardMap;
+    std::string wizardModFolder;  // "" = the standard game files
     std::string wizardTemplate = "empty";
     std::vector<Director::MapInfo> maps;
     bool mapsRequested = false;
