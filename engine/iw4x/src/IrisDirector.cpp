@@ -132,6 +132,11 @@ namespace IW4Iris::Director
     // server log went into the user's game folder). Main thread, disconnected.
     void ApplyModFolder(const std::string& wanted)
     {
+      // IW4x records every session as a demo (cl_autoRecord, on by default)
+      // into the active game folder: film sets filled the demo list with
+      // recordings of themselves, and with a mod active they landed in the
+      // user's game folder. Off while a film set runs, restored after.
+      Engine::OverrideBool("cl_autoRecord", false);
       if (!Game::fs_gameDirVar || !*Game::fs_gameDirVar)
         return;
       const std::string current = (*Game::fs_gameDirVar)->current.string ? (*Game::fs_gameDirVar)->current.string : "";
@@ -807,6 +812,7 @@ namespace IW4Iris::Director
       pendingMapCommand.clear();
       ResetObjects();
     }
+    Engine::Restore("cl_autoRecord");
     if (wasRequested)
       Engine::Execute("disconnect");
   }
@@ -906,6 +912,7 @@ namespace IW4Iris::Director
       if (state == SetState::Ready && ++framesWithoutGame > 600)
       {
         Note("the film set was closed");
+        Engine::Restore("cl_autoRecord");
         requested = false;
         state = SetState::None;
         ResetObjects();

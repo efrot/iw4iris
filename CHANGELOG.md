@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 — 2026-11-27 (film sets keep to the standard game files)
 
 ### Fixed
 
@@ -11,7 +11,12 @@
   folder in the game installation. Film sets now use the standard game
   files unless a mod is chosen in *Create new scene → Game files* (for
   custom camos or skins); the choice is saved with the project, and film
-  sets write no server log. *Not yet tested in the game.*
+  sets write no server log.
+* **Film sets no longer record demos of themselves.** IW4x records every
+  session (`cl_autoRecord`); film sets filled the Demos list with
+  recordings of themselves, and with a mod active those went into the
+  game installation. Auto-recording is off while a film set runs and comes
+  back afterwards (IW4Iris records with its own Recording panel).
 
 ## 0.6.0 — 2026-11-26 (automatic updates; the first release on GitHub Releases)
 
